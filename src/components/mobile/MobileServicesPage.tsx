@@ -135,8 +135,10 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
         setBookingCounts(counts);
       }
 
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setWalletBalance(0); return; }
       const { data: walletData } = await supabase
-        .from('wallet_transactions').select('amount_sle, status').eq('status', 'completed');
+        .from('wallet_transactions').select('amount_sle, status').eq('user_id', user.id).eq('status', 'completed');
       const bal = (walletData || []).reduce((s: number, t: any) => s + Number(t.amount_sle), 0);
       setWalletBalance(bal);
     })();

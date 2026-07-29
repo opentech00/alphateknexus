@@ -109,9 +109,12 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
     };
     fetchServices();
     (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
       const { data } = await supabase
         .from('wallet_transactions')
         .select('amount_sle, status')
+        .eq('user_id', user.id)
         .eq('status', 'completed');
       const bal = (data || []).reduce((s: number, t: any) => s + Number(t.amount_sle), 0);
       setWalletBalance(bal);

@@ -100,9 +100,12 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   }, []);
 
   const fetchWallet = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     const { data } = await supabase
       .from('wallet_transactions')
       .select('amount_sle')
+      .eq('user_id', user.id)
       .eq('status', 'completed');
     const bal = (data || []).reduce((s, t: any) => s + Number(t.amount_sle), 0);
     setWalletBalance(bal);

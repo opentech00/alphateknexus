@@ -125,9 +125,12 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
   const loadTransactions = useCallback(async () => {
     setLoading(true);
     setLoadError('');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
     const { data, error } = await supabase
       .from('wallet_transactions')
       .select('*')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
     if (error) {
       setLoadError('Failed to load wallet. Tap refresh to try again.');
@@ -159,9 +162,12 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
   }, [loadTransactions]);
 
   const loadWithdrawals = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setWithdrawals([]); return; }
     const { data } = await supabase
       .from('withdrawal_requests')
       .select('*')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(10);
     setWithdrawals(data || []);
@@ -345,13 +351,21 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
 
   const handleDeleteHistory = async () => {
     setDeleting(true);
-    const ids = transactions.map(t => t.id);
-    if (ids.length > 0) {
-      await supabase.from('wallet_transactions').delete().in('id', ids);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setDeleting(false); return; }
+    // Only delete own pending/failed transactions — completed transactions are immutable for audit
+    const deletableIds = transactions
+      .filter(t => t.status === 'pending' || t.status === 'failed')
+      .map(t => t.id);
+    if (deletableIds.length > 0) {
+      await supabase.from('wallet_transactions')
+        .delete()
+        .in('id', deletableIds)
+        .eq('user_id', user.id);
     }
     setDeleting(false);
     setShowDeleteConfirm(false);
-    setTransactions([]);
+    await loadTransactions();
   };
 
   const circumference = 2 * Math.PI * 52;
@@ -927,7 +941,14 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
                     <button
                       onClick={async () => {
                         if (!confirm('Cancel this withdrawal request?')) return;
-                        await supabase.from('withdrawal_requests').update({ status: 'cancelled' }).eq('id', w.id).eq('status', 'pending');
+                        const { data: { user } } = await supabase.auth.getUser();
+                        if (user) {
+                          await supabase.from('withdrawal_requests')
+                            .update({ status: 'cancelled' })
+                            .eq('id', w.id)
+                            .eq('user_id', user.id)
+                            .eq('status', 'pending');
+                        }
                         loadWithdrawals();
                       }}
                       className="text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors"

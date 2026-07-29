@@ -223,13 +223,17 @@ export function DashboardPage({ onNavigate, onSelectService }: DashboardPageProp
     setLoading(true);
     setLoadError(null);
 
+    const { data: { user } } = await supabase.auth.getUser();
+
     const results = await Promise.allSettled([
       supabase.from('services').select('*').eq('is_active', true).order('created_at'),
       supabase.from('bookings')
         .select('id, status, scheduled_date, scheduled_time, location, notes, contact_name, contact_phone, services(name, slug)')
         .order('created_at', { ascending: false })
         .limit(5),
-      supabase.from('wallet_transactions').select('amount_sle').eq('status', 'completed'),
+      user
+        ? supabase.from('wallet_transactions').select('amount_sle').eq('user_id', user.id).eq('status', 'completed')
+        : Promise.resolve({ data: [], error: null } as any),
     ]);
 
     const svcRes = results[0];
