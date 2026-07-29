@@ -3,12 +3,13 @@ import {
   Calendar, MapPin, Clock, Filter, XCircle, MessageSquare, Paperclip,
   ChevronDown, ChevronUp, Ship, FileText, Building2, Package, CreditCard,
   Hash, AlertCircle, Briefcase, CheckCircle2, Users, TrendingUp,
-  Recycle, Repeat, DollarSign,
+  Recycle, Repeat, DollarSign, Shield,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { MessageThread } from '../../components/MessageThread';
 import { DocumentUpload } from '../../components/DocumentUpload';
 import { StatCard } from '../components/ui';
+import { DivisionPermissionsTab } from './DivisionPermissionsTab';
 
 export interface DivisionConfig {
   name: string;
@@ -212,6 +213,7 @@ export function DivisionPage({ config }: Props) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'messages' | 'documents'>('details');
+  const [topView, setTopView] = useState<'bookings' | 'permissions'>('bookings');
 
   const DivIcon = config.icon;
 
@@ -290,6 +292,33 @@ export function DivisionPage({ config }: Props) {
         <StatCard label="Quotes" value={quotes} icon={FileText} color="text-indigo-600" accent="bg-indigo-50" />
         <StatCard label="Clients" value={uniqueClients} icon={Users} color="text-slate-600" accent="bg-slate-50" />
       </div>
+
+      {/* Top-level view toggle: Bookings vs Permissions */}
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          onClick={() => setTopView('bookings')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            topView === 'bookings' ? `${config.accentColor} text-white` : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <Briefcase className="w-4 h-4" /> Bookings
+        </button>
+        <button
+          onClick={() => setTopView('permissions')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            topView === 'permissions' ? `${config.accentColor} text-white` : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <Shield className="w-4 h-4" /> Permissions
+        </button>
+      </div>
+
+      {topView === 'permissions' ? (
+        <div className="space-y-4">
+          <DivisionPermissionsTab config={config} />
+        </div>
+      ) : (
+      <>
 
       {/* Mode tabs */}
       <div className="flex items-center gap-2 mb-3">
@@ -483,6 +512,9 @@ export function DivisionPage({ config }: Props) {
             );
           })}
         </div>
+      )}
+
+      </>
       )}
     </div>
   );
