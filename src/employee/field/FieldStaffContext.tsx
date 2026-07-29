@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/EmployeeAuthContext';
 import type {
   FieldAssignment, FieldAssignmentTask, FieldCheckIn,
   FieldEvidence, FieldIncident, FieldAttendance, ChecklistTemplate,
-  SyncQueueItem,
+  SyncQueueItem, JobMessage, FieldJobNote, FieldLocationPing, FieldJobScore,
 } from './types';
 import {
   enqueueSync, getQueue, updateQueueItem, removeQueueItem, getPendingCount,
@@ -19,6 +19,9 @@ interface FieldStaffContextValue {
   incidents: FieldIncident[];
   attendance: FieldAttendance[];
   checklistTemplates: ChecklistTemplate[];
+  messages: Record<string, JobMessage[]>;
+  notes: Record<string, FieldJobNote[]>;
+  jobScores: Record<string, FieldJobScore>;
   loading: boolean;
   error: string;
   online: boolean;
@@ -36,6 +39,11 @@ interface FieldStaffContextValue {
   clockIn: (lat?: number, lng?: number) => Promise<void>;
   clockOut: (lat?: number, lng?: number) => Promise<void>;
   todayAttendance: FieldAttendance | null;
+  sendMessage: (assignmentId: string, body: string) => Promise<void>;
+  addNote: (assignmentId: string, noteText: string, photoUrl?: string) => Promise<void>;
+  pauseJob: (assignmentId: string, reason: string) => Promise<void>;
+  resumeJob: (assignmentId: string) => Promise<void>;
+  sendLocationPing: (assignmentId: string, lat: number, lng: number, batteryLevel?: number) => Promise<void>;
 }
 
 const FieldStaffContext = createContext<FieldStaffContextValue | undefined>(undefined);
@@ -49,6 +57,9 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
   const [incidents, setIncidents] = useState<FieldIncident[]>([]);
   const [attendance, setAttendance] = useState<FieldAttendance[]>([]);
   const [checklistTemplates, setChecklistTemplates] = useState<ChecklistTemplate[]>([]);
+  const [messages, setMessages] = useState<Record<string, JobMessage[]>>({});
+  const [notes, setNotes] = useState<Record<string, FieldJobNote[]>>({});
+  const [jobScores, setJobScores] = useState<Record<string, FieldJobScore>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [todayAttendance, setTodayAttendance] = useState<FieldAttendance | null>(null);
@@ -56,7 +67,6 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
   const [pendingSync, setPendingSync] = useState(getPendingCount());
   const assignmentStatusRef = useRef<Record<string, string>>({});
 
-  // Track online/offline
   useEffect(() => {
     const on = () => { setOnline(true); processSyncQueue(); };
     const off = () => setOnline(false);
@@ -81,6 +91,9 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
         { data: incData, error: incErr },
         { data: attData, error: attErr },
         { data: tplData },
+        { data: msgData },
+        { data: noteData },
+        { data: scoreData },
       ] = await Promise.all([
         supabase.from('field_assignments').select('*').eq('employee_id', employee.id).order('scheduled_date', { ascending: true }),
         ids.length > 0
@@ -95,6 +108,15 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
         supabase.from('field_incidents').select('*').eq('employee_id', employee.id).order('created_at', { ascending: false }),
         supabase.from('field_attendance').select('*').eq('employee_id', employee.id).order('work_date', { ascending: false }).limit(30),
         supabase.from('field_checklist_templates').select('*').order('service_slug, sort_order'),
+        ids.length > 0
+          ? supabase.from('field_job_messages').select('*').in('assignment_id', ids).order('created_at', { ascending: true })
+          : Promise.resolve({ data: [], error: null } as any),
+        ids.length > 0
+          ? supabase.from('field_job_notes').select('*').in('assignment_id', ids).order('created_at', { ascending: true })
+          : Promise.resolve({ data: [], error: null } as any),
+        ids.length > 0
+          ? supabase.from('field_job_scores').select('*').in('assignment_id', ids)
+          : Promise.resolve({ data: [], error: null } as any),
       ]);
 
       if (aErr) throw aErr;
@@ -106,7 +128,6 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
 
       setAssignments((aData || []) as FieldAssignment[]);
 
-      // Track statuses for realtime diff
       const statusMap: Record<string, string> = {};
       (aData || []).forEach((a: any) => { statusMap[a.id] = a.status; });
       assignmentStatusRef.current = statusMap;
@@ -133,6 +154,24 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
       setAttendance((attData || []) as FieldAttendance[]);
       setChecklistTemplates((tplData || []) as ChecklistTemplate[]);
 
+      const msgMap: Record<string, JobMessage[]> = {};
+      (msgData || []).forEach((m: any) => {
+        if (!msgMap[m.assignment_id]) msgMap[m.assignment_id] = [];
+        msgMap[m.assignment_id].push(m as JobMessage);
+      });
+      setMessages(msgMap);
+
+      const noteMap: Record<string, FieldJobNote[]> = {};
+      (noteData || []).forEach((n: any) => {
+        if (!noteMap[n.assignment_id]) noteMap[n.assignment_id] = [];
+        noteMap[n.assignment_id].push(n as FieldJobNote);
+      });
+      setNotes(noteMap);
+
+      const scoreMap: Record<string, FieldJobScore> = {};
+      (scoreData || []).forEach((s: any) => { scoreMap[s.assignment_id] = s as FieldJobScore; });
+      setJobScores(scoreMap);
+
       const today = new Date().toISOString().split('T')[0];
       setTodayAttendance((attData || []).find((a: any) => a.work_date === today) as FieldAttendance | null || null);
     } catch (err: any) {
@@ -142,11 +181,9 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
     }
   }, [employee]);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  useEffect(() => { refresh(); }, [refresh]);
 
-  // Realtime subscriptions for assignment status changes
+  // Realtime subscriptions
   useEffect(() => {
     if (!employee) return;
     const channel = supabase
@@ -178,12 +215,36 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
           setAssignments(prev => [newRow, ...prev.filter(a => a.id !== newRow.id)]);
         },
       )
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'field_job_messages' },
+        (payload: any) => {
+          const msg = payload.new as JobMessage;
+          setMessages(prev => ({
+            ...prev,
+            [msg.assignment_id]: [...(prev[msg.assignment_id] || []), msg],
+          }));
+          if (msg.sender !== 'worker') {
+            pushToast({ type: 'info', title: 'New Message', body: msg.body.slice(0, 80) });
+          }
+        },
+      )
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'field_job_notes' },
+        (payload: any) => {
+          const note = payload.new as FieldJobNote;
+          if (note.employee_id === employee.id) {
+            setNotes(prev => ({
+              ...prev,
+              [note.assignment_id]: [...(prev[note.assignment_id] || []), note],
+            }));
+          }
+        },
+      )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [employee]);
 
-  // Sync queue processor
   const processSyncQueue = useCallback(async () => {
     const queue = getQueue().filter(i => i.status === 'pending' || i.status === 'failed');
     for (const item of queue) {
@@ -204,11 +265,8 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
     setPendingSync(getPendingCount());
   }, []);
 
-  useEffect(() => {
-    if (online) processSyncQueue();
-  }, [online, processSyncQueue]);
+  useEffect(() => { if (online) processSyncQueue(); }, [online, processSyncQueue]);
 
-  // Helper: try write, if offline queue it
   const writeOrQueue = useCallback(async (
     table: string, operation: 'update' | 'insert', recordId: string, payload: Record<string, unknown>,
   ) => {
@@ -433,13 +491,115 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   }, [employee, todayAttendance]);
 
+  // === NEW: Job messaging ===
+  const sendMessage = useCallback(async (assignmentId: string, body: string) => {
+    if (!employee) return;
+    const tempId = `temp_${Date.now()}`;
+    const tempMsg: JobMessage = {
+      id: tempId, assignment_id: assignmentId, sender: 'worker',
+      sender_name: employee.full_name, body, created_at: new Date().toISOString(),
+    };
+    setMessages(prev => ({
+      ...prev,
+      [assignmentId]: [...(prev[assignmentId] || []), tempMsg],
+    }));
+
+    const payload = {
+      assignment_id: assignmentId, sender: 'worker',
+      sender_name: employee.full_name, body,
+    };
+    if (!navigator.onLine) {
+      enqueueSync({ table: 'field_job_messages', operation: 'insert', recordId: tempId, payload });
+      setPendingSync(getPendingCount());
+      return;
+    }
+    try {
+      const { data } = await supabase.from('field_job_messages').insert(payload).select('*').single();
+      if (data) {
+        setMessages(prev => ({
+          ...prev,
+          [assignmentId]: (prev[assignmentId] || []).map(m => m.id === tempId ? data as JobMessage : m),
+        }));
+      }
+    } catch { /* ignore */ }
+  }, [employee]);
+
+  // === NEW: Job notes ===
+  const addNote = useCallback(async (assignmentId: string, noteText: string, photoUrl?: string) => {
+    if (!employee) return;
+    const tempId = `temp_${Date.now()}`;
+    const tempNote: FieldJobNote = {
+      id: tempId, assignment_id: assignmentId, employee_id: employee.id,
+      note_text: noteText, photo_url: photoUrl || null, created_at: new Date().toISOString(),
+    };
+    setNotes(prev => ({
+      ...prev,
+      [assignmentId]: [...(prev[assignmentId] || []), tempNote],
+    }));
+
+    const payload = {
+      assignment_id: assignmentId, employee_id: employee.id,
+      note_text: noteText, photo_url: photoUrl || null,
+    };
+    if (!navigator.onLine) {
+      enqueueSync({ table: 'field_job_notes', operation: 'insert', recordId: tempId, payload });
+      setPendingSync(getPendingCount());
+      return;
+    }
+    try {
+      const { data } = await supabase.from('field_job_notes').insert(payload).select('*').single();
+      if (data) {
+        setNotes(prev => ({
+          ...prev,
+          [assignmentId]: (prev[assignmentId] || []).map(n => n.id === tempId ? data as FieldJobNote : n),
+        }));
+      }
+    } catch { /* ignore */ }
+  }, [employee]);
+
+  // === NEW: Pause / Resume job ===
+  const pauseJob = useCallback(async (assignmentId: string, reason: string) => {
+    setAssignments(prev => prev.map(a => a.id === assignmentId ? {
+      ...a, status: 'paused', paused_at: new Date().toISOString(), paused_reason: reason,
+    } : a));
+    await writeOrQueue('field_assignments', 'update', assignmentId, {
+      status: 'paused', paused_at: new Date().toISOString(), paused_reason: reason,
+      updated_at: new Date().toISOString(),
+    });
+  }, [writeOrQueue]);
+
+  const resumeJob = useCallback(async (assignmentId: string) => {
+    setAssignments(prev => prev.map(a => a.id === assignmentId ? {
+      ...a, status: 'in_progress', paused_at: null, paused_reason: null,
+    } : a));
+    await writeOrQueue('field_assignments', 'update', assignmentId, {
+      status: 'in_progress', paused_at: null, paused_reason: null,
+      updated_at: new Date().toISOString(),
+    });
+  }, [writeOrQueue]);
+
+  // === NEW: Location pings ===
+  const sendLocationPing = useCallback(async (assignmentId: string, lat: number, lng: number, batteryLevel?: number) => {
+    if (!employee) return;
+    const payload = {
+      assignment_id: assignmentId, employee_id: employee.id,
+      latitude: lat, longitude: lng, battery_level: batteryLevel || null,
+    };
+    if (!navigator.onLine) return; // pings are best-effort, don't queue
+    try {
+      await supabase.from('field_location_pings').insert(payload);
+    } catch { /* ignore */ }
+  }, [employee]);
+
   return (
     <FieldStaffContext.Provider value={{
       assignments, tasks, checkIns, evidence, incidents, attendance,
-      checklistTemplates, loading, error, online, pendingSync, refresh,
+      checklistTemplates, messages, notes, jobScores,
+      loading, error, online, pendingSync, refresh,
       updateAssignmentStatus, saveSignature, toggleTask, addTask,
       checkIn, checkOut, uploadEvidence, deleteEvidence,
       reportIncident, clockIn, clockOut, todayAttendance,
+      sendMessage, addNote, pauseJob, resumeJob, sendLocationPing,
     }}>
       {children}
     </FieldStaffContext.Provider>

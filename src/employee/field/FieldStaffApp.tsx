@@ -103,7 +103,7 @@ function FieldStaffContent() {
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto pb-20">
-        {tab === 'dashboard'   && <DashboardScreen onOpenJob={(id) => setSelectedJobId(id)} onReportIncident={() => setShowIncident(true)} />}
+        {tab === 'dashboard'   && <DashboardScreen onOpenJob={(id) => setSelectedJobId(id)} onReportIncident={() => setShowIncident(true)} onViewStats={() => setTab('performance')} />}
         {tab === 'jobs'        && <JobsScreen onOpenJob={(id) => setSelectedJobId(id)} />}
         {tab === 'attendance'  && <AttendanceScreen />}
         {tab === 'inbox'       && <InboxScreen />}

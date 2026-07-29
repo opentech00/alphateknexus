@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import {
   CheckCircle2, Clock, Package, Truck, PlayCircle, XCircle,
-  Loader2,
+  Loader2, MapPin, Navigation, User,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -16,6 +16,14 @@ interface HistoryEntry {
   note: string | null;
   created_by: string | null;
   created_at: string;
+}
+
+interface FieldAssignment {
+  id: string;
+  status: string;
+  service_name: string;
+  employee_id: string;
+  scheduled_time: string | null;
 }
 
 const stages = [
@@ -33,14 +41,38 @@ const colorMap: Record<string, { dot: string; line: string; icon: string; text: 
   red: { dot: 'bg-red-500', line: 'bg-red-400', icon: 'text-red-600', text: 'text-red-700' },
 };
 
+const fieldStatusLabels: Record<string, string> = {
+  assigned: 'Worker Assigned',
+  accepted: 'Worker En Route',
+  in_progress: 'Worker On Site',
+  paused: 'Work Paused',
+  pending_review: 'Work Submitted',
+  approved: 'Work Approved',
+  rejected: 'Needs Attention',
+  declined: 'Worker Unavailable',
+};
+
+const fieldStatusColors: Record<string, string> = {
+  assigned: 'bg-blue-50 text-blue-700',
+  accepted: 'bg-indigo-50 text-indigo-700',
+  in_progress: 'bg-emerald-50 text-emerald-700',
+  paused: 'bg-orange-50 text-orange-700',
+  pending_review: 'bg-purple-50 text-purple-700',
+  approved: 'bg-emerald-50 text-emerald-700',
+  rejected: 'bg-red-50 text-red-700',
+  declined: 'bg-red-50 text-red-700',
+};
+
 export function BookingTracker({ bookingId, currentStatus }: BookingTrackerProps) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [fieldAssignment, setFieldAssignment] = useState<FieldAssignment | null>(null);
   const subscriptionRef = useRef<any>(null);
 
   useEffect(() => {
     fetchHistory();
+    fetchFieldAssignment();
 
     // Real-time subscription to status history changes
     subscriptionRef.current = supabase
@@ -62,6 +94,18 @@ export function BookingTracker({ bookingId, currentStatus }: BookingTrackerProps
           });
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'field_assignments',
+          filter: `booking_id=eq.${bookingId}`,
+        },
+        (payload) => {
+          if (payload.new) setFieldAssignment(payload.new as FieldAssignment);
+        }
+      )
       .subscribe();
 
     return () => {
@@ -80,6 +124,15 @@ export function BookingTracker({ bookingId, currentStatus }: BookingTrackerProps
     if (error) { setFetchError(true); setLoading(false); return; }
     setHistory((data as HistoryEntry[]) || []);
     setLoading(false);
+  };
+
+  const fetchFieldAssignment = async () => {
+    const { data } = await supabase
+      .from('field_assignments')
+      .select('id, status, service_name, employee_id, scheduled_time')
+      .eq('booking_id', bookingId)
+      .maybeSingle();
+    if (data) setFieldAssignment(data as FieldAssignment);
   };
 
   if (loading) {
@@ -256,6 +309,30 @@ export function BookingTracker({ bookingId, currentStatus }: BookingTrackerProps
         <div className="mt-4 flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
           <XCircle className="w-4 h-4 flex-shrink-0" />
           This booking was cancelled.
+        </div>
+      )}
+
+      {/* Field worker live status */}
+      {fieldAssignment && !isCancelled && (
+        <div className="mt-5 pt-4 border-t border-slate-100">
+          <div className="flex items-center gap-2 mb-3">
+            <User className="w-4 h-4 text-emerald-600" />
+            <h4 className="text-sm font-semibold text-slate-700">Field Worker Status</h4>
+          </div>
+          <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="w-9 h-9 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <Navigation className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-800">{fieldAssignment.service_name}</p>
+              <p className="text-xs text-slate-400">
+                {fieldAssignment.scheduled_time ? `Scheduled: ${fieldAssignment.scheduled_time}` : 'Scheduled time TBD'}
+              </p>
+            </div>
+            <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${fieldStatusColors[fieldAssignment.status] || 'bg-slate-100 text-slate-600'}`}>
+              {fieldStatusLabels[fieldAssignment.status] || fieldAssignment.status}
+            </span>
+          </div>
         </div>
       )}
     </div>

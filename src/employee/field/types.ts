@@ -4,6 +4,7 @@ export type AssignmentStatus =
   | 'accepted'
   | 'declined'
   | 'in_progress'
+  | 'paused'
   | 'pending_review'
   | 'approved'
   | 'rejected';
@@ -23,6 +24,12 @@ export interface FieldAssignment {
   notes: string | null;
   customer_signature: string | null;
   signature_captured_at: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  geofence_radius: number | null;
+  paused_at: string | null;
+  paused_reason: string | null;
+  booking_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -104,8 +111,39 @@ export interface JobMessage {
   id: string;
   assignment_id: string;
   sender: 'worker' | 'admin' | 'customer';
+  sender_name: string | null;
   body: string;
   created_at: string;
+}
+
+export interface FieldJobNote {
+  id: string;
+  assignment_id: string;
+  employee_id: string;
+  note_text: string;
+  photo_url: string | null;
+  created_at: string;
+}
+
+export interface FieldLocationPing {
+  id: string;
+  assignment_id: string;
+  employee_id: string;
+  latitude: number;
+  longitude: number;
+  battery_level: number | null;
+  created_at: string;
+}
+
+export interface FieldJobScore {
+  id: string;
+  assignment_id: string;
+  employee_id: string;
+  punctuality_score: number;
+  speed_score: number;
+  quality_score: number;
+  overall_score: number;
+  scored_at: string;
 }
 
 export const STATUS_META: Record<AssignmentStatus, { label: string; color: string; bg: string; dot: string }> = {
@@ -114,6 +152,7 @@ export const STATUS_META: Record<AssignmentStatus, { label: string; color: strin
   accepted:        { label: 'Accepted',        color: 'text-indigo-600',   bg: 'bg-indigo-50',    dot: 'bg-indigo-500'  },
   declined:        { label: 'Declined',        color: 'text-red-600',      bg: 'bg-red-50',       dot: 'bg-red-500'     },
   in_progress:     { label: 'In Progress',     color: 'text-amber-600',   bg: 'bg-amber-50',     dot: 'bg-amber-500'   },
+  paused:          { label: 'Paused',          color: 'text-orange-600',  bg: 'bg-orange-50',    dot: 'bg-orange-500'  },
   pending_review:  { label: 'Pending Review',  color: 'text-purple-600',  bg: 'bg-purple-50',    dot: 'bg-purple-500'  },
   approved:        { label: 'Approved',        color: 'text-emerald-600',  bg: 'bg-emerald-50',   dot: 'bg-emerald-500' },
   rejected:        { label: 'Rejected',        color: 'text-rose-600',     bg: 'bg-rose-50',      dot: 'bg-rose-500'    },

@@ -31,6 +31,7 @@ import { UsersManagementPage } from './pages/UsersManagementPage';
 import { BundlesManagementPage } from './pages/BundlesManagementPage';
 import { AppAccessManagementPage } from './pages/AppAccessManagementPage';
 import { ActivitiesManagementPage } from './pages/ActivitiesManagementPage';
+import { FieldDispatchPage } from './pages/FieldDispatchPage';
 
 function AdminContent() {
   const [currentPage, setCurrentPage] = useState('overview');
@@ -81,6 +82,8 @@ function AdminContent() {
         return <PrivateSecurityPage />;
       case 'division-procurement':
         return <ProcurementPage />;
+      case 'field-dispatch':
+        return <FieldDispatchPage />;
       case 'documents':
         return <DocumentsManagementPage />;
       case 'finance':

@@ -7,9 +7,10 @@ import { useAuth } from '../../contexts/EmployeeAuthContext';
 import { useFieldStaff } from '../FieldStaffContext';
 import { STATUS_META } from '../types';
 
-export function DashboardScreen({ onOpenJob, onReportIncident }: {
+export function DashboardScreen({ onOpenJob, onReportIncident, onViewStats }: {
   onOpenJob: (id: string) => void;
   onReportIncident: () => void;
+  onViewStats?: () => void;
 }) {
   const { employee } = useAuth();
   const { assignments, todayAttendance, incidents } = useFieldStaff();
@@ -89,7 +90,7 @@ export function DashboardScreen({ onOpenJob, onReportIncident }: {
           <AlertTriangle className="w-4 h-4" /> Report Incident
         </button>
         <button
-          onClick={() => {}}
+          onClick={() => onViewStats?.()}
           className="flex-1 flex items-center justify-center gap-2 bg-white border border-slate-200 rounded-xl py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
         >
           <TrendingUp className="w-4 h-4" /> My Stats

@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, ClipboardList, Briefcase, MapPin, Calendar, Navigation, Loader2 } from 'lucide-react';
+import { Search, ClipboardList, Briefcase, MapPin, Calendar, Navigation, Loader2, Route, Clock, AlertCircle } from 'lucide-react';
 import { useFieldStaff } from '../FieldStaffContext';
 import { STATUS_META, type AssignmentStatus } from '../types';
-import { getCurrentPosition, haversineKm, formatDistance, type Coords } from '../geo';
+import { getCurrentPosition, haversineKm, formatDistance, estimateTravelTimeKm, optimizeRoute, detectTimeConflict, type Coords } from '../geo';
 
 const FILTERS: { key: 'all' | AssignmentStatus; label: string }[] = [
   { key: 'all',          label: 'All' },
@@ -17,24 +17,23 @@ export function JobsScreen({ onOpenJob }: { onOpenJob: (id: string) => void }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | AssignmentStatus>('all');
   const [sortByDistance, setSortByDistance] = useState(false);
+  const [showRoute, setShowRoute] = useState(false);
   const [userLocation, setUserLocation] = useState<Coords | null>(null);
   const [locating, setLocating] = useState(false);
 
-  // Geocode addresses to approximate coordinates for proximity sorting.
-  // Since addresses are text, we use a simple hash-based pseudo-coordinate
-  // to produce stable relative distances. In production this would use a
-  // real geocoding service, but for proximity *relative* sorting this is
-  // sufficient to group nearby jobs together.
   const jobCoords = useMemo((): Record<string, Coords> => {
     const map: Record<string, Coords> = {};
     for (const a of assignments) {
-      if (!a.address) continue;
-      // Simple deterministic hash → lat/lng offset from Freetown, SL
-      let h = 0;
-      for (let i = 0; i < a.address.length; i++) h = ((h << 5) - h + a.address.charCodeAt(i)) | 0;
-      const lat = 8.4657 + (h % 1000) / 1000 * 0.1;
-      const lng = -13.2317 + ((h >> 10) % 1000) / 1000 * 0.1;
-      map[a.id] = { lat, lng };
+      if (a.latitude != null && a.longitude != null) {
+        map[a.id] = { lat: a.latitude, lng: a.longitude };
+      } else if (a.address) {
+        let h = 0;
+        for (let i = 0; i < a.address.length; i++) h = ((h << 5) - h + a.address.charCodeAt(i)) | 0;
+        map[a.id] = {
+          lat: 8.4657 + (h % 1000) / 1000 * 0.1,
+          lng: -13.2317 + ((h >> 10) % 1000) / 1000 * 0.1,
+        };
+      }
     }
     return map;
   }, [assignments]);
@@ -42,12 +41,10 @@ export function JobsScreen({ onOpenJob }: { onOpenJob: (id: string) => void }) {
   const enableProximity = async () => {
     setLocating(true);
     const pos = await getCurrentPosition();
-    setLocating(true);
     if (pos) {
       setUserLocation(pos);
       setSortByDistance(true);
     } else {
-      // Fall back to first job's coords as "origin"
       const first = assignments[0];
       if (first && jobCoords[first.id]) {
         setUserLocation(jobCoords[first.id]);
@@ -76,15 +73,46 @@ export function JobsScreen({ onOpenJob }: { onOpenJob: (id: string) => void }) {
         if (!ca && !cb) return 0;
         if (!ca) return 1;
         if (!cb) return -1;
-        const da = haversineKm(userLocation, ca);
-        const db = haversineKm(userLocation, cb);
-        return da - db;
+        return haversineKm(userLocation, ca) - haversineKm(userLocation, cb);
       });
     } else {
       r = [...r].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
     }
     return r;
   }, [assignments, filter, search, sortByDistance, userLocation, jobCoords]);
+
+  // Route optimization for today's jobs
+  const todayRoute = useMemo(() => {
+    if (!userLocation) return null;
+    const today = new Date().toISOString().split('T')[0];
+    const todayJobs = assignments.filter(a =>
+      a.scheduled_date === today &&
+      (a.status === 'assigned' || a.status === 'accepted' || a.status === 'in_progress') &&
+      jobCoords[a.id]
+    );
+    if (todayJobs.length === 0) return null;
+
+    const stops = todayJobs.map(a => ({
+      id: a.id,
+      coords: jobCoords[a.id],
+      label: a.service_name,
+    }));
+    const optimized = optimizeRoute(stops, userLocation);
+
+    let totalKm = 0;
+    let prev = userLocation;
+    const routeWithDist = optimized.map(stop => {
+      const km = haversineKm(prev, stop.coords);
+      totalKm += km;
+      prev = stop.coords;
+      return { ...stop, kmFromPrev: km };
+    });
+
+    return { route: routeWithDist, totalKm };
+  }, [assignments, userLocation, jobCoords]);
+
+  // Conflict detection
+  const conflicts = useMemo(() => detectTimeConflict(filtered), [filtered]);
 
   return (
     <div className="max-w-md mx-auto px-4 py-5 space-y-4">
@@ -134,6 +162,58 @@ export function JobsScreen({ onOpenJob }: { onOpenJob: (id: string) => void }) {
           {sortByDistance ? 'Nearest' : 'Sort'}
         </button>
       </div>
+
+      {/* Route optimization toggle */}
+      {sortByDistance && userLocation && todayRoute && (
+        <button
+          onClick={() => setShowRoute(!showRoute)}
+          className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition-colors ${
+            showRoute ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+          }`}
+        >
+          <Route className="w-4 h-4" />
+          Optimized Route
+          <span className="ml-auto text-xs opacity-80">
+            {todayRoute.route.length} stops · {formatDistance(todayRoute.totalKm)} · {estimateTravelTimeKm(todayRoute.totalKm)}
+          </span>
+        </button>
+      )}
+
+      {/* Route detail */}
+      {showRoute && todayRoute && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-2">
+          <div className="flex items-center gap-2 mb-2">
+            <Navigation className="w-4 h-4 text-emerald-600" />
+            <h3 className="text-sm font-bold text-slate-900">Today's Optimized Route</h3>
+          </div>
+          {todayRoute.route.map((stop, idx) => (
+            <div key={stop.id} className="flex items-center gap-3">
+              <div className="w-7 h-7 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-xs font-bold text-emerald-700">{idx + 1}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-800 truncate">{stop.label}</p>
+                <p className="text-xs text-slate-400">
+                  {formatDistance(stop.kmFromPrev)} · {estimateTravelTimeKm(stop.kmFromPrev)}
+                </p>
+              </div>
+              <button onClick={() => onOpenJob(stop.id)} className="text-xs text-emerald-600 font-semibold">
+                View
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Conflict warnings */}
+      {conflicts.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-700">
+            {conflicts.length} scheduling conflict{conflicts.length !== 1 ? 's' : ''} detected — jobs scheduled less than 1 hour apart
+          </p>
+        </div>
+      )}
 
       {/* List */}
       {filtered.length === 0 ? (

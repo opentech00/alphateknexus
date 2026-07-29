@@ -5,6 +5,7 @@ import {
   BarChart3, Truck, Brush, ShieldCheck, Package, ArrowLeft, Recycle, FolderOpen,
   Briefcase, CreditCard, UserCog, History, Contact, Database,
   Receipt as ReceiptIcon, Star, Gift, Landmark, KeyRound, ClipboardList,
+  Navigation,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAdminNotifications } from './contexts/AdminNotificationsContext';
@@ -58,6 +59,12 @@ const navSections: NavSection[] = [
       { label: 'Reviews', page: 'reviews', icon: Star },
       { label: 'Bundles', page: 'bundles', icon: Package },
       { label: 'Referrals', page: 'referrals', icon: Gift },
+    ],
+  },
+  {
+    title: 'FIELD OPERATIONS',
+    items: [
+      { label: 'Field Dispatch', page: 'field-dispatch', icon: Navigation },
     ],
   },
   {
@@ -150,6 +157,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
     clients: 0,
     finance: 0,
     reviews: 0,
+    'field-dispatch': 0,
     bundles: 0,
     referrals: 0,
     settings: 0,
