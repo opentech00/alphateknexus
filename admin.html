@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard - Alphatek Nexus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script>
+      (function(){try{var s=localStorage.getItem('atn-theme-prefs');var p=s?JSON.parse(s):{};var t=p.theme||'light';var a=p.accent_color||'emerald';var rm=p.reduced_motion||false;var cm=p.compact_mode||false;var r=document.documentElement;r.classList.remove('dark','black','system','light');if(t==='system'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}r.classList.add(t);r.setAttribute('data-accent',a);if(rm)r.classList.add('reduced-motion');if(cm)r.classList.add('compact-mode');r.style.colorScheme=t==='light'?'light':'dark';}catch(e){}})();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/admin-main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,783 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes shrink {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out both;
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-scaleIn {
+  animation: scaleIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slideUp {
+  animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes shakeX {
+  0%, 100% { transform: translateX(0); }
+  15%, 45%, 75% { transform: translateX(-4px); }
+  30%, 60%, 90% { transform: translateX(4px); }
+}
+.animate-shakeX {
+  animation: shakeX 0.6s ease-in-out;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.animate-slide-in-right {
+  animation: slideInRight 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   THEME SYSTEM — Dark, Black, System
+   The app uses Tailwind's `dark:` variant. The ThemeContext
+   adds `.dark` or `.black` class to <html>. `dark:` covers
+   both dark and black; `.black` overrides specific tokens to
+   true OLED black.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Dark theme (slate-900 base) ── */
+.dark body {
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+/* ── Black theme (true OLED black) ── */
+.black body {
+  background-color: #000000;
+  color: #e5e7eb;
+}
+
+/* ── System theme: applies dark when OS prefers dark ── */
+html.system:not(.light):not(.dark):not(.black) {
+  /* When system is active, we let JS decide the actual class,
+     but as a fallback if JS hasn't run yet: */
+}
+@media (prefers-color-scheme: dark) {
+  html.system:not(.light):not(.dark):not(.black) body {
+    background-color: #0f172a;
+    color: #e2e8f0;
+  }
+}
+
+/* ── Semantic surface overrides for dark mode ── */
+.dark .bg-white,
+.black .bg-white {
+  background-color: #1e293b !important;
+}
+.black .bg-white {
+  background-color: #0a0a0a !important;
+}
+
+.dark .bg-slate-50,
+.black .bg-slate-50 {
+  background-color: #1e293b !important;
+}
+.black .bg-slate-50 {
+  background-color: #111111 !important;
+}
+
+.dark .bg-slate-100,
+.black .bg-slate-100 {
+  background-color: #334155 !important;
+}
+.black .bg-slate-100 {
+  background-color: #1a1a1a !important;
+}
+
+.dark .bg-slate-100\/50,
+.black .bg-slate-100\/50 {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+
+/* ── Text color overrides ── */
+.dark .text-slate-900,
+.black .text-slate-900 {
+  color: #f1f5f9 !important;
+}
+.dark .text-slate-800,
+.black .text-slate-800 {
+  color: #e2e8f0 !important;
+}
+.dark .text-slate-700,
+.black .text-slate-700 {
+  color: #cbd5e1 !important;
+}
+.dark .text-slate-600,
+.black .text-slate-600 {
+  color: #94a3b8 !important;
+}
+
+/* ── Border overrides ── */
+.dark .border-slate-200,
+.black .border-slate-200 {
+  border-color: #334155 !important;
+}
+.dark .border-slate-100,
+.black .border-slate-100 {
+  border-color: #1e293b !important;
+}
+.black .border-slate-200 {
+  border-color: #2a2a2a !important;
+}
+.black .border-slate-100 {
+  border-color: #1a1a1a !important;
+}
+
+/* ── Shadow adjustments ── */
+.dark .shadow-sm,
+.black .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3) !important;
+}
+.dark .shadow,
+.black .shadow {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.3) !important;
+}
+.dark .shadow-xl,
+.black .shadow-xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* ── Backdrop blur for dark headers ── */
+.dark .backdrop-blur-lg,
+.black .backdrop-blur-lg {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+}
+.black .backdrop-blur-lg {
+  background-color: rgba(0, 0, 0, 0.85) !important;
+}
+
+/* ── Input backgrounds ── */
+.dark input:not([type="checkbox"]):not([type="radio"]):not(.theme-exempt),
+.black input:not([type="checkbox"]):not([type="radio"]):not(.theme-exempt) {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+.black input:not([type="checkbox"]):not([type="radio"]):not(.theme-exempt) {
+  background-color: #111111;
+  border-color: #2a2a2a;
+}
+
+/* ── Scrollbar styling for dark themes ── */
+.dark ::-webkit-scrollbar,
+.black ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.dark ::-webkit-scrollbar-track,
+.black ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+.black ::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+.dark ::-webkit-scrollbar-thumb,
+.black ::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+.black ::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+}
+
+/* ── Safe area insets for iOS notch & Android nav bar ── */
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-area-pl {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.safe-area-pr {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+.safe-area-px {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+.safe-area-py {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-area-all {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+.safe-area-mt {
+  margin-top: env(safe-area-inset-top, 0px);
+}
+.safe-area-mb {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ── Native-feeling mobile scroll ── */
+.mobile-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* ── Prevent text selection on nav taps (native feel) ── */
+.no-select {
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/* ── Tap highlight removal for native feel ── */
+.no-tap-highlight {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Smooth native-style page transitions ── */
+@keyframes slideInFromRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in-from-right {
+  animation: slideInFromRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes slideInFromBottom {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-in-from-bottom {
+  animation: slideInFromBottom 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Splash screen transitions ── */
+@keyframes splashEnter {
+  from { opacity: 0; transform: translateX(0) scale(0.98); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+.animate-splash-enter {
+  animation: splashEnter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes splashExitLeft {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(-40px); }
+}
+.animate-splash-exit-left {
+  animation: splashExitLeft 0.3s cubic-bezier(0.4, 0, 1, 1) both;
+}
+@keyframes splashExitRight {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(40px); }
+}
+.animate-splash-exit-right {
+  animation: splashExitRight 0.3s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* ── Reduced motion ── */
+html.reduced-motion *,
+html.reduced-motion *::before,
+html.reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* ── Compact mode ── */
+html.compact-mode .space-y-4 > * + * {
+  margin-top: 0.5rem;
+}
+html.compact-mode .space-y-6 > * + * {
+  margin-top: 1rem;
+}
+html.compact-mode .p-6 {
+  padding: 1rem;
+}
+html.compact-mode .py-5 {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ACCENT COLOR SYSTEM
+   The data-accent attribute on <html> drives the accent color
+   across the app via CSS custom properties. Components can use
+   `text-[var(--accent)]` and `bg-[var(--accent)]` etc.
+   ═══════════════════════════════════════════════════════════ */
+:root,
+html[data-accent="emerald"] {
+  --accent: #10b981;
+  --accent-50: #ecfdf5;
+  --accent-100: #d1fae5;
+  --accent-600: #059669;
+  --accent-700: #047857;
+}
+html[data-accent="blue"] {
+  --accent: #3b82f6;
+  --accent-50: #eff6ff;
+  --accent-100: #dbeafe;
+  --accent-600: #2563eb;
+  --accent-700: #1d4ed8;
+}
+html[data-accent="rose"] {
+  --accent: #f43f5e;
+  --accent-50: #fff1f2;
+  --accent-100: #ffe4e6;
+  --accent-600: #e11d48;
+  --accent-700: #be123c;
+}
+html[data-accent="amber"] {
+  --accent: #f59e0b;
+  --accent-50: #fffbeb;
+  --accent-100: #fef3c7;
+  --accent-600: #d97706;
+  --accent-700: #b45309;
+}
+html[data-accent="cyan"] {
+  --accent: #06b6d4;
+  --accent-50: #ecfeff;
+  --accent-100: #cffafe;
+  --accent-600: #0891b2;
+  --accent-700: #0e7490;
+}
+html[data-accent="violet"] {
+  --accent: #8b5cf6;
+  --accent-50: #f5f3ff;
+  --accent-100: #ede9fe;
+  --accent-600: #7c3aed;
+  --accent-700: #6d28d9;
+}
+
+/* Dark-mode adjustments for accent-tinted backgrounds */
+.dark .bg-emerald-50, .black .bg-emerald-50 { background-color: rgba(6, 78, 59, 0.3) !important; }
+.dark .bg-blue-50, .black .bg-blue-50 { background-color: rgba(30, 58, 138, 0.3) !important; }
+.dark .bg-amber-50, .black .bg-amber-50 { background-color: rgba(120, 53, 15, 0.3) !important; }
+.dark .bg-red-50, .black .bg-red-50 { background-color: rgba(127, 29, 29, 0.3) !important; }
+.dark .bg-violet-50, .black .bg-violet-50 { background-color: rgba(76, 29, 149, 0.3) !important; }
+.dark .bg-teal-50, .black .bg-teal-50 { background-color: rgba(19, 78, 74, 0.3) !important; }
+.dark .bg-rose-50, .black .bg-rose-50 { background-color: rgba(136, 19, 55, 0.3) !important; }
+.dark .bg-cyan-50, .black .bg-cyan-50 { background-color: rgba(8, 51, 68, 0.3) !important; }
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE THEME OVERRIDES
+   Additional dark/black mode tokens for mobile-specific
+   classes used across MobileShell, MobileHome, etc.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Gray backgrounds (used in mobile shell/home) ── */
+.dark .bg-gray-50,
+.black .bg-gray-50 {
+  background-color: #0f172a !important;
+}
+.black .bg-gray-50 {
+  background-color: #000000 !important;
+}
+
+.dark .bg-gray-100,
+.black .bg-gray-100 {
+  background-color: #1e293b !important;
+}
+.black .bg-gray-100 {
+  background-color: #0a0a0a !important;
+}
+
+/* ── Blue-50 / blue-100 backgrounds (used in mobile accents) ── */
+.dark .bg-blue-50,
+.black .bg-blue-50 {
+  background-color: rgba(30, 58, 138, 0.3) !important;
+}
+.dark .bg-blue-100,
+.black .bg-blue-100 {
+  background-color: rgba(30, 58, 138, 0.4) !important;
+}
+
+/* ── Emerald-50 (used in status badges, tracker) ── */
+.dark .bg-emerald-50,
+.black .bg-emerald-50 {
+  background-color: rgba(6, 78, 59, 0.3) !important;
+}
+
+/* ── Amber-50 (pending status) ── */
+.dark .bg-amber-50,
+.black .bg-amber-50 {
+  background-color: rgba(120, 53, 15, 0.3) !important;
+}
+
+/* ── Red-50 (cancelled status) ── */
+.dark .bg-red-50,
+.black .bg-red-50 {
+  background-color: rgba(127, 29, 29, 0.3) !important;
+}
+
+/* ── Teal-50 (cleaning service accent) ── */
+.dark .bg-teal-50,
+.black .bg-teal-50 {
+  background-color: rgba(19, 78, 74, 0.3) !important;
+}
+
+/* ── Violet-50 (procurement accent) ── */
+.dark .bg-violet-50,
+.black .bg-violet-50 {
+  background-color: rgba(76, 29, 149, 0.3) !important;
+}
+
+/* ── Text overrides for mobile (slate-400, slate-500) ── */
+.dark .text-slate-400,
+.black .text-slate-400 {
+  color: #94a3b8 !important;
+}
+.dark .text-slate-500,
+.black .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+/* ── Blue text stays readable in dark ── */
+.dark .text-blue-600,
+.black .text-blue-600 {
+  color: #60a5fa !important;
+}
+.dark .text-blue-700,
+.black .text-blue-700 {
+  color: #93c5fd !important;
+}
+
+/* ── Emerald text in dark ── */
+.dark .text-emerald-600,
+.black .text-emerald-600 {
+  color: #34d399 !important;
+}
+.dark .text-emerald-700,
+.black .text-emerald-700 {
+  color: #6ee7b7 !important;
+}
+
+/* ── Amber text in dark ── */
+.dark .text-amber-700,
+.black .text-amber-700 {
+  color: #fbbf24 !important;
+}
+
+/* ── Red text in dark ── */
+.dark .text-red-700,
+.black .text-red-700 {
+  color: #fca5a5 !important;
+}
+
+/* ── Gradient hero banner in dark mode ── */
+.dark .from-blue-600,
+.black .from-blue-600 {
+  --tw-gradient-from: #2563eb !important;
+}
+.dark .via-blue-600,
+.black .via-blue-600 {
+  --tw-gradient-via: #2563eb !important;
+}
+.dark .to-blue-700,
+.black .to-blue-700 {
+  --tw-gradient-to: #1d4ed8 !important;
+}
+
+/* ── Slate-800/900 buttons in dark ── */
+.dark .bg-slate-800,
+.black .bg-slate-800 {
+  background-color: #334155 !important;
+}
+.dark .bg-slate-900,
+.black .bg-slate-900 {
+  background-color: #1e293b !important;
+}
+.black .bg-slate-900 {
+  background-color: #0a0a0a !important;
+}
+
+/* ── Border-slate-200/100 in dark (already covered above but ensure) ── */
+.dark .border-slate-200,
+.black .border-slate-200 {
+  border-color: #334155 !important;
+}
+.dark .border-slate-100,
+.black .border-slate-100 {
+  border-color: #1e293b !important;
+}
+
+/* ── Dashed borders in dark ── */
+.dark .border-dashed,
+.black .border-dashed {
+  border-color: #334155 !important;
+}
+
+/* ── Blue-200 / emerald-200 / amber-200 borders in dark ── */
+.dark .border-blue-200,
+.black .border-blue-200 {
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+.dark .border-emerald-200,
+.black .border-emerald-200 {
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+.dark .border-amber-200,
+.black .border-amber-200 {
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+.dark .border-red-200,
+.black .border-red-200 {
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+/* ── White/10 overlays (gradient cards) in dark ── */
+.dark .bg-white\/10,
+.black .bg-white\/10 {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ── Blue-100 text (hero subtitle) in dark ── */
+.dark .text-blue-100,
+.black .text-blue-100 {
+  color: #bfdbfe !important;
+}
+
+/* ── Mobile bottom nav bar in dark ── */
+.dark .bg-white\/90,
+.black .bg-white\/90 {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+}
+.black .bg-white\/90 {
+  background-color: rgba(0, 0, 0, 0.9) !important;
+}
+
+/* ── Slate-300 text/icons in dark ── */
+.dark .text-slate-300,
+.black .text-slate-300 {
+  color: #64748b !important;
+}
+
+/* ── Emerald-100 ring in dark (tracker active) ── */
+.dark .ring-emerald-100,
+.black .ring-emerald-100 {
+  --tw-ring-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+/* ── Emerald-400 border (tracker active ping) ── */
+.dark .border-emerald-400,
+.black .border-emerald-400 {
+  border-color: #34d399 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   THEME-AWARE HOVER STATES
+   Light mode keeps the original light hovers (bg-slate-50 etc).
+   Dark/black modes override to darker, visible surfaces so
+   hover feedback is never pure-white-on-dark.
+   ═══════════════════════════════════════════════════════════ */
+
+/* Generic light-surface hovers → dark-surface hovers */
+.dark .hover\:bg-slate-50:hover,
+.black .hover\:bg-slate-50:hover {
+  background-color: #334155 !important;
+}
+.black .hover\:bg-slate-50:hover {
+  background-color: #1a1a1a !important;
+}
+
+.dark .hover\:bg-slate-50\/70:hover,
+.black .hover\:bg-slate-50\/70:hover {
+  background-color: rgba(51, 65, 85, 0.7) !important;
+}
+.black .hover\:bg-slate-50\/70:hover {
+  background-color: rgba(26, 26, 26, 0.7) !important;
+}
+
+.dark .hover\:bg-slate-100:hover,
+.black .hover\:bg-slate-100:hover {
+  background-color: #334155 !important;
+}
+.black .hover\:bg-slate-100:hover {
+  background-color: #1a1a1a !important;
+}
+
+.dark .hover\:bg-slate-200:hover,
+.black .hover\:bg-slate-200:hover {
+  background-color: #475569 !important;
+}
+
+.dark .hover\:bg-white:hover,
+.black .hover\:bg-white:hover {
+  background-color: #334155 !important;
+}
+
+/* Accent-tinted hovers stay readable */
+.dark .hover\:bg-emerald-50:hover,
+.black .hover\:bg-emerald-50:hover {
+  background-color: rgba(6, 78, 59, 0.4) !important;
+}
+.dark .hover\:bg-blue-50:hover,
+.black .hover\:bg-blue-50:hover {
+  background-color: rgba(30, 58, 138, 0.4) !important;
+}
+.dark .hover\:bg-amber-50:hover,
+.black .hover\:bg-amber-50:hover {
+  background-color: rgba(120, 53, 15, 0.4) !important;
+}
+.dark .hover\:bg-red-50:hover,
+.black .hover\:bg-red-50:hover {
+  background-color: rgba(127, 29, 29, 0.4) !important;
+}
+.dark .hover\:bg-violet-50:hover,
+.black .hover\:bg-violet-50:hover {
+  background-color: rgba(76, 29, 149, 0.4) !important;
+}
+
+/* Hover text colors → lighter in dark */
+.dark .hover\:text-slate-700:hover,
+.black .hover\:text-slate-700:hover {
+  color: #e2e8f0 !important;
+}
+.dark .hover\:text-slate-800:hover,
+.black .hover\:text-slate-800:hover {
+  color: #f1f5f9 !important;
+}
+.dark .hover\:text-slate-900:hover,
+.black .hover\:text-slate-900:hover {
+  color: #f8fafc !important;
+}
+.dark .hover\:text-slate-500:hover,
+.black .hover\:text-slate-500:hover {
+  color: #cbd5e1 !important;
+}
+
+/* Hover border colors in dark */
+.dark .hover\:border-slate-300:hover,
+.black .hover\:border-slate-300:hover {
+  border-color: #475569 !important;
+}
+
+/* Group-hover chevrons */
+.dark .group:hover .group-hover\:text-slate-500,
+.black .group:hover .group-hover\:text-slate-500 {
+  color: #cbd5e1 !important;
+}
+.dark .group:hover .group-hover\:text-slate-700,
+.black .group:hover .group-hover\:text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DARK/BLACK SURFACE & TEXT OVERRIDES
+   These target common light-only utility classes that lack
+   explicit dark: variants. Scoped to .dark/.black so light mode
+   is unaffected. Uses !important to override Tailwind defaults.
+   ═══════════════════════════════════════════════════════════ */
+
+/* Card surfaces */
+.dark .bg-white, .black .bg-white {
+  background-color: #1e293b !important;
+}
+.black .bg-white {
+  background-color: #0a0a0a !important;
+}
+
+/* Subtle surfaces */
+.dark .bg-slate-50, .black .bg-slate-50 {
+  background-color: #334155 !important;
+}
+.black .bg-slate-50 {
+  background-color: #111 !important;
+}
+
+/* Input backgrounds */
+.dark .bg-slate-50.border-slate-200, .black .bg-slate-50.border-slate-200 {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+.black .bg-slate-50.border-slate-200 {
+  background-color: #111 !important;
+  border-color: #222 !important;
+}
+
+/* Borders */
+.dark .border-slate-200, .black .border-slate-200 {
+  border-color: #334155 !important;
+}
+.black .border-slate-200 {
+  border-color: #222 !important;
+}
+.dark .border-slate-100, .black .border-slate-100 {
+  border-color: #1e293b !important;
+}
+.black .border-slate-100 {
+  border-color: #1a1a1a !important;
+}
+
+/* Primary text */
+.dark .text-slate-800, .black .text-slate-800 {
+  color: #f1f5f9 !important;
+}
+.dark .text-slate-900, .black .text-slate-900 {
+  color: #f8fafc !important;
+}
+.dark .text-slate-700, .black .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+/* Secondary text */
+.dark .text-slate-600, .black .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+.dark .text-slate-500, .black .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+/* Placeholder text in dark */
+.dark input::placeholder, .black input::placeholder {
+  color: #64748b !important;
+}
+.dark input:disabled, .black input:disabled {
+  color: #64748b !important;
+  background-color: #1e293b !important;
+}
+
+/* Dark button stays dark-ish */
+.dark .bg-slate-800, .black .bg-slate-800 {
+  background-color: #334155 !important;
+}
+.dark .hover\:bg-slate-900:hover, .black .hover\:bg-slate-900:hover {
+  background-color: #475569 !important;
+}

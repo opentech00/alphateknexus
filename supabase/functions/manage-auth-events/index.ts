@@ -1,0 +1,380 @@
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+};
+
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MINUTES = 15;
+
+// ── User-Agent parser ──
+function parseUserAgent(ua: string): { browser: string; os: string; deviceName: string } {
+  let browser = "Unknown";
+  let os = "Unknown";
+
+  if (/edg/i.test(ua)) browser = "Edge";
+  else if (/chrome|crios/i.test(ua)) browser = "Chrome";
+  else if (/firefox|fxios/i.test(ua)) browser = "Firefox";
+  else if (/safari/i.test(ua)) browser = "Safari";
+
+  if (/windows/i.test(ua)) os = "Windows";
+  else if (/mac os|macintosh/i.test(ua)) os = "macOS";
+  else if (/android/i.test(ua)) os = "Android";
+  else if (/iphone|ipad|ios/i.test(ua)) os = "iOS";
+  else if (/linux/i.test(ua)) os = "Linux";
+
+  const isMobile = /mobile|android|iphone/i.test(ua);
+  const deviceName = `${browser} on ${os}${isMobile ? " (Mobile)" : ""}`;
+  return { browser, os, deviceName };
+}
+
+function getIp(req: Request): string {
+  const headers = [
+    "x-forwarded-for", "x-real-ip", "cf-connecting-ip", "x-client-ip",
+  ];
+  for (const h of headers) {
+    const val = req.headers.get(h);
+    if (val) return val.split(",")[0].trim();
+  }
+  return "unknown";
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 200, headers: corsHeaders });
+  }
+
+  try {
+    const body = await req.json();
+    const { action } = body;
+
+    if (!action) {
+      return new Response(JSON.stringify({ error: "Missing action" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    const userAgent = req.headers.get("User-Agent") || "Unknown";
+    const ip = getIp(req);
+    const { browser, os, deviceName } = parseUserAgent(userAgent);
+
+    // ── Check lockout status for an email ──
+    if (action === "check-lockout") {
+      const { email } = body;
+      if (!email) {
+        return new Response(JSON.stringify({ error: "Missing email" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      // Look up user by email
+      const { data: userData } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("email", email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (!userData) {
+        return new Response(JSON.stringify({ locked: false, attempts: 0 }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: lockout } = await supabase
+        .from("auth_lockout")
+        .select("*")
+        .eq("user_id", userData.id)
+        .maybeSingle();
+
+      if (!lockout) {
+        return new Response(JSON.stringify({ locked: false, attempts: 0 }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const now = new Date();
+      const lockedUntil = lockout.locked_until ? new Date(lockout.locked_until) : null;
+      const isLocked = lockedUntil && lockedUntil > now;
+
+      return new Response(JSON.stringify({
+        locked: !!isLocked,
+        lockedUntil: lockout.locked_until,
+        attempts: lockout.failed_attempts,
+        remaining: isLocked ? 0 : MAX_ATTEMPTS - lockout.failed_attempts,
+        retryAfter: isLocked ? Math.ceil((lockedUntil!.getTime() - now.getTime()) / 1000) : 0,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Record failed login attempt ──
+    if (action === "record-failure") {
+      // Require authentication — only a real sign-in attempt should record a failure
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+      if (userErr || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { email } = body;
+      if (!email) {
+        return new Response(JSON.stringify({ error: "Missing email" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Only record failure for the authenticated user's own email
+      if (user.email?.toLowerCase() !== email.toLowerCase().trim()) {
+        return new Response(JSON.stringify({ error: "Email mismatch" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: userData } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("email", email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (!userData) {
+        return new Response(JSON.stringify({ locked: false }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const userId = userData.id;
+
+      // Get or create lockout record
+      const { data: existing } = await supabase
+        .from("auth_lockout")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      const newAttempts = (existing?.failed_attempts || 0) + 1;
+      const shouldLock = newAttempts >= MAX_ATTEMPTS;
+      const now = new Date();
+
+      if (existing) {
+        await supabase.from("auth_lockout").update({
+          failed_attempts: newAttempts,
+          locked_until: shouldLock ? new Date(now.getTime() + LOCKOUT_MINUTES * 60000).toISOString() : existing.locked_until,
+          last_failed_at: now.toISOString(),
+          updated_at: now.toISOString(),
+        }).eq("user_id", userId);
+      } else {
+        await supabase.from("auth_lockout").insert({
+          user_id: userId,
+          failed_attempts: newAttempts,
+          locked_until: shouldLock ? new Date(now.getTime() + LOCKOUT_MINUTES * 60000).toISOString() : null,
+          last_failed_at: now.toISOString(),
+        });
+      }
+
+      // Log the failed attempt
+      await supabase.from("login_activity").insert({
+        user_id: userId,
+        event_type: "login_failed",
+        ip_address: ip,
+        user_agent: userAgent,
+        device_name: deviceName,
+        success: false,
+        error_message: "Invalid credentials",
+      });
+
+      return new Response(JSON.stringify({
+        locked: shouldLock,
+        attempts: newAttempts,
+        remaining: shouldLock ? 0 : MAX_ATTEMPTS - newAttempts,
+        lockedUntil: shouldLock ? new Date(now.getTime() + LOCKOUT_MINUTES * 60000).toISOString() : null,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Record successful login (reset lockout + log + register session) ──
+    if (action === "record-success") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+      if (userErr || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Reset lockout
+      await supabase.from("auth_lockout").delete().eq("user_id", user.id);
+
+      // Extract session ID from JWT (jti claim)
+      let sessionId = "unknown";
+      try {
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        sessionId = payload.jti || payload.session_id || "unknown";
+      } catch { /* ignore */ }
+
+      // Log success
+      await supabase.from("login_activity").insert({
+        user_id: user.id,
+        event_type: "login_success",
+        ip_address: ip,
+        user_agent: userAgent,
+        device_name: deviceName,
+        session_id: sessionId,
+        success: true,
+      });
+
+      // Mark all other sessions as not current, then insert this one as current
+      await supabase.from("active_sessions").update({ is_current: false }).eq("user_id", user.id);
+      await supabase.from("active_sessions").upsert({
+        user_id: user.id,
+        session_token: sessionId,
+        device_name: deviceName,
+        browser,
+        os,
+        ip_address: ip,
+        is_current: true,
+        last_active_at: new Date().toISOString(),
+      }, { onConflict: "session_token" });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Record 2FA event ──
+    if (action === "record-2fa") {
+      const { userId, success: twoSuccess } = body;
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "Missing userId" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      await supabase.from("login_activity").insert({
+        user_id: userId,
+        event_type: twoSuccess ? "2fa_success" : "2fa_failed",
+        ip_address: ip,
+        user_agent: userAgent,
+        device_name: deviceName,
+        success: twoSuccess,
+        error_message: twoSuccess ? null : "Invalid 2FA code",
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── List active sessions ──
+    if (action === "list-sessions") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+      if (userErr || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: sessions } = await supabase
+        .from("active_sessions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("last_active_at", { ascending: false });
+
+      return new Response(JSON.stringify({ sessions: sessions || [] }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Revoke a session ──
+    if (action === "revoke-session") {
+      const { sessionToken } = body;
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+      if (userErr || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      await supabase.from("active_sessions")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("session_token", sessionToken);
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── List login activity (audit log) ──
+    if (action === "list-activity") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+      if (userErr || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: activity } = await supabase
+        .from("login_activity")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      return new Response(JSON.stringify({ activity: activity || [] }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: "Unknown action" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    console.error("Auth events error:", err.message);
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
