@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Recycle, CalendarDays, Repeat, Tag, Truck, Receipt, FileText } from 'lucide-react';
+import { Recycle, CalendarDays, Repeat, Tag, Truck, Receipt, FileText, Shield } from 'lucide-react';
 import { DivisionPage } from './DivisionPage';
 import { SmartSortSubscriptionsTab } from './SmartSortSubscriptionsTab';
 import { SmartSortPlansTab } from './SmartSortPlansTab';
 import { SmartSortPickupsTab } from './SmartSortPickupsTab';
 import { SmartSortBillingTab } from './SmartSortBillingTab';
 import { SmartSortQuotesTab } from './SmartSortQuotesTab';
+import { DivisionPermissionsTab } from './DivisionPermissionsTab';
 
 const config = {
   name: 'Smart Sort / Recycling',
@@ -27,6 +28,7 @@ const TABS = [
   { id: 'subscriptions', label: 'Subscriptions', icon: Repeat },
   { id: 'billing', label: 'Billing', icon: Receipt },
   { id: 'plans', label: 'Pricing Plans', icon: Tag },
+  { id: 'permissions', label: 'Permissions', icon: Shield },
 ] as const;
 
 type Tab = typeof TABS[number]['id'];
@@ -76,8 +78,10 @@ export function SmartSortPage() {
           <SmartSortSubscriptionsTab />
         ) : tab === 'billing' ? (
           <SmartSortBillingTab />
-        ) : (
+        ) : tab === 'plans' ? (
           <SmartSortPlansTab />
+        ) : (
+          <DivisionPermissionsTab config={config} />
         )}
       </div>
     </div>

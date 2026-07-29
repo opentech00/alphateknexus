@@ -29,8 +29,6 @@ import { HrPermissionsPage } from './pages/HrPermissionsPage';
 import { BackupPage } from './pages/BackupPage';
 import { UsersManagementPage } from './pages/UsersManagementPage';
 import { BundlesManagementPage } from './pages/BundlesManagementPage';
-import { AppAccessManagementPage } from './pages/AppAccessManagementPage';
-import { ActivitiesManagementPage } from './pages/ActivitiesManagementPage';
 import { FieldDispatchPage } from './pages/FieldDispatchPage';
 
 function AdminContent() {
@@ -116,10 +114,6 @@ function AdminContent() {
         return <BackupPage />;
       case 'users':
         return <UsersManagementPage />;
-      case 'app-access':
-        return <AppAccessManagementPage />;
-      case 'activities':
-        return <ActivitiesManagementPage />;
       case 'bundles':
         return <BundlesManagementPage />;
       case 'settings':

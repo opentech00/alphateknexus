@@ -4,7 +4,7 @@ import {
   LogOut, Menu, X, ChevronRight, ChevronDown,
   BarChart3, Truck, Brush, ShieldCheck, Package, ArrowLeft, Recycle, FolderOpen,
   Briefcase, CreditCard, UserCog, History, Contact, Database,
-  Receipt as ReceiptIcon, Star, Gift, Landmark, KeyRound, ClipboardList,
+  Receipt as ReceiptIcon, Star, Gift, Landmark,
   Navigation,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -54,8 +54,6 @@ const navSections: NavSection[] = [
       { label: 'Documents', page: 'documents', icon: FolderOpen },
       { label: 'Clients', page: 'clients', icon: Users },
       { label: 'User Management', page: 'users', icon: UserCog },
-      { label: 'App Access', page: 'app-access', icon: KeyRound },
-      { label: 'Activities', page: 'activities', icon: ClipboardList },
       { label: 'Reviews', page: 'reviews', icon: Star },
       { label: 'Bundles', page: 'bundles', icon: Package },
       { label: 'Referrals', page: 'referrals', icon: Gift },
