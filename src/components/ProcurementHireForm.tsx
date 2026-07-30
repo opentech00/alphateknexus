@@ -107,6 +107,7 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
       amount={100}
       bookingId={bookingId}
       serviceName={service.name}
+      serviceSlug={service.slug}
       onBack={() => setStep('form')}
       onSuccess={(method, ref) => { setPayMethod(method); setPayRef(ref || ''); setStep('success'); }}
       onFail={(msg) => { setPayError(msg); setStep('payment_failed'); }}

@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface EmailPayload {
-  eventType: "booking_confirmation" | "status_update" | "review_prompt" | "referral_invite";
+  eventType: "booking_confirmation" | "status_update" | "review_prompt" | "referral_invite" | "payment_verified" | "payment_rejected";
   bookingId?: string;
   recipientEmail?: string;
   userId?: string;
@@ -167,6 +167,44 @@ Deno.serve(async (req: Request) => {
           footerText: "Log in to your portal to leave a review.",
         });
         text = buildEmailText({ title: "Rate Your Experience", bodyTitle: "Your service is complete!", bodyText: `Hi ${userName}, please rate your experience.`, details });
+        break;
+      }
+
+      case "payment_verified": {
+        subject = `Payment Verified - ${payload.serviceName || "Service"} - AlphaTek Nexus`;
+        const details = [
+          { label: "Service", value: payload.serviceName || "N/A" },
+          { label: "Booking ID", value: payload.bookingId?.slice(0, 8) || "N/A" },
+          { label: "Payment Method", value: "Bank Transfer" },
+        ];
+        html = buildEmailHtml({
+          title: "Payment Verified",
+          subtitle: "Payment Confirmation",
+          bodyTitle: "Your bank payment has been verified!",
+          bodyText: `Hi ${userName}, your bank payment proof has been reviewed and confirmed by our team. Your booking is now active.`,
+          details,
+          footerText: "You can track your booking progress in the AlphaTek Nexus portal.",
+        });
+        text = buildEmailText({ title: "Payment Verified", bodyTitle: "Your bank payment has been verified!", bodyText: `Hi ${userName}, your bank payment has been confirmed.`, details });
+        break;
+      }
+
+      case "payment_rejected": {
+        subject = `Payment Needs Attention - ${payload.serviceName || "Service"} - AlphaTek Nexus`;
+        const details = [
+          { label: "Service", value: payload.serviceName || "N/A" },
+          { label: "Booking ID", value: payload.bookingId?.slice(0, 8) || "N/A" },
+          { label: "Payment Method", value: "Bank Transfer" },
+        ];
+        html = buildEmailHtml({
+          title: "Payment Rejected",
+          subtitle: "Payment Needs Attention",
+          bodyTitle: "Your bank payment could not be verified",
+          bodyText: `Hi ${userName}, we were unable to verify your bank payment proof. Please check the reason below and re-upload a valid document.`,
+          details,
+          footerText: "Log in to your portal to re-upload your payment proof.",
+        });
+        text = buildEmailText({ title: "Payment Rejected", bodyTitle: "Your bank payment could not be verified", bodyText: `Hi ${userName}, please re-upload a valid payment proof.`, details });
         break;
       }
 

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Calendar, MapPin, Clock, AlertCircle, Loader2, Plus,
   MessageSquare, Paperclip, ChevronDown, ChevronUp, Star, RotateCcw,
-  Truck, Wallet, Search, Recycle, CheckCircle2, CircleDot,
+  Truck, Wallet, Search, Recycle, CheckCircle2, CircleDot, Ban, Trash2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { MessageThread } from '../MessageThread';
@@ -10,6 +10,7 @@ import { DocumentUpload } from '../DocumentUpload';
 import { ReviewModal } from '../ReviewModal';
 import { BookingTracker } from '../BookingTracker';
 import { SubscriptionLifecycle } from '../SubscriptionLifecycle';
+import { CancelDeleteBookingModal } from '../CancelDeleteBookingModal';
 
 interface Booking {
   id: string;
@@ -24,6 +25,8 @@ interface Booking {
   created_at: string;
   service_id: string;
   details: Record<string, any> | null;
+  deleted_at: string | null;
+  cancellation_reason: string | null;
   services: { name: string; icon: string; slug: string };
 }
 
@@ -79,11 +82,13 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
   const [walletBalance, setWalletBalance] = useState(0);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [fetchError, setFetchError] = useState('');
+  const [cancelDeleteModal, setCancelDeleteModal] = useState<{ bookingId: string; status: string; serviceName: string } | null>(null);
 
   const fetchBookings = useCallback(async () => {
     const { data, error } = await supabase
       .from('bookings')
       .select('*, services(name, icon, slug)')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
     if (error) { setFetchError('Failed to load bookings. Pull down to retry.'); setLoading(false); return; }
     setBookings((data as unknown as Booking[]) || []);
@@ -366,6 +371,22 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                               <RotateCcw className="w-3 h-3" /> Rebook
                             </button>
                           )}
+                          {!isCompleted && booking.status !== 'cancelled' && (
+                            <button
+                              onClick={() => setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name })}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-amber-700 bg-amber-50 rounded-lg border border-amber-200 active:scale-95 transition-transform dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-400"
+                            >
+                              <Ban className="w-3 h-3" /> Cancel
+                            </button>
+                          )}
+                          {(isCompleted || booking.status === 'cancelled') && (
+                            <button
+                              onClick={() => setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name })}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-red-700 bg-red-50 rounded-lg border border-red-200 active:scale-95 transition-transform dark:bg-red-900/30 dark:border-red-800 dark:text-red-400"
+                            >
+                              <Trash2 className="w-3 h-3" /> Delete
+                            </button>
+                          )}
                           {isCompleted && !hasReview && (
                             <button
                               onClick={() => setReviewModal({
@@ -452,6 +473,19 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
           onSuccess={() => {
             setReviewModal(null);
             fetchReviews();
+          }}
+        />
+      )}
+
+      {cancelDeleteModal && (
+        <CancelDeleteBookingModal
+          bookingId={cancelDeleteModal.bookingId}
+          bookingStatus={cancelDeleteModal.status}
+          serviceName={cancelDeleteModal.serviceName}
+          onClose={() => setCancelDeleteModal(null)}
+          onSuccess={() => {
+            setCancelDeleteModal(null);
+            fetchBookings();
           }}
         />
       )}

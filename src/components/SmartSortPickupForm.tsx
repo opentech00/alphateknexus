@@ -183,6 +183,7 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
         amount={pickupPrice}
         bookingId={bookingId}
         serviceName={service.name}
+        serviceSlug={service.slug}
         onBack={() => { setBookingId(''); setStep(4); }}
         onSuccess={(method, ref) => { setPayMethod(method); setPayRef(ref || ''); setDone(true); }}
         onFail={(msg) => { setPayError(msg); setPaymentStep('payment_failed'); }}

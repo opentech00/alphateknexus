@@ -134,6 +134,7 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
       amount={total}
       bookingId={bookingId}
       serviceName={service.name}
+      serviceSlug={service.slug}
       onBack={() => setStep('review')}
       onSuccess={(method, ref) => { setPayMethod(method); setPayRef(ref || ''); setStep('success'); }}
       onFail={(msg) => { setPayError(msg); setStep('payment_failed'); }}

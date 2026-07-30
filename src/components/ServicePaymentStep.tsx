@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Smartphone, CreditCard, Wallet, Banknote, Lock,
   CheckCircle2, Loader2, ShieldCheck, ArrowLeft,
-  XCircle,
+  XCircle, Building2, Upload, FileText, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
@@ -14,27 +14,43 @@ export const PAYMENT_METHODS = [
   { id: 'visa', label: 'Visa Card', category: 'card', color: 'bg-slate-800', initials: 'V' },
   { id: 'mastercard', label: 'Mastercard', category: 'card', color: 'bg-red-600', initials: 'MC' },
   { id: 'wallet', label: 'Wallet Balance', category: 'wallet', color: 'bg-slate-700', initials: 'W' },
+  { id: 'bank', label: 'Bank Transfer', category: 'bank', color: 'bg-indigo-600', initials: 'B' },
   { id: 'cash', label: 'Cash on Delivery', category: 'cash', color: 'bg-amber-600', initials: 'C' },
 ];
+
+const BANK_DOC_TYPES = [
+  { id: 'payslip', label: 'Payslip' },
+  { id: 'cheque', label: 'Cheque' },
+  { id: 'deposit_slip', label: 'Deposit Bank Slip' },
+];
+
+const ALLOWED_BANK_EXTS = new Set(['pdf', 'png', 'jpg', 'jpeg']);
+const MAX_BANK_FILE_SIZE = 10 * 1024 * 1024;
 
 interface ServicePaymentStepProps {
   amount: number;
   bookingId: string;
   serviceName: string;
+  serviceSlug?: string;
   onBack: () => void;
   onSuccess: (method: string, reference?: string) => void;
   onFail: (message: string) => void;
 }
 
 export function ServicePaymentStep({
-  amount, bookingId, serviceName, onBack, onSuccess, onFail,
+  amount, bookingId, serviceName, serviceSlug, onBack, onSuccess, onFail,
 }: ServicePaymentStepProps) {
   const [selected, setSelected] = useState('orange-money');
   const [paying, setPaying] = useState(false);
+  const [bankDocType, setBankDocType] = useState('payslip');
+  const [bankFile, setBankFile] = useState<File | null>(null);
+  const [bankFileError, setBankFileError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const mobileMethods = PAYMENT_METHODS.filter(m => m.category === 'mobile');
   const cardMethods = PAYMENT_METHODS.filter(m => m.category === 'card');
   const walletMethods = PAYMENT_METHODS.filter(m => m.category === 'wallet');
+  const bankMethods = PAYMENT_METHODS.filter(m => m.category === 'bank');
   const cashMethods = PAYMENT_METHODS.filter(m => m.category === 'cash');
 
   const handlePay = async () => {
@@ -49,6 +65,67 @@ export function ServicePaymentStep({
 
     const isCash = selected === 'cash';
     const isWallet = selected === 'wallet';
+    const isBank = selected === 'bank';
+
+    if (isBank) {
+      if (!bankFile) {
+        onFail('Please upload your bank payment slip, cheque, or deposit slip.');
+        return;
+      }
+      const ext = bankFile.name.split('.').pop()?.toLowerCase() || '';
+      if (!ALLOWED_BANK_EXTS.has(ext)) {
+        onFail('Only PDF, PNG, and JPG files are accepted for bank payment proofs.');
+        return;
+      }
+      if (bankFile.size > MAX_BANK_FILE_SIZE) {
+        onFail('File exceeds 10MB limit.');
+        return;
+      }
+
+      try {
+        const filePath = `${user.id}/${bookingId}/bank-${Date.now()}-${bankFile.name}`;
+        const { error: upErr } = await supabase.storage
+          .from('documents')
+          .upload(filePath, bankFile, { cacheControl: '3600', upsert: false });
+        if (upErr) { onFail(`Upload failed: ${upErr.message}`); setPaying(false); return; }
+        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
+
+        await supabase.from('bookings').update({
+          payment_method: 'bank',
+          payment_status: 'pending_verification',
+        }).eq('id', bookingId);
+
+        await supabase.from('payment_verifications').insert({
+          booking_id: bookingId,
+          user_id: user.id,
+          payment_method: 'bank',
+          document_type: bankDocType,
+          document_url: urlData.publicUrl,
+          document_name: bankFile.name,
+          document_size: bankFile.size,
+          amount_sle: amount,
+          service_slug: serviceSlug || null,
+          status: 'pending',
+        });
+
+        await supabase.from('payments').insert({
+          user_id: user.id,
+          payable_type: 'booking',
+          payable_id: bookingId,
+          amount_sle: amount,
+          method: 'bank',
+          status: 'pending',
+        });
+
+        setPaying(false);
+        onSuccess('bank');
+        return;
+      } catch (err: any) {
+        onFail(err.message || 'Bank payment upload failed.');
+        setPaying(false);
+        return;
+      }
+    }
 
     if (isCash) {
       await supabase.from('bookings').update({
@@ -213,6 +290,87 @@ export function ServicePaymentStep({
               <div className="space-y-2.5">{walletMethods.map(renderMethod)}</div>
             </div>
 
+            {/* Bank Transfer */}
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5" /> Bank Transfer
+              </p>
+              <div className="space-y-2.5">{bankMethods.map(renderMethod)}</div>
+              {selected === 'bank' && (
+                <div className="mt-3 space-y-3 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
+                  <p className="text-xs text-indigo-800 leading-relaxed">
+                    Transfer to our bank account, then upload proof of payment for verification by the divisional manager.
+                    Your booking will be confirmed once the document is verified.
+                  </p>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">Document Type</label>
+                    <div className="flex gap-2">
+                      {BANK_DOC_TYPES.map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => setBankDocType(t.id)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                            bankDocType === t.id
+                              ? 'border-indigo-600 bg-indigo-600 text-white'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">Upload Proof</label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        const ext = f.name.split('.').pop()?.toLowerCase() || '';
+                        if (!ALLOWED_BANK_EXTS.has(ext)) {
+                          setBankFileError('Only PDF, PNG, and JPG files are accepted.');
+                          return;
+                        }
+                        if (f.size > MAX_BANK_FILE_SIZE) {
+                          setBankFileError('File exceeds 10MB limit.');
+                          return;
+                        }
+                        setBankFileError('');
+                        setBankFile(f);
+                      }}
+                      className="hidden"
+                    />
+                    {bankFile ? (
+                      <div className="flex items-center gap-2 p-3 bg-white border border-indigo-200 rounded-lg">
+                        <FileText className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                        <span className="text-xs text-slate-700 font-medium flex-1 truncate">{bankFile.name}</span>
+                        <button
+                          onClick={() => { setBankFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                          className="p-1 rounded text-slate-400 hover:text-red-500"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-indigo-300 rounded-lg text-xs text-indigo-600 hover:bg-indigo-50 transition-colors font-medium"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Choose file (PDF, PNG, JPG)
+                      </button>
+                    )}
+                    {bankFileError && (
+                      <p className="mt-1.5 text-xs text-red-600">{bankFileError}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Cash */}
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
@@ -240,13 +398,13 @@ export function ServicePaymentStep({
 
         <button
           onClick={handlePay}
-          disabled={paying}
+          disabled={paying || (selected === 'bank' && !bankFile)}
           className="w-full py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
         >
           {paying ? (
             <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
           ) : (
-            <><ShieldCheck className="w-4 h-4" /> Pay Le {amount.toLocaleString()}</>
+            <><ShieldCheck className="w-4 h-4" /> {selected === 'bank' ? 'Submit for Verification' : `Pay Le ${amount.toLocaleString()}`}</>
           )}
         </button>
       </div>

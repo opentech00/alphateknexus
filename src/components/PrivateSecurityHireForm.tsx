@@ -171,7 +171,7 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
   };
 
   if (step === 'payment') return (
-    <ServicePaymentStep amount={total} bookingId={bookingId} serviceName={service.name}
+    <ServicePaymentStep amount={total} bookingId={bookingId} serviceName={service.name} serviceSlug={service.slug}
       onBack={() => setStep('review')}
       onSuccess={(m, r) => { setPayMethod(m); setPayRef(r || ''); setStep('success'); }}
       onFail={(msg) => { setPayError(msg); setStep('payment_failed'); }} />
