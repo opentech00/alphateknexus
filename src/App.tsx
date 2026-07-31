@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { RbacProvider } from './contexts/RbacContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Loader2 } from 'lucide-react';
 import { LoginPage } from './pages/LoginPage';
@@ -194,9 +195,11 @@ function PortalContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <ThemeProvider>
-        <PortalContent />
-      </ThemeProvider>
+      <RbacProvider>
+        <ThemeProvider>
+          <PortalContent />
+        </ThemeProvider>
+      </RbacProvider>
     </AuthProvider>
   );
 }

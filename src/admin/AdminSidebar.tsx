@@ -69,6 +69,7 @@ const navSections: NavSection[] = [
     title: 'MANAGEMENT',
     items: [
       { label: 'Finance Module', page: 'finance', icon: Landmark },
+      { label: 'Access Control', page: 'rbac-management', icon: ShieldCheck },
       { label: 'Data Backup', page: 'backup', icon: Database },
       { label: 'Settings', page: 'settings', icon: Settings },
     ],

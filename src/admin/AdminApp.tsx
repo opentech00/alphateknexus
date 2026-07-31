@@ -30,6 +30,7 @@ import { BackupPage } from './pages/BackupPage';
 import { UsersManagementPage } from './pages/UsersManagementPage';
 import { BundlesManagementPage } from './pages/BundlesManagementPage';
 import { FieldDispatchPage } from './pages/FieldDispatchPage';
+import { RbacManagementPage } from './pages/RbacManagementPage';
 
 function AdminContent() {
   const [currentPage, setCurrentPage] = useState('overview');
@@ -116,6 +117,8 @@ function AdminContent() {
         return <UsersManagementPage />;
       case 'bundles':
         return <BundlesManagementPage />;
+      case 'rbac-management':
+        return <RbacManagementPage />;
       case 'settings':
         return <SettingsPage />;
       default:
