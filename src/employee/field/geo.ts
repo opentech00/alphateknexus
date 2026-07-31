@@ -1,4 +1,4 @@
-export interface Coords { lat: number; lng: number; }
+export interface Coords { lat: number; lng: number; heading?: number; speed?: number; }
 
 export function haversineKm(a: Coords, b: Coords): number {
   const R = 6371;
@@ -31,7 +31,12 @@ export function watchPosition(
 ): (() => void) | null {
   if (!navigator.geolocation) return null;
   const watchId = navigator.geolocation.watchPosition(
-    pos => onPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+    pos => onPosition({
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      heading: pos.coords.heading != null && !isNaN(pos.coords.heading) ? pos.coords.heading : undefined,
+      speed: pos.coords.speed != null && !isNaN(pos.coords.speed) ? pos.coords.speed : undefined,
+    }),
     () => onError?.(),
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
   );

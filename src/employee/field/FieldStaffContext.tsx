@@ -6,6 +6,16 @@ import type {
   FieldEvidence, FieldIncident, FieldAttendance, ChecklistTemplate,
   SyncQueueItem, JobMessage, FieldJobNote, FieldLocationPing, FieldJobScore,
 } from './types';
+
+// Job event types that map to field_job_events table
+const JOB_EVENT_MAP: Record<string, string> = {
+  accepted: 'accepted',
+  declined: 'declined',
+  in_progress: 'on_site',
+  pending_review: 'completed',
+  paused: 'paused',
+  in_progress_from_paused: 'resumed',
+};
 import {
   enqueueSync, getQueue, updateQueueItem, removeQueueItem, getPendingCount,
 } from './syncQueue';
@@ -43,7 +53,8 @@ interface FieldStaffContextValue {
   addNote: (assignmentId: string, noteText: string, photoUrl?: string) => Promise<void>;
   pauseJob: (assignmentId: string, reason: string) => Promise<void>;
   resumeJob: (assignmentId: string) => Promise<void>;
-  sendLocationPing: (assignmentId: string, lat: number, lng: number, batteryLevel?: number) => Promise<void>;
+  sendLocationPing: (assignmentId: string, lat: number, lng: number, batteryLevel?: number, heading?: number, speed?: number) => Promise<void>;
+  logJobEvent: (assignmentId: string, eventType: string, extra?: { lat?: number; lng?: number; etaMinutes?: number; note?: string }) => Promise<void>;
 }
 
 const FieldStaffContext = createContext<FieldStaffContextValue | undefined>(undefined);
@@ -287,10 +298,34 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const logJobEvent = useCallback(async (
+    assignmentId: string,
+    eventType: string,
+    extra?: { lat?: number; lng?: number; etaMinutes?: number; note?: string },
+  ) => {
+    if (!employee) return;
+    const payload = {
+      assignment_id: assignmentId,
+      employee_id: employee.id,
+      event_type: eventType,
+      latitude: extra?.lat ?? null,
+      longitude: extra?.lng ?? null,
+      eta_minutes: extra?.etaMinutes ?? null,
+      note: extra?.note ?? null,
+    };
+    if (!navigator.onLine) {
+      enqueueSync({ table: 'field_job_events', operation: 'insert', recordId: `temp_${Date.now()}`, payload });
+      return;
+    }
+    try { await supabase.from('field_job_events').insert(payload); } catch { /* best-effort */ }
+  }, [employee]);
+
   const updateAssignmentStatus = useCallback(async (id: string, status: FieldAssignment['status']) => {
     setAssignments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
     await writeOrQueue('field_assignments', 'update', id, { status, updated_at: new Date().toISOString() });
-  }, [writeOrQueue]);
+    const eventType = JOB_EVENT_MAP[status];
+    if (eventType) await logJobEvent(id, eventType);
+  }, [writeOrQueue, logJobEvent]);
 
   const saveSignature = useCallback(async (assignmentId: string, signatureData: string) => {
     setAssignments(prev => prev.map(a => a.id === assignmentId ? {
@@ -566,7 +601,8 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
       status: 'paused', paused_at: new Date().toISOString(), paused_reason: reason,
       updated_at: new Date().toISOString(),
     });
-  }, [writeOrQueue]);
+    await logJobEvent(assignmentId, 'paused', { note: reason });
+  }, [writeOrQueue, logJobEvent]);
 
   const resumeJob = useCallback(async (assignmentId: string) => {
     setAssignments(prev => prev.map(a => a.id === assignmentId ? {
@@ -576,16 +612,21 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
       status: 'in_progress', paused_at: null, paused_reason: null,
       updated_at: new Date().toISOString(),
     });
-  }, [writeOrQueue]);
+    await logJobEvent(assignmentId, 'resumed');
+  }, [writeOrQueue, logJobEvent]);
 
   // === NEW: Location pings ===
-  const sendLocationPing = useCallback(async (assignmentId: string, lat: number, lng: number, batteryLevel?: number) => {
+  const sendLocationPing = useCallback(async (
+    assignmentId: string, lat: number, lng: number,
+    batteryLevel?: number, heading?: number, speed?: number,
+  ) => {
     if (!employee) return;
     const payload = {
       assignment_id: assignmentId, employee_id: employee.id,
       latitude: lat, longitude: lng, battery_level: batteryLevel || null,
+      heading: heading ?? null, speed: speed ?? null,
     };
-    if (!navigator.onLine) return; // pings are best-effort, don't queue
+    if (!navigator.onLine) return;
     try {
       await supabase.from('field_location_pings').insert(payload);
     } catch { /* ignore */ }
@@ -599,7 +640,7 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
       updateAssignmentStatus, saveSignature, toggleTask, addTask,
       checkIn, checkOut, uploadEvidence, deleteEvidence,
       reportIncident, clockIn, clockOut, todayAttendance,
-      sendMessage, addNote, pauseJob, resumeJob, sendLocationPing,
+      sendMessage, addNote, pauseJob, resumeJob, sendLocationPing, logJobEvent,
     }}>
       {children}
     </FieldStaffContext.Provider>

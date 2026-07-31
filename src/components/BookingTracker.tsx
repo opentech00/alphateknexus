@@ -26,6 +26,14 @@ interface FieldAssignment {
   scheduled_time: string | null;
 }
 
+interface JobEvent {
+  id: string;
+  assignment_id: string;
+  event_type: string;
+  eta_minutes: number | null;
+  created_at: string;
+}
+
 const stages = [
   { key: 'pending', label: 'Submitted', description: 'Booking request received', icon: Clock, color: 'amber' },
   { key: 'confirmed', label: 'Confirmed', description: 'Admin confirmed your booking', icon: CheckCircle2, color: 'blue' },
@@ -68,6 +76,7 @@ export function BookingTracker({ bookingId, currentStatus }: BookingTrackerProps
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [fieldAssignment, setFieldAssignment] = useState<FieldAssignment | null>(null);
+  const [latestEvent, setLatestEvent] = useState<JobEvent | null>(null);
   const subscriptionRef = useRef<any>(null);
 
   useEffect(() => {
@@ -87,7 +96,7 @@ export function BookingTracker({ bookingId, currentStatus }: BookingTrackerProps
         },
         (payload) => {
           setHistory((prev) => {
-            if (prev.some((h) => h.id === payload.new.id)) return prev;
+            if (prev.some((h) => h.id === (payload.new as HistoryEntry).id)) return prev;
             return [...prev, payload.new as HistoryEntry].sort(
               (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
             );
@@ -103,7 +112,25 @@ export function BookingTracker({ bookingId, currentStatus }: BookingTrackerProps
           filter: `booking_id=eq.${bookingId}`,
         },
         (payload) => {
-          if (payload.new) setFieldAssignment(payload.new as FieldAssignment);
+          if (payload.new) {
+            const fa = payload.new as FieldAssignment;
+            setFieldAssignment(fa);
+            fetchLatestEvent(fa.id);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'field_job_events',
+        },
+        (payload) => {
+          const evt = payload.new as JobEvent;
+          if (fieldAssignment && evt.assignment_id === fieldAssignment.id) {
+            setLatestEvent(evt);
+          }
         }
       )
       .subscribe();
@@ -132,7 +159,21 @@ export function BookingTracker({ bookingId, currentStatus }: BookingTrackerProps
       .select('id, status, service_name, employee_id, scheduled_time')
       .eq('booking_id', bookingId)
       .maybeSingle();
-    if (data) setFieldAssignment(data as FieldAssignment);
+    if (data) {
+      setFieldAssignment(data as FieldAssignment);
+      fetchLatestEvent(data.id);
+    }
+  };
+
+  const fetchLatestEvent = async (assignmentId: string) => {
+    const { data } = await supabase
+      .from('field_job_events')
+      .select('id, assignment_id, event_type, eta_minutes, created_at')
+      .eq('assignment_id', assignmentId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) setLatestEvent(data as JobEvent);
   };
 
   if (loading) {
@@ -318,6 +359,11 @@ export function BookingTracker({ bookingId, currentStatus }: BookingTrackerProps
           <div className="flex items-center gap-2 mb-3">
             <User className="w-4 h-4 text-emerald-600" />
             <h4 className="text-sm font-semibold text-slate-700">Field Worker Status</h4>
+            {latestEvent && latestEvent.event_type === 'en_route' && latestEvent.eta_minutes != null && (
+              <span className="flex items-center gap-1 text-[10px] font-medium text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded-full">
+                <Navigation className="w-3 h-3" /> ETA {latestEvent.eta_minutes} min
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
             <div className="w-9 h-9 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -328,6 +374,12 @@ export function BookingTracker({ bookingId, currentStatus }: BookingTrackerProps
               <p className="text-xs text-slate-400">
                 {fieldAssignment.scheduled_time ? `Scheduled: ${fieldAssignment.scheduled_time}` : 'Scheduled time TBD'}
               </p>
+              {latestEvent && (
+                <p className="text-[11px] text-cyan-600 font-medium mt-0.5">
+                  {latestEvent.event_type.replace('_', ' ')}
+                  {latestEvent.eta_minutes != null && ` · ETA ${latestEvent.eta_minutes} min`}
+                </p>
+              )}
             </div>
             <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${fieldStatusColors[fieldAssignment.status] || 'bg-slate-100 text-slate-600'}`}>
               {fieldStatusLabels[fieldAssignment.status] || fieldAssignment.status}

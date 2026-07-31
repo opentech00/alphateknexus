@@ -22,7 +22,7 @@ export function JobDetailScreen({ assignmentId, onBack }: {
     assignments, tasks, checkIns, evidence, messages, notes,
     updateAssignmentStatus, saveSignature, toggleTask, addTask,
     checkIn, checkOut, uploadEvidence, sendMessage, addNote,
-    pauseJob, resumeJob, sendLocationPing,
+    pauseJob, resumeJob, sendLocationPing, logJobEvent,
   } = useFieldStaff();
 
   const assignment = assignments.find(a => a.id === assignmentId);
@@ -75,7 +75,9 @@ export function JobDetailScreen({ assignmentId, onBack }: {
     const stop = watchPosition(
       (coords) => {
         setCurrentLocation(coords);
-        sendLocationPing(assignmentId, coords.lat, coords.lng, getBatteryLevel());
+        sendLocationPing(assignmentId, coords.lat, coords.lng, getBatteryLevel(),
+          coords.heading != null && !isNaN(coords.heading) ? coords.heading : undefined,
+          coords.speed != null && !isNaN(coords.speed) ? coords.speed * 3.6 : undefined);
         if (assignment.latitude && assignment.longitude) {
           const inside = isInsideGeofence(
             coords,
@@ -117,7 +119,10 @@ export function JobDetailScreen({ assignmentId, onBack }: {
     updateAssignmentStatus(assignmentId, 'in_progress');
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        pos => checkIn(assignmentId, pos.coords.latitude, pos.coords.longitude),
+        pos => {
+          checkIn(assignmentId, pos.coords.latitude, pos.coords.longitude);
+          logJobEvent(assignmentId, 'on_site', { lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
         () => checkIn(assignmentId, 0, 0),
       );
     } else {
