@@ -12,8 +12,10 @@ interface AdminEmployee {
   full_name: string;
   position: string;
   photo_url: string | null;
+  service_id: string | null;
   performance_score: number;
   jobs_completed: number;
+  is_active: boolean;
 }
 
 interface AdminAssignment {
@@ -33,29 +35,10 @@ interface AdminAssignment {
 
 interface AdminBooking {
   id: string;
-  service_id: string | null;
   service_name: string;
   customer_name: string;
   address: string;
   status: string;
-}
-
-function mapBookingRow(row: {
-  id: string;
-  status: string;
-  contact_name: string;
-  location: string | null;
-  service_id?: string | null;
-  services?: { name: string } | null;
-}): AdminBooking {
-  return {
-    id: row.id,
-    service_id: row.service_id ?? null,
-    service_name: row.services?.name || 'Unknown Service',
-    customer_name: row.contact_name || 'Unknown',
-    address: row.location || '',
-    status: row.status,
-  };
 }
 
 interface LocationPing {
@@ -102,9 +85,9 @@ export function FieldDispatchPage() {
         { data: pingData, error: pingErr },
         { data: scoreData, error: scoreErr },
       ] = await Promise.all([
-        supabase.from('employees').select('id, full_name, position, photo_url, performance_score, jobs_completed').eq('status', 'active'),
+        supabase.from('employees').select('id, full_name, position, photo_url, service_id, performance_score, jobs_completed, is_active').eq('is_active', true),
         supabase.from('field_assignments').select('*').order('scheduled_date', { ascending: true }),
-        supabase.from('bookings').select('id, status, contact_name, location, service_id, services(name)').in('status', ['pending', 'confirmed', 'in_progress']).order('created_at', { ascending: false }).limit(50),
+        supabase.from('bookings').select('id, service_name, customer_name, address, status').in('status', ['pending', 'confirmed', 'in_progress']).limit(50),
         supabase.from('field_location_pings').select('*').order('created_at', { ascending: false }).limit(100),
         supabase.from('field_job_scores').select('*').order('scored_at', { ascending: false }),
       ]);
@@ -117,7 +100,7 @@ export function FieldDispatchPage() {
 
       setEmployees(empData || []);
       setAssignments(assignData || []);
-      setBookings((bookData || []).map(mapBookingRow));
+      setBookings(bookData || []);
       setLocationPings(pingData || []);
       setJobScores(scoreData || []);
     } catch (err: any) {
@@ -631,7 +614,6 @@ function AssignModal({ employees, bookings, onClose, onCreated }: {
     try {
       const payload: Record<string, unknown> = {
         employee_id: employeeId,
-        service_id: selectedBooking?.service_id || null,
         service_name: selectedBooking?.service_name || 'General Service',
         customer_name: selectedBooking?.customer_name || 'Walk-in Customer',
         address: selectedBooking?.address || '',
