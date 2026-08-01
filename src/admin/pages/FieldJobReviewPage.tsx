@@ -202,11 +202,14 @@ export function FieldJobReviewPage() {
 
   // ─── Detail View ──────────────────────────────────────────────────────────────
   if (selected) {
-    const completedTasks = selected.tasks.filter(t => t.completed).length;
-    const totalTasks = selected.tasks.length;
-    const beforePhotos = selected.evidence.filter(e => e.photo_type === 'before');
-    const afterPhotos = selected.evidence.filter(e => e.photo_type === 'after');
-    const checkIn = selected.check_ins[0];
+    const tasks = selected.tasks || [];
+    const evidence = selected.evidence || [];
+    const checkIns = selected.check_ins || [];
+    const completedTasks = tasks.filter(t => t.completed).length;
+    const totalTasks = tasks.length;
+    const beforePhotos = evidence.filter(e => e.photo_type === 'before');
+    const afterPhotos = evidence.filter(e => e.photo_type === 'after');
+    const checkIn = checkIns[0];
 
     return (
       <div>
@@ -272,7 +275,7 @@ export function FieldJobReviewPage() {
                 <p className="text-sm text-slate-400">No checklist items</p>
               ) : (
                 <div className="space-y-1.5">
-                  {selected.tasks.map(task => (
+                  {tasks.map(task => (
                     <div key={task.id} className="flex items-center gap-2 text-sm">
                       {task.completed ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
@@ -293,7 +296,7 @@ export function FieldJobReviewPage() {
               <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
                 <ImageIcon className="w-4 h-4 text-slate-400" /> Evidence Photos
               </h3>
-              {selected.evidence.length === 0 ? (
+              {evidence.length === 0 ? (
                 <p className="text-sm text-slate-400">No evidence photos uploaded</p>
               ) : (
                 <div className="space-y-4">
@@ -469,9 +472,11 @@ export function FieldJobReviewPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map(a => {
-            const completedTasks = a.tasks.filter(t => t.completed).length;
-            const totalTasks = a.tasks.length;
-            const afterCount = a.evidence.filter(e => e.photo_type === 'after').length;
+            const tasks = a.tasks || [];
+            const evidence = a.evidence || [];
+            const completedTasks = tasks.filter(t => t.completed).length;
+            const totalTasks = tasks.length;
+            const afterCount = evidence.filter(e => e.photo_type === 'after').length;
             const hasSig = !!a.customer_signature;
 
             return (
