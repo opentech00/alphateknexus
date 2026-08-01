@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Calendar, MapPin, Clock, AlertCircle, Loader2, Plus,
   MessageSquare, Paperclip, ChevronDown, ChevronUp, Star, RotateCcw,
-  Truck, Wallet, Search, Recycle, CheckCircle2, CircleDot, Ban, Trash2,
+  Truck, Wallet, Search, Recycle, CheckCircle2, Ban, Trash2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { MessageThread } from '../MessageThread';
@@ -53,13 +53,13 @@ interface Props {
 }
 
 const statusConfig: Record<string, { label: string; badge: string; dot: string }> = {
-  pending:        { label: 'Pending',         badge: 'text-amber-700 bg-amber-50 border-amber-200',     dot: 'bg-amber-500' },
-  pending_review: { label: 'Awaiting Review', badge: 'text-orange-700 bg-orange-50 border-orange-200',   dot: 'bg-orange-500' },
-  approved:       { label: 'Approved',         badge: 'text-teal-700 bg-teal-50 border-teal-200',         dot: 'bg-teal-500' },
-  confirmed:      { label: 'Confirmed',        badge: 'text-blue-700 bg-blue-50 border-blue-200',        dot: 'bg-blue-500' },
-  in_progress:    { label: 'In Progress',      badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
-  completed:      { label: 'Completed',        badge: 'text-slate-600 bg-slate-100 border-slate-200',    dot: 'bg-slate-400' },
-  cancelled:      { label: 'Cancelled',        badge: 'text-red-700 bg-red-50 border-red-200',           dot: 'bg-red-500' },
+  pending:         { label: 'Pending',     badge: 'text-amber-700 bg-amber-50 border-amber-200',     dot: 'bg-amber-500' },
+  pending_review:  { label: 'In Review',   badge: 'text-orange-700 bg-orange-50 border-orange-200', dot: 'bg-orange-500' },
+  approved:         { label: 'Approved',    badge: 'text-teal-700 bg-teal-50 border-teal-200',       dot: 'bg-teal-500' },
+  confirmed:        { label: 'Confirmed',   badge: 'text-blue-700 bg-blue-50 border-blue-200',      dot: 'bg-blue-500' },
+  in_progress:      { label: 'In Progress', badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
+  completed:        { label: 'Completed',   badge: 'text-slate-600 bg-slate-100 border-slate-200',  dot: 'bg-slate-400' },
+  cancelled:        { label: 'Cancelled',   badge: 'text-red-700 bg-red-50 border-red-200',         dot: 'bg-red-500' },
 };
 
 const SERVICE_IMAGES: Record<string, string> = {
@@ -68,6 +68,7 @@ const SERVICE_IMAGES: Record<string, string> = {
   'private-security': '/service-private-security.webp',
   'cleaning-janitorial': '/service-cleaning-janitorial.webp',
   'waste-management': '/service-smart-sort.webp',
+  'smart-sort': '/service-smart-sort.webp',
 };
 
 type Tab = 'all' | 'active' | 'subscriptions' | 'completed';
@@ -166,11 +167,15 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
     setActiveSubTab('tracker');
   };
 
+  const activeCount = bookings.filter(b => ACTIVE_STATUSES.includes(b.status)).length;
+  const completedCount = bookings.filter(b => b.status === 'completed').length;
+  const subCount = subscriptions.filter(s => s.status !== 'cancelled').length;
+
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: 'all', label: 'All', count: bookings.length },
-    { id: 'active', label: 'Active', count: bookings.filter(b => ACTIVE_STATUSES.includes(b.status)).length },
-    { id: 'subscriptions', label: 'Subs', count: subscriptions.length },
-    { id: 'completed', label: 'Done', count: bookings.filter(b => b.status === 'completed').length },
+    { id: 'active', label: 'Active', count: activeCount },
+    { id: 'subscriptions', label: 'Subs', count: subCount },
+    { id: 'completed', label: 'Done', count: completedCount },
   ];
 
   if (loading) {
@@ -195,8 +200,49 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
 
   return (
     <div className="flex flex-col min-h-full">
+      {/* Header */}
+      <div className="px-4 pt-4 pb-2">
+        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">My Bookings</h1>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+          {bookings.length} booking{bookings.length !== 1 ? 's' : ''}{subCount > 0 && ` · ${subCount} subscription${subCount !== 1 ? 's' : ''}`}
+        </p>
+      </div>
+
+      {/* Summary stats */}
+      <div className="px-4 pb-3">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-2.5 flex items-center gap-2">
+            <div className="w-7 h-7 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Truck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">Active</p>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{activeCount}</p>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-2.5 flex items-center gap-2">
+            <div className="w-7 h-7 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Recycle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">Subs</p>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{subCount}</p>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-2.5 flex items-center gap-2">
+            <div className="w-7 h-7 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center flex-shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">Done</p>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{completedCount}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Search */}
-      <div className="px-4 pt-4 pb-3">
+      <div className="px-4 pb-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
@@ -345,7 +391,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
 
                     {/* Body */}
                     <div className="p-3.5">
-                      <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mb-2">
+                      <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mb-2 flex-wrap">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
                           {new Date(booking.scheduled_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
@@ -366,9 +412,11 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                         <p className="text-xs text-slate-400 dark:text-slate-500 line-clamp-1 mb-2">{booking.notes}</p>
                       )}
 
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-slate-900 dark:text-slate-100">Le {booking.details?.price_sle?.toLocaleString() || '—'}</span>
-                        <div className="flex items-center gap-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                          Le {booking.details?.price_sle?.toLocaleString() || '—'}
+                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           {(isCompleted || booking.status === 'cancelled') && (
                             <button
                               onClick={() => onRebook?.(booking)}

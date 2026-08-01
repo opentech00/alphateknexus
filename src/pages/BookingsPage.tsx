@@ -3,6 +3,7 @@ import {
   Calendar, MapPin, Clock, AlertCircle, Loader2, Plus,
   MessageSquare, Paperclip, ChevronDown, ChevronUp, Star, RotateCcw,
   Truck, Wallet, Search, CalendarDays, Recycle, ChevronRight, Ban, Trash2,
+  Package, CheckCircle2, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { MessageThread } from '../components/MessageThread';
@@ -74,6 +75,25 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Cancelled',
 };
 
+const statusDots: Record<string, string> = {
+  pending: 'bg-amber-500',
+  pending_review: 'bg-orange-500',
+  approved: 'bg-teal-500',
+  confirmed: 'bg-blue-500',
+  in_progress: 'bg-emerald-500',
+  completed: 'bg-slate-400',
+  cancelled: 'bg-red-500',
+};
+
+const SERVICE_IMAGES: Record<string, string> = {
+  'clearing-forwarding': '/service-clearing-forwarding.webp',
+  'procurement': '/service-procurement.webp',
+  'private-security': '/service-private-security.webp',
+  'cleaning-janitorial': '/service-cleaning-janitorial.webp',
+  'waste-management': '/service-smart-sort.webp',
+  'smart-sort': '/service-smart-sort.webp',
+};
+
 type Tab = 'all' | 'active' | 'subscriptions' | 'completed' | 'calendar';
 
 const ACTIVE_STATUSES = ['pending', 'pending_review', 'approved', 'confirmed', 'in_progress'];
@@ -138,13 +158,9 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   }, [fetchBookings, fetchReviews, fetchWallet, fetchSubscriptions]);
 
   const filteredBookings = bookings.filter((b) => {
-    // Tab filter
     if (tab === 'active' && !ACTIVE_STATUSES.includes(b.status)) return false;
     if (tab === 'completed' && b.status !== 'completed') return false;
-    // Subscriptions and calendar tabs are handled separately
     if (tab === 'subscriptions' || tab === 'calendar') return false;
-
-    // Search filter
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -188,12 +204,16 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
     setActiveSubTab('tracker');
   };
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'all', label: 'All' },
-    { id: 'active', label: 'Active' },
-    { id: 'subscriptions', label: 'Subscriptions' },
-    { id: 'calendar', label: 'Calendar' },
-    { id: 'completed', label: 'Completed' },
+  const activeCount = bookings.filter(b => ACTIVE_STATUSES.includes(b.status)).length;
+  const completedCount = bookings.filter(b => b.status === 'completed').length;
+  const subCount = subscriptions.filter(s => s.status !== 'cancelled').length;
+
+  const tabs: { id: Tab; label: string; count: number }[] = [
+    { id: 'all', label: 'All', count: bookings.length },
+    { id: 'active', label: 'Active', count: activeCount },
+    { id: 'subscriptions', label: 'Subscriptions', count: subCount },
+    { id: 'calendar', label: 'Calendar', count: 0 },
+    { id: 'completed', label: 'Completed', count: completedCount },
   ];
 
   if (loading) {
@@ -209,7 +229,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-5">
       {/* Wallet Banner */}
       {wallet_enabled && (
       <div
@@ -240,7 +260,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
 
       {/* Header */}
       <div
-        className={`flex items-center justify-between gap-4 transition-all duration-500 delay-75 ${
+        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all duration-500 delay-75 ${
           animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
         }`}
       >
@@ -248,6 +268,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
           <h1 className="text-2xl font-bold text-slate-900">My Bookings</h1>
           <p className="mt-0.5 text-slate-400 text-sm">
             {bookings.length} total booking{bookings.length !== 1 ? 's' : ''}
+            {subCount > 0 && ` · ${subCount} active subscription${subCount !== 1 ? 's' : ''}`}
           </p>
         </div>
         <button
@@ -259,25 +280,64 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
         </button>
       </div>
 
+      {/* Summary stats - visible on all screens */}
+      <div className={`grid grid-cols-3 gap-3 transition-all duration-500 delay-75 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Truck className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-slate-400">Active</p>
+            <p className="text-sm font-bold text-slate-800">{activeCount}</p>
+          </div>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Recycle className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-slate-400">Subscriptions</p>
+            <p className="text-sm font-bold text-slate-800">{subCount}</p>
+          </div>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <CheckCircle2 className="w-4 h-4 text-slate-500" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-slate-400">Completed</p>
+            <p className="text-sm font-bold text-slate-800">{completedCount}</p>
+          </div>
+        </div>
+      </div>
+
       {/* Tab Filters + Search */}
       <div
         className={`flex flex-col sm:flex-row sm:items-center gap-3 transition-all duration-500 delay-100 ${
           animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
         }`}
       >
-        {/* Tabs */}
-        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 flex-shrink-0">
+        {/* Tabs - scrollable on mobile */}
+        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 flex-shrink-0 overflow-x-auto"
+          style={{ scrollbarWidth: 'none' }}>
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+              className={`px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1.5 ${
                 tab === t.id
                   ? 'bg-slate-800 text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               {t.label}
+              {t.count > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                  tab === t.id ? 'bg-white/20' : 'bg-slate-100'
+                }`}>
+                  {t.count}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -289,7 +349,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search..."
+            placeholder="Search bookings..."
             className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none"
           />
         </div>
@@ -312,7 +372,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
       {/* Subscriptions Tab Content */}
       {tab === 'subscriptions' && (
         filteredSubs.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+          <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center">
             <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-100 rounded-full mb-4">
               <Recycle className="w-6 h-6 text-slate-400" />
             </div>
@@ -363,7 +423,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
       {/* Bookings List (All / Active / Completed tabs) */}
       {tab !== 'subscriptions' && tab !== 'calendar' && (
         filteredBookings.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+          <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center">
             <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-100 rounded-full mb-4">
               <AlertCircle className="w-6 h-6 text-slate-400" />
             </div>
@@ -377,12 +437,24 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
                 ? 'Browse our services and place your first booking to get started.'
                 : 'Try switching to a different tab to see more results.'}
             </p>
+            {tab === 'all' && !search && (
+              <button
+                onClick={() => onNavigate('services')}
+                className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-900 transition-colors text-sm"
+              >
+                <Plus className="w-4 h-4" />
+                Browse Services
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
             {filteredBookings.map((booking, index) => {
               const isCompleted = booking.status === 'completed';
               const hasReview = reviewedBookings.has(booking.id);
+              const serviceImage = SERVICE_IMAGES[booking.services?.slug] || '/service-smart-sort.webp';
+              const sc = statusColors[booking.status];
+              const sd = statusDots[booking.status];
               return (
                 <div
                   key={booking.id}
@@ -391,16 +463,30 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
                   }`}
                   style={{ transitionDelay: `${150 + index * 50}ms` }}
                 >
-                  <div className="p-5">
+                  {/* Service image banner */}
+                  <div className="relative h-14 sm:h-16 overflow-hidden">
+                    <img
+                      src={serviceImage}
+                      alt={booking.services.name}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                    <div className="absolute top-2 right-2">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] sm:text-xs font-semibold rounded-full border ${sc}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${sd}`} />
+                        {statusLabels[booking.status]}
+                      </span>
+                    </div>
+                    <h3 className="absolute bottom-1.5 left-3 text-sm sm:text-base font-bold text-white drop-shadow">{booking.services.name}</h3>
+                  </div>
+
+                  {/* Body */}
+                  <div className="p-4 sm:p-5">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-1.5 flex-wrap">
-                          <h3 className="font-semibold text-slate-900">{booking.services.name}</h3>
-                          <span className={`inline-flex px-2.5 py-0.5 text-xs font-medium rounded-full border ${statusColors[booking.status]}`}>
-                            {statusLabels[booking.status]}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-slate-500">
                           <span className="inline-flex items-center gap-1.5">
                             <Calendar className="w-3.5 h-3.5" />
                             {new Date(booking.scheduled_date).toLocaleDateString('en-US', {
@@ -414,7 +500,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
                             </span>
                           )}
                           {booking.location && (
-                            <span className="inline-flex items-center gap-1.5 truncate max-w-[160px]">
+                            <span className="inline-flex items-center gap-1.5 truncate max-w-[200px]">
                               <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
                               {booking.location}
                             </span>

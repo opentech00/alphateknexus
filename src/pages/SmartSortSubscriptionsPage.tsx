@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   ArrowLeft, Recycle, Calendar, Clock, MapPin, Loader2, AlertCircle,
   ChevronRight, FileText, Trash2, Pause, Play, XCircle, CalendarClock,
-  CheckCircle2, X, ChevronDown, Bell, Receipt, CreditCard,
+  CheckCircle2, X, ChevronDown, Bell, Receipt, CreditCard, TrendingUp,
+  Package, Plus,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
@@ -71,6 +72,15 @@ const WASTE_LABELS: Record<string, string> = {
   bulk: 'Bulk Items',
 };
 
+const WASTE_ICONS: Record<string, string> = {
+  general: '🗑️',
+  recyclables: '♻️',
+  organic: '🌿',
+  construction: '🧱',
+  ewaste: '🔌',
+  bulk: '📦',
+};
+
 const FREQ_LABELS: Record<string, string> = {
   'one-time': 'One-Time',
   daily: 'Daily',
@@ -120,14 +130,12 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
   const [loading, setLoading] = useState(true);
   const [animateIn, setAnimateIn] = useState(false);
 
-  // Reschedule modal
   const [reschedulePickup, setReschedulePickup] = useState<Pickup | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleSlot, setRescheduleSlot] = useState('morning');
   const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
   const [rescheduleError, setRescheduleError] = useState('');
 
-  // Action feedback
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const loadData = useCallback(async () => {
@@ -135,7 +143,6 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
-    // Auto-generate upcoming pickups from active subscriptions
     await supabase.rpc('generate_upcoming_pickups', { p_user_id: user.id });
 
     const [subsRes, pickupsRes, invRes] = await Promise.all([
@@ -166,7 +173,6 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Auto-dismiss action message
   useEffect(() => {
     if (!actionMsg) return;
     const t = setTimeout(() => setActionMsg(null), 3500);
@@ -257,10 +263,10 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
 
   const activeSubs = subscriptions.filter(s => s.status === 'active');
   const pausedSubs = subscriptions.filter(s => s.status === 'paused');
-  const cancelledSubs = subscriptions.filter(s => s.status === 'cancelled');
 
   const unpaidInvoices = invoices.filter(i => i.status === 'pending' || i.status === 'partial' || i.status === 'overdue');
   const totalOutstanding = unpaidInvoices.reduce((s, i) => s + (i.amount_sle - i.amount_paid_sle), 0);
+  const totalMonthlyCost = activeSubs.reduce((s, sub) => s + (sub.plan_price_sle || 0), 0);
 
   const handlePayInvoice = async (invoice: ClientInvoice) => {
     const balance = invoice.amount_sle - invoice.amount_paid_sle;
@@ -288,8 +294,14 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
     }
   };
 
+  const tabConfig: { id: Tab; label: string; count?: number; urgent?: boolean }[] = [
+    { id: 'pickups', label: 'Pickups', count: upcomingPickups.length },
+    { id: 'subscriptions', label: 'Subscriptions', count: subscriptions.filter(s => s.status !== 'cancelled').length },
+    { id: 'billing', label: 'Billing', count: unpaidInvoices.length, urgent: unpaidInvoices.length > 0 },
+  ];
+
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-5">
       {/* Back button */}
       <button
         onClick={() => onNavigate('bookings')}
@@ -300,10 +312,15 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
       </button>
 
       {/* Header */}
-      <div className={`flex items-center justify-between gap-4 transition-all duration-500 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">My Subscriptions</h1>
-          <p className="mt-0.5 text-slate-400 text-sm">Manage your Smart Sort recurring collections</p>
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all duration-500 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Recycle className="w-6 h-6 text-emerald-600" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">My Subscriptions</h1>
+            <p className="mt-0.5 text-slate-400 text-sm">Manage your Smart Sort recurring collections</p>
+          </div>
         </div>
         <button
           onClick={() => onNavigate('account')}
@@ -314,57 +331,47 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
         </button>
       </div>
 
+      {/* Summary stats */}
+      {!loading && (
+        <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 transition-all duration-500 delay-75 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <StatCard icon={<Recycle className="w-4 h-4" />} label="Active Subs" value={activeSubs.length} color="emerald" />
+          <StatCard icon={<CalendarClock className="w-4 h-4" />} label="Upcoming" value={upcomingPickups.length} color="blue" />
+          <StatCard icon={<TrendingUp className="w-4 h-4" />} label="Monthly Cost" value={`SLE ${totalMonthlyCost.toLocaleString()}`} color="slate" />
+          <StatCard icon={<Receipt className="w-4 h-4" />} label="Outstanding" value={`SLE ${totalOutstanding.toLocaleString()}`} color={totalOutstanding > 0 ? 'amber' : 'slate'} />
+        </div>
+      )}
+
       {/* Action message toast */}
       {actionMsg && (
         <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
           actionMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
         }`}>
-          {actionMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+          {actionMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
           {actionMsg.text}
         </div>
       )}
 
-      {/* Tabs */}
-      <div className={`flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit transition-all duration-500 delay-75 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <button
-          onClick={() => setTab('pickups')}
-          className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-            tab === 'pickups' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Upcoming Pickups
-          {upcomingPickups.length > 0 && (
-            <span className={`ml-2 px-1.5 py-0.5 text-[10px] rounded-full ${tab === 'pickups' ? 'bg-white/20' : 'bg-slate-100'}`}>
-              {upcomingPickups.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setTab('subscriptions')}
-          className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-            tab === 'subscriptions' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          My Subscriptions
-          {subscriptions.filter(s => s.status !== 'cancelled').length > 0 && (
-            <span className={`ml-2 px-1.5 py-0.5 text-[10px] rounded-full ${tab === 'subscriptions' ? 'bg-white/20' : 'bg-slate-100'}`}>
-              {subscriptions.filter(s => s.status !== 'cancelled').length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setTab('billing')}
-          className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-            tab === 'billing' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Billing
-          {unpaidInvoices.length > 0 && (
-            <span className={`ml-2 px-1.5 py-0.5 text-[10px] rounded-full ${tab === 'billing' ? 'bg-white/20' : 'bg-red-100 text-red-600'}`}>
-              {unpaidInvoices.length}
-            </span>
-          )}
-        </button>
+      {/* Tabs - scrollable on mobile */}
+      <div className={`flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 w-full sm:w-fit overflow-x-auto transition-all duration-500 delay-75 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+        style={{ scrollbarWidth: 'none' }}>
+        {tabConfig.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-4 sm:px-5 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1.5 ${
+              tab === t.id ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {t.label}
+            {t.count !== undefined && t.count > 0 && (
+              <span className={`px-1.5 py-0.5 text-[10px] rounded-full ${
+                tab === t.id ? 'bg-white/20' : t.urgent ? 'bg-red-100 text-red-600' : 'bg-slate-100'
+              }`}>
+                {t.count}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Content */}
@@ -376,27 +383,18 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
         /* ── Upcoming Pickups Tab ── */
         <div className="space-y-3">
           {upcomingPickups.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-              <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-100 rounded-full mb-4">
-                <CalendarClock className="w-6 h-6 text-slate-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900">No upcoming pickups</h3>
-              <p className="mt-2 text-slate-500 text-sm">
-                Subscribe to a Smart Sort plan to get scheduled pickups automatically.
-              </p>
-              <button
-                onClick={() => onNavigate('services')}
-                className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-900 transition-colors text-sm"
-              >
-                <Recycle className="w-4 h-4" />
-                Browse Plans
-              </button>
-            </div>
+            <EmptyState
+              icon={<CalendarClock className="w-6 h-6 text-slate-400" />}
+              title="No upcoming pickups"
+              subtitle="Subscribe to a Smart Sort plan to get scheduled pickups automatically."
+              actionLabel="Browse Plans"
+              onAction={() => onNavigate('services')}
+            />
           ) : (
             upcomingPickups.map((pickup, index) => (
               <div
                 key={pickup.id}
-                className={`bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-all duration-500 ${
+                className={`bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 hover:shadow-md transition-all duration-500 ${
                   animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
                 }`}
                 style={{ transitionDelay: `${100 + index * 50}ms` }}
@@ -404,10 +402,10 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2 flex-wrap">
-                      <div className="w-9 h-9 bg-emerald-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Recycle className="w-4.5 h-4.5 text-emerald-600" />
+                      <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0 text-lg">
+                        {WASTE_ICONS[pickup.subscriptions?.waste_type || 'general'] || '♻️'}
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <h3 className="font-semibold text-slate-900 text-sm">
                           {WASTE_LABELS[pickup.subscriptions?.waste_type || pickup.time_slot] || 'Collection'}
                         </h3>
@@ -419,7 +417,7 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
                         {pickup.status.replace(/_/g, ' ')}
                       </span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500 ml-12">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-slate-500 sm:ml-13">
                       <span className="inline-flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5" />
                         {formatDate(pickup.scheduled_date)}
@@ -436,13 +434,12 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
                       )}
                     </div>
                     {pickup.driver_name && (
-                      <p className="ml-12 mt-1.5 text-xs text-indigo-600 inline-flex items-center gap-1.5">
+                      <p className="sm:ml-13 mt-1.5 text-xs text-indigo-600 inline-flex items-center gap-1.5">
                         <Bell className="w-3 h-3" />
                         Driver assigned: {pickup.driver_name}
                       </p>
                     )}
                   </div>
-                  {/* Actions */}
                   {pickup.status === 'scheduled' && (
                     <div className="flex items-center gap-2 flex-wrap">
                       <button
@@ -473,7 +470,7 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
             ))
           )}
 
-          {/* Past pickups summary */}
+          {/* Past pickups */}
           {pastPickups.length > 0 && (
             <div className="pt-4">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Past Pickups</p>
@@ -502,7 +499,7 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
           {unpaidInvoices.length > 0 && (
             <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl border border-amber-200 p-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Receipt className="w-5 h-5 text-amber-600" />
                 </div>
                 <div>
@@ -514,15 +511,11 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
           )}
 
           {invoices.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-              <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-100 rounded-full mb-4">
-                <Receipt className="w-6 h-6 text-slate-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900">No invoices yet</h3>
-              <p className="mt-2 text-slate-500 text-sm">
-                Your Smart Sort invoices will appear here when they are generated.
-              </p>
-            </div>
+            <EmptyState
+              icon={<Receipt className="w-6 h-6 text-slate-400" />}
+              title="No invoices yet"
+              subtitle="Your Smart Sort invoices will appear here when they are generated."
+            />
           ) : (
             <div className="space-y-3">
               {invoices.map((inv, index) => {
@@ -531,7 +524,7 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
                 return (
                   <div
                     key={inv.id}
-                    className={`bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-all duration-500 ${
+                    className={`bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 hover:shadow-md transition-all duration-500 ${
                       animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
                     }`}
                     style={{ transitionDelay: `${100 + index * 50}ms` }}
@@ -542,7 +535,7 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
                           <div className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
                             <FileText className="w-4 h-4 text-slate-500" />
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <p className="font-semibold text-slate-900 text-sm">{inv.invoice_number}</p>
                             <p className="text-xs text-slate-400">
                               {formatDate(inv.period_start)} – {formatDate(inv.period_end)}
@@ -552,7 +545,7 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
                             {inv.status}
                           </span>
                         </div>
-                        <div className="ml-12 flex flex-wrap gap-4 text-sm">
+                        <div className="sm:ml-12 flex flex-wrap gap-x-4 gap-y-1 text-sm">
                           <span className="text-slate-500">Amount: <span className="font-semibold text-slate-800">SLE {inv.amount_sle.toLocaleString()}</span></span>
                           {inv.amount_paid_sle > 0 && (
                             <span className="text-emerald-600">Paid: <span className="font-semibold">SLE {inv.amount_paid_sle.toLocaleString()}</span></span>
@@ -584,27 +577,18 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
         /* ── My Subscriptions Tab ── */
         <div className="space-y-3">
           {subscriptions.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-              <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-100 rounded-full mb-4">
-                <Recycle className="w-6 h-6 text-slate-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900">No subscriptions yet</h3>
-              <p className="mt-2 text-slate-500 text-sm">
-                Subscribe to a Smart Sort plan for regular scheduled waste collection.
-              </p>
-              <button
-                onClick={() => onNavigate('services')}
-                className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-900 transition-colors text-sm"
-              >
-                <Recycle className="w-4 h-4" />
-                Browse Plans
-              </button>
-            </div>
+            <EmptyState
+              icon={<Recycle className="w-6 h-6 text-slate-400" />}
+              title="No subscriptions yet"
+              subtitle="Subscribe to a Smart Sort plan for regular scheduled waste collection."
+              actionLabel="Browse Plans"
+              onAction={() => onNavigate('services')}
+            />
           ) : (
             subscriptions.map((sub, index) => (
               <div
                 key={sub.id}
-                className={`bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-all duration-500 ${
+                className={`bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 hover:shadow-md transition-all duration-500 ${
                   animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
                 }`}
                 style={{ transitionDelay: `${100 + index * 50}ms` }}
@@ -612,10 +596,10 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
                 <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-3 flex-wrap">
-                      <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Recycle className="w-5 h-5 text-emerald-600" />
+                      <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0 text-lg">
+                        {WASTE_ICONS[sub.waste_type] || '♻️'}
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <h3 className="font-semibold text-slate-900">
                           {sub.plan_name || `${WASTE_LABELS[sub.waste_type] || 'Smart Sort'} Plan`}
                         </h3>
@@ -628,7 +612,7 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-500 ml-13">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-500 sm:ml-13">
                       <span className="inline-flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5" />
                         {SLOT_LABELS[sub.time_slot]?.split(' (')[0] || sub.time_slot}
@@ -639,6 +623,7 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
                       </span>
                       {sub.plan_price_sle != null && (
                         <span className="inline-flex items-center gap-1.5 font-medium text-slate-700">
+                          <Package className="w-3.5 h-3.5" />
                           SLE {sub.plan_price_sle} / period
                         </span>
                       )}
@@ -651,11 +636,10 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
                     </div>
 
                     {sub.special_instructions && (
-                      <p className="ml-13 mt-2 text-xs text-slate-400 italic">"{sub.special_instructions}"</p>
+                      <p className="sm:ml-13 mt-2 text-xs text-slate-400 italic">"{sub.special_instructions}"</p>
                     )}
                   </div>
 
-                  {/* Actions */}
                   <div className="flex items-center gap-2 flex-wrap">
                     {sub.status === 'active' && (
                       <button
@@ -757,6 +741,47 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string | number; color: string }) {
+  const colorMap: Record<string, string> = {
+    emerald: 'bg-emerald-50 text-emerald-600',
+    blue: 'bg-blue-50 text-blue-600',
+    slate: 'bg-slate-100 text-slate-600',
+    amber: 'bg-amber-50 text-amber-600',
+  };
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-2.5">
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${colorMap[color]}`}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-slate-400 truncate">{label}</p>
+        <p className="text-sm font-bold text-slate-800 truncate">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ icon, title, subtitle, actionLabel, onAction }: { icon: React.ReactNode; title: string; subtitle: string; actionLabel?: string; onAction?: () => void }) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center">
+      <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-100 rounded-full mb-4">
+        {icon}
+      </div>
+      <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+      <p className="mt-2 text-slate-500 text-sm">{subtitle}</p>
+      {actionLabel && (
+        <button
+          onClick={onAction}
+          className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-900 transition-colors text-sm"
+        >
+          <Plus className="w-4 h-4" />
+          {actionLabel}
+        </button>
       )}
     </div>
   );
