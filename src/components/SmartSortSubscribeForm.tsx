@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { SmartSortImpactDashboard } from './SmartSortImpactDashboard';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 interface Service {
   id: string; name: string; slug: string; description: string; icon: string; price_range: string;
@@ -172,6 +173,7 @@ function StatusBadge({ status }: { status: string }) {
 type Tab = 'upcoming' | 'subs' | 'history' | 'invoices' | 'impact';
 
 export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribeFormProps) {
+  const { wallet_enabled } = useFeatureFlags();
   const [tab, setTab] = useState<Tab>('upcoming');
   const [subs, setSubs] = useState<Subscription[]>([]);
   const [pickups, setPickups] = useState<UpcomingPickup[]>([]);
@@ -386,6 +388,7 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
   return (
     <div className="min-h-screen bg-slate-100">
       {/* Wallet Banner */}
+      {wallet_enabled && (
       <div className="max-w-3xl mx-auto px-4 pt-6">
         <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
@@ -402,6 +405,7 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
           </button>
         </div>
       </div>
+      )}
 
       {/* Header */}
       <div className="max-w-3xl mx-auto px-4 mt-6 flex items-start justify-between">
@@ -536,6 +540,7 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
                   </div>
 
                   {/* Auto-pay toggle */}
+                  {wallet_enabled && (
                   <div className="mt-4 flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
                     <div className="flex items-center gap-2.5">
                       <CreditCard className="w-4 h-4 text-slate-500" />
@@ -553,6 +558,7 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
                       <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${sub.auto_pay ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
+                  )}
 
                   {/* Actions */}
                   <div className="flex flex-wrap gap-2 mt-4">

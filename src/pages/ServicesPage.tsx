@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase';
 import { ServiceDetailModal } from '../components/ServiceDetailModal';
 import { ServiceBundleSection } from '../components/ServiceBundleSection';
 import type { Bundle } from '../components/ServiceBundleSection';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 const iconMap: Record<string, React.ReactNode> = {
   Trash2: <Trash2 className="w-6 h-6" />,
@@ -84,6 +85,7 @@ const serviceExtras: Record<string, {
 const categories = ['All', 'C&F', 'Smart Sort', 'Cleaning', 'Security', 'Procurement'];
 
 export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps) {
+  const { wallet_enabled } = useFeatureFlags();
 
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,17 +110,19 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
       setTimeout(() => setAnimateIn(true), 100);
     };
     fetchServices();
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
-        .from('wallet_transactions')
-        .select('amount_sle, status')
-        .eq('user_id', user.id)
-        .eq('status', 'completed');
-      const bal = (data || []).reduce((s: number, t: any) => s + Number(t.amount_sle), 0);
-      setWalletBalance(bal);
-    })();
+    if (wallet_enabled) {
+      (async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from('wallet_transactions')
+          .select('amount_sle, status')
+          .eq('user_id', user.id)
+          .eq('status', 'completed');
+        const bal = (data || []).reduce((s: number, t: any) => s + Number(t.amount_sle), 0);
+        setWalletBalance(bal);
+      })();
+    }
   }, []);
 
   useEffect(() => {
@@ -226,6 +230,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
   return (
     <div className="bg-slate-50 min-h-screen">
       {/* Wallet Banner */}
+      {wallet_enabled && (
       <div className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 transition-all duration-700 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
           <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center gap-4">
@@ -243,6 +248,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
             </button>
           </div>
       </div>
+      )}
 
       {/* Header */}
       <section className={`pt-10 pb-6 text-center transition-all duration-700 delay-100 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>

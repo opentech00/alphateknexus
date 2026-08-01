@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 export const PAYMENT_METHODS = [
   { id: 'orange-money', label: 'Orange Money', category: 'mobile', color: 'bg-orange-500', initials: 'OM' },
@@ -41,6 +42,7 @@ export function ServicePaymentStep({
   amount, bookingId, serviceName, serviceSlug, onBack, onSuccess, onFail,
 }: ServicePaymentStepProps) {
   const [selected, setSelected] = useState('orange-money');
+  const { wallet_enabled } = useFeatureFlags();
   const [paying, setPaying] = useState(false);
   const [bankDocType, setBankDocType] = useState('payslip');
   const [bankFile, setBankFile] = useState<File | null>(null);
@@ -49,7 +51,7 @@ export function ServicePaymentStep({
 
   const mobileMethods = PAYMENT_METHODS.filter(m => m.category === 'mobile');
   const cardMethods = PAYMENT_METHODS.filter(m => m.category === 'card');
-  const walletMethods = PAYMENT_METHODS.filter(m => m.category === 'wallet');
+  const walletMethods = wallet_enabled ? PAYMENT_METHODS.filter(m => m.category === 'wallet') : [];
   const bankMethods = PAYMENT_METHODS.filter(m => m.category === 'bank');
   const cashMethods = PAYMENT_METHODS.filter(m => m.category === 'cash');
 
@@ -283,12 +285,14 @@ export function ServicePaymentStep({
             </div>
 
             {/* Wallet */}
+            {walletMethods.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
                 <Wallet className="w-3.5 h-3.5" /> Wallet
               </p>
               <div className="space-y-2.5">{walletMethods.map(renderMethod)}</div>
             </div>
+            )}
 
             {/* Bank Transfer */}
             <div>

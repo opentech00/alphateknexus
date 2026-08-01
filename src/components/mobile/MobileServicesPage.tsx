@@ -8,6 +8,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import type { Service } from '../../types';
 import { ServiceDetailModal } from '../ServiceDetailModal';
+import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 
 interface Props {
   onSelectService: (svc: Service, mode?: 'hire' | 'quote' | 'pickup' | 'subscribe') => void;
@@ -84,6 +85,7 @@ const CATEGORY_ICONS: Record<string, typeof Ship> = {
 interface ServiceRating { avg: number; count: number }
 
 export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
+  const { wallet_enabled } = useFeatureFlags();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -135,12 +137,14 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
         setBookingCounts(counts);
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setWalletBalance(0); return; }
-      const { data: walletData } = await supabase
-        .from('wallet_transactions').select('amount_sle, status').eq('user_id', user.id).eq('status', 'completed');
-      const bal = (walletData || []).reduce((s: number, t: any) => s + Number(t.amount_sle), 0);
-      setWalletBalance(bal);
+      if (wallet_enabled) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setWalletBalance(0); return; }
+        const { data: walletData } = await supabase
+          .from('wallet_transactions').select('amount_sle, status').eq('user_id', user.id).eq('status', 'completed');
+        const bal = (walletData || []).reduce((s: number, t: any) => s + Number(t.amount_sle), 0);
+        setWalletBalance(bal);
+      }
     })();
   }, []);
 
@@ -198,6 +202,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
   return (
     <div className="flex flex-col min-h-full bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight">
       {/* Wallet strip */}
+      {wallet_enabled && (
       <div
         className="mx-4 mt-3 rounded-2xl bg-white dark:bg-slate-800 dark:border-slate-700 border border-slate-100 shadow-sm p-3.5 flex items-center justify-between active:scale-[0.99] transition-transform"
         style={{ animation: 'fadeInUp 0.4s ease-out both' }}
@@ -221,6 +226,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
           Top up
         </button>
       </div>
+      )}
 
       {/* Search */}
       <div className="px-4 mt-3" style={{ animation: 'fadeInUp 0.4s ease-out 0.06s both' }}>

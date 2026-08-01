@@ -11,6 +11,7 @@ import { ReviewModal } from '../ReviewModal';
 import { BookingTracker } from '../BookingTracker';
 import { SubscriptionLifecycle } from '../SubscriptionLifecycle';
 import { CancelDeleteBookingModal } from '../CancelDeleteBookingModal';
+import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 
 interface Booking {
   id: string;
@@ -73,6 +74,7 @@ type Tab = 'all' | 'active' | 'subscriptions' | 'completed';
 const ACTIVE_STATUSES = ['pending', 'pending_review', 'approved', 'confirmed', 'in_progress'];
 
 export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Props) {
+  const { wallet_enabled } = useFeatureFlags();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('all');
@@ -125,7 +127,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
   useEffect(() => {
     fetchBookings();
     fetchReviews();
-    fetchWallet();
+    if (wallet_enabled) fetchWallet();
     fetchSubscriptions();
   }, [fetchBookings, fetchReviews, fetchWallet, fetchSubscriptions]);
 
@@ -209,6 +211,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
       </div>
 
       {/* Wallet pill */}
+      {wallet_enabled && (
       <div className="px-4 pb-3">
         <div className="flex items-center gap-2.5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-3.5 py-2.5 shadow-sm">
           <div className="w-7 h-7 bg-slate-900 dark:bg-slate-700 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -227,6 +230,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
           </button>
         </div>
       </div>
+      )}
 
       {/* Filter chips */}
       <div className="px-4 pb-3">

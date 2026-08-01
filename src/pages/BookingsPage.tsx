@@ -13,6 +13,7 @@ import { SubscriptionLifecycle } from '../components/SubscriptionLifecycle';
 import { UnifiedCalendar } from '../components/UnifiedCalendar';
 import { BookingTrackingPage } from '../components/BookingTrackingPage';
 import { CancelDeleteBookingModal } from '../components/CancelDeleteBookingModal';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 interface Booking {
   id: string;
@@ -78,6 +79,7 @@ type Tab = 'all' | 'active' | 'subscriptions' | 'completed' | 'calendar';
 const ACTIVE_STATUSES = ['pending', 'pending_review', 'approved', 'confirmed', 'in_progress'];
 
 export function BookingsPage({ onNavigate, onRebook, initialExpandId }: BookingsPageProps) {
+  const { wallet_enabled } = useFeatureFlags();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('all');
@@ -131,7 +133,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   useEffect(() => {
     fetchBookings();
     fetchReviews();
-    fetchWallet();
+    if (wallet_enabled) fetchWallet();
     fetchSubscriptions();
   }, [fetchBookings, fetchReviews, fetchWallet, fetchSubscriptions]);
 
@@ -209,6 +211,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   return (
     <div className="max-w-4xl mx-auto space-y-5">
       {/* Wallet Banner */}
+      {wallet_enabled && (
       <div
         className={`flex items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm transition-all duration-500 ${
           animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'
@@ -233,6 +236,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
           Top up
         </button>
       </div>
+      )}
 
       {/* Header */}
       <div
