@@ -19,6 +19,7 @@ import { LoginActivityPanel } from '../components/LoginActivityPanel';
 import { AddressPage } from '../components/AddressPage';
 import { PremiumBenefitsPage } from './PremiumBenefitsPage';
 import { SpendingDashboard } from '../components/SpendingDashboard';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 interface AccountPageProps {
   onNavigate: (page: string) => void;
@@ -603,6 +604,7 @@ function ComingSoon({ label }: { label: string }) {
 
 export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
   const { profile, user, signOut } = useAuth();
+  const { referral_enabled, wallet_enabled } = useFeatureFlags();
   const [tab, setTab] = useState<AccountTab>('overview');
   const [modal, setModal] = useState<ModalKind>(null);
   const [referralOpen, setReferralOpen] = useState(false);
@@ -655,7 +657,8 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
   };
 
   const openModal = async (id: string) => {
-    if (id === 'referral') { setReferralOpen(true); return; }
+    if (id === 'referral' && referral_enabled) { setReferralOpen(true); return; }
+    if ((id === 'wallet' || id === 'referral') && !wallet_enabled && id === 'wallet') { return; }
     if (id === 'service-history') {
       setModal('service-history');
       setHistoryLoading(true);
@@ -730,7 +733,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
       <div className="flex items-center gap-1 bg-white rounded-2xl border border-slate-200 shadow-sm p-1.5 mb-4">
         {[
           { id: 'overview',  label: 'Overview',  icon: User },
-          { id: 'wallet',    label: 'Wallet',    icon: Wallet },
+          ...(wallet_enabled ? [{ id: 'wallet' as const, label: 'Wallet', icon: Wallet }] : []),
           { id: 'spending',  label: 'Spending',   icon: BarChart3 },
           { id: 'favorites', label: 'Favorites', icon: Heart },
           { id: 'calendar',  label: 'Calendar',  icon: Calendar },
@@ -753,7 +756,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
         <>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-4">
             <div className="grid grid-cols-1 sm:grid-cols-2">
-              {MODULE_GRID.map((mod, i) => {
+              {MODULE_GRID.filter(m => (m.id !== 'wallet' || wallet_enabled) && (m.id !== 'referral' || referral_enabled)).map((mod, i) => {
                 const Icon = mod.icon;
                 const isLast = i === MODULE_GRID.length - 1;
                 const isSecondLast = i === MODULE_GRID.length - 2;
@@ -800,7 +803,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
       {tab === 'spending' && <SpendingDashboard />}
 
       {/* ── Wallet Tab ── */}
-      {tab === 'wallet' && <WalletPanel onChooseService={() => onNavigate('services')} />}
+      {tab === 'wallet' && wallet_enabled && <WalletPanel onChooseService={() => onNavigate('services')} />}
 
       {/* ── Favorites Tab ── */}
       {tab === 'favorites' && (
@@ -926,6 +929,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
       </Modal>
 
       {/* Wallet */}
+      {wallet_enabled && (
       <Modal
         open={modal === 'wallet'}
         onClose={() => setModal(null)}
@@ -937,6 +941,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
       >
         <WalletPanel onChooseService={() => { setModal(null); onNavigate('services'); }} />
       </Modal>
+      )}
 
       {/* Payment Methods */}
       <Modal
@@ -1066,7 +1071,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
       </Modal>
 
       {/* Referral Modal (existing) */}
-      <ReferralModal open={referralOpen} onClose={() => setReferralOpen(false)} />
+      {referral_enabled && <ReferralModal open={referralOpen} onClose={() => setReferralOpen(false)} />}
     </div>
   );
 }

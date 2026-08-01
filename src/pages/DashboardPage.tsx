@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase';
 import type { Service } from '../types';
 import { QuickBookModal } from '../components/QuickBookModal';
 import { AppReviewModal } from '../components/AppReviewModal';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 interface DashboardPageProps {
   onNavigate?: (page: string) => void;
@@ -207,6 +208,7 @@ function StatusTimeline({ status }: { status: string }) {
 /* ── Main dashboard ───────────────────────────────────────── */
 export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: DashboardPageProps) {
   const { profile } = useAuth();
+  const { wallet_enabled } = useFeatureFlags();
   const [services, setServices]         = useState<Service[]>([]);
   const [bookings, setBookings]         = useState<BookingRow[]>([]);
   const [walletBalance, setWalletBalance] = useState(0);
@@ -356,7 +358,7 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
       <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-5 transition-all duration-700 delay-100 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'}`}>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[
-            { label: 'Wallet Balance', value: `SLE ${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: Wallet,       color: 'emerald', page: 'account' },
+            ...(wallet_enabled ? [{ label: 'Wallet Balance', value: `SLE ${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: Wallet,       color: 'emerald', page: 'account' }] : []),
             { label: 'Active Bookings', value: String(activeBookings),  icon: Clock,         color: 'blue',    page: 'bookings' },
             { label: 'Completed',       value: String(completedCount),  icon: CheckCircle2,  color: 'teal',    page: 'bookings' },
             { label: 'Services',        value: String(services.length), icon: Briefcase,     color: 'amber',   page: 'services' },
@@ -550,8 +552,9 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
           </div>
 
           {/* Wallet + Need Help — side by side */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid gap-3 ${wallet_enabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {/* Wallet CTA */}
+            {wallet_enabled && (
             <div className="relative bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-800 rounded-2xl shadow-lg shadow-emerald-900/20 p-4 flex flex-col overflow-hidden">
               <div className="absolute -top-4 -right-4 w-20 h-20 bg-white/10 rounded-full pointer-events-none" />
               <div className="absolute bottom-0 left-0 w-16 h-16 bg-black/10 rounded-full pointer-events-none" />
@@ -574,6 +577,7 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
                 </button>
               </div>
             </div>
+            )}
 
             {/* Need Help */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col">

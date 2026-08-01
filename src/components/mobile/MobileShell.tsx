@@ -8,6 +8,7 @@ import { MobileBookingsPage } from './MobileBookingsPage';
 import { WalletPanel } from '../WalletPanel';
 import { MobileProfilePage } from './MobileProfilePage';
 import { MobileServicesPage } from './MobileServicesPage';
+import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 
 type MobilePage = 'home' | 'bookings' | 'wallet' | 'profile' | 'services';
 
@@ -18,7 +19,7 @@ interface Props {
   onQuickBook: (serviceId: string, preset: any) => void;
 }
 
-const NAV_ITEMS: { id: MobilePage; label: string; icon: typeof Home }[] = [
+const ALL_NAV_ITEMS: { id: MobilePage; label: string; icon: typeof Home }[] = [
   { id: 'home',     label: 'Home',     icon: Home },
   { id: 'bookings', label: 'Bookings', icon: CalendarDays },
   { id: 'wallet',   label: 'Wallet',   icon: Wallet },
@@ -35,6 +36,7 @@ const PAGE_TITLE: Record<MobilePage, string> = {
 
 
 export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook }: Props) {
+  const { wallet_enabled } = useFeatureFlags();
   const [mobilePage, setMobilePage] = useState<MobilePage>('home');
   const [pageKey, setPageKey] = useState(0);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
@@ -113,7 +115,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
             />
           )}
 
-          {mobilePage === 'wallet' && (
+          {mobilePage === 'wallet' && wallet_enabled && (
             <div className="p-4">
               <WalletPanel onChooseService={() => handleSetPage('services')} />
             </div>
@@ -140,7 +142,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
       {/* Bottom Navigation — static, always visible, safe-area bottom padding */}
       <nav className="flex-shrink-0 bg-white dark:bg-slate-900 black:bg-black border-t border-slate-100 dark:border-slate-800 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] no-select">
         <div className="flex items-center justify-around px-2 py-1 safe-area-pb">
-          {NAV_ITEMS.map(item => {
+          {ALL_NAV_ITEMS.filter(item => item.id !== 'wallet' || wallet_enabled).map(item => {
             const Icon = item.icon;
             const active = mobilePage === item.id;
             return (
