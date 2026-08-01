@@ -119,6 +119,12 @@ export function LoginPage({ onSwitch, onForgot }: LoginPageProps) {
           Create one
         </button>
       </p>
+
+      <div className="flex items-center justify-center gap-4 pt-3 border-t border-slate-100 mt-4">
+        <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-400 hover:text-emerald-600 transition-colors">Privacy Policy</a>
+        <span className="text-slate-200">·</span>
+        <a href="/terms-of-service.html" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-400 hover:text-emerald-600 transition-colors">Terms of Service</a>
+      </div>
     </AuthLayout>
   );
 }

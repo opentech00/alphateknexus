@@ -103,9 +103,14 @@ export function AdminLoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-slate-500 text-xs mt-6">
+        <p className="text-center text-slate-500 text-xs mt-4">
           Alphatek Nexus — Admin Portal · Authorized personnel only
         </p>
+        <div className="flex items-center justify-center gap-4 mt-3">
+          <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-emerald-400 transition-colors">Privacy Policy</a>
+          <span className="text-slate-600">·</span>
+          <a href="/terms-of-service.html" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-emerald-400 transition-colors">Terms of Service</a>
+        </div>
       </div>
     </div>
   );

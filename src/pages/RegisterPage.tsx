@@ -210,7 +210,10 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
         </div>
 
         <p className="text-center text-xs text-slate-400">
-          By creating an account, you agree to our Terms of Service and Privacy Policy.
+          By creating an account, you agree to our{' '}
+          <a href="/terms-of-service.html" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 font-medium">Terms of Service</a>{' '}
+          and{' '}
+          <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 font-medium">Privacy Policy</a>.
         </p>
 
         <p className="text-center text-sm text-slate-500 pt-0.5">

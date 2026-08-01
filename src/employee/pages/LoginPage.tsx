@@ -117,9 +117,14 @@ export function LoginPage() {
           </p>
         </div>
 
-        <p className="text-center text-xs text-slate-500 mt-6">
+        <p className="text-center text-xs text-slate-500 mt-4">
           © {new Date().getFullYear()} Alphatek Nexus. All rights reserved.
         </p>
+        <div className="flex items-center justify-center gap-4 mt-3">
+          <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-emerald-600 transition-colors">Privacy Policy</a>
+          <span className="text-slate-600">·</span>
+          <a href="/terms-of-service.html" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-emerald-600 transition-colors">Terms of Service</a>
+        </div>
       </div>
     </div>
   );
