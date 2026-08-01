@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { initPushNotifications } from '../../lib/pushNotifications';
 import type { Employee } from '../types';
 
 interface AppAccess {
@@ -63,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(newSession?.user ?? null);
         if (newSession?.user) {
           await fetchEmployee(newSession.user.id);
+          initPushNotifications('employee').catch(() => {});
         } else {
           setEmployee(null);
           setAppAccess(null);

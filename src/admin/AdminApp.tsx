@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AdminNotificationsProvider } from './contexts/AdminNotificationsContext';
+import { initPushNotifications } from '../lib/pushNotifications';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { TwoFactorPage } from '../pages/TwoFactorPage';
 import { AdminSidebar } from './AdminSidebar';
@@ -10,6 +11,7 @@ import { BookingsManagementPage } from './pages/BookingsManagementPage';
 import { ClientsPage } from './pages/ClientsPage';
 import { DivisionsPage } from './pages/DivisionsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { NotificationLogPage } from './pages/NotificationLogPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { ClearingForwardingPage } from './pages/ClearingForwardingPage';
 import { SmartSortPage } from './pages/SmartSortPage';
@@ -42,6 +44,12 @@ import { AdminSessionsPage } from './pages/AdminSessionsPage';
 function AdminContent() {
   const [currentPage, setCurrentPage] = useState('overview');
   const { user, isAdmin, loading, needs2FA, pending2FAEmail, pending2FAPassword, clear2FA, signOut } = useAuth();
+
+  useEffect(() => {
+    if (user && isAdmin) {
+      initPushNotifications('admin').catch(() => {});
+    }
+  }, [user, isAdmin]);
 
   if (loading) {
     return (
@@ -154,6 +162,8 @@ function AdminContent() {
         return <AdminSessionsPage />;
       case 'settings':
         return <SettingsPage />;
+      case 'notification-log':
+        return <NotificationLogPage />;
       default:
         return <OverviewPage />;
     }

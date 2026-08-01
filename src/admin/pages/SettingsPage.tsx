@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Settings, Bell, Globe, Shield, Database, Gift, Wallet, Loader2, Check, X,
+  Settings, Bell, Globe, Shield, Database, Gift, Wallet, Loader2, Check, X, ChevronDown,
 } from 'lucide-react';
 import { PageHeader } from '../components/ui';
 import { supabase } from '../../lib/supabase';
+import { NotificationPreferencesPanel } from '../../components/NotificationPreferencesPanel';
 
 interface AppSettings {
   referral_enabled: boolean;
@@ -16,6 +17,7 @@ export function SettingsPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [showNotifPrefs, setShowNotifPrefs] = useState(false);
 
   const fetchSettings = useCallback(async () => {
     setLoading(true);
@@ -121,11 +123,24 @@ export function SettingsPage() {
       {/* Other Settings */}
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">System</h2>
       <div className="space-y-3">
-        <SettingCard
-          icon={<Bell className="w-5 h-5 text-blue-600" />}
-          title="Notifications"
-          description="Configure email and push notification preferences for admin alerts"
-        />
+        <button
+          onClick={() => setShowNotifPrefs(!showNotifPrefs)}
+          className="w-full bg-white rounded-xl border border-slate-200 p-5 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer group text-left"
+        >
+          <div className="w-11 h-11 bg-slate-50 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <Bell className="w-5 h-5 text-blue-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-slate-900">Notifications</h3>
+            <p className="text-sm text-slate-500 mt-0.5">Configure email and push notification preferences for admin alerts</p>
+          </div>
+          <ChevronDown className={`w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-transform flex-shrink-0 ${showNotifPrefs ? 'rotate-180' : ''}`} />
+        </button>
+        {showNotifPrefs && (
+          <div className="mt-2">
+            <NotificationPreferencesPanel />
+          </div>
+        )}
         <SettingCard
           icon={<Globe className="w-5 h-5 text-emerald-600" />}
           title="Portal Settings"

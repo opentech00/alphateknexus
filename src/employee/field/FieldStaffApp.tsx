@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Home, ClipboardList, Clock, Bell, BarChart3, MapPin, WifiOff, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { FieldStaffProvider, useFieldStaff } from './FieldStaffContext';
 import { ToastContainer } from './components/Toast';
+import { initPushNotifications } from '../../lib/pushNotifications';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { JobsScreen } from './screens/JobsScreen';
 import { JobDetailScreen } from './screens/JobDetailScreen';
@@ -19,6 +20,12 @@ function FieldStaffContent() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showIncident, setShowIncident] = useState(false);
+
+  useEffect(() => {
+    if (employee) {
+      initPushNotifications('field').catch(() => {});
+    }
+  }, [employee]);
 
   if (loading) {
     return (

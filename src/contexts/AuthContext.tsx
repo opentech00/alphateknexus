@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { initPushNotifications, unregisterDeviceToken } from '../lib/pushNotifications';
 import type { Profile } from '../types';
 
 interface AuthContextValue {
@@ -55,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(newSession?.user ?? null);
         if (newSession?.user) {
           await fetchProfile(newSession.user.id);
+          initPushNotifications('client').catch(() => {});
         } else {
           setProfile(null);
         }

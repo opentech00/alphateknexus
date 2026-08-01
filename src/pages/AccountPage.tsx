@@ -13,6 +13,7 @@ import { SchedulingCalendar } from '../components/SchedulingCalendar';
 import { WalletPanel } from '../components/WalletPanel';
 import { ReferralPanel, ReferralModal } from '../components/ReferralPanel';
 import { AppearancePanel } from '../components/AppearancePanel';
+import { NotificationPreferencesPanel } from '../components/NotificationPreferencesPanel';
 import { TwoFactorPanel } from '../components/TwoFactorPanel';
 import { SessionManagerPanel } from '../components/SessionManagerPanel';
 import { LoginActivityPanel } from '../components/LoginActivityPanel';
@@ -1017,7 +1018,13 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
         iconBg="bg-amber-50"
         maxWidth="max-w-lg"
       >
-        <NotificationsList notifications={notifications} loading={notifLoading} />
+        <div className="space-y-4">
+          <NotificationPreferencesPanel />
+          <div className="pt-2">
+            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Recent Notifications</h4>
+            <NotificationsList notifications={notifications} loading={notifLoading} />
+          </div>
+        </div>
       </Modal>
 
       {/* Appearance */}

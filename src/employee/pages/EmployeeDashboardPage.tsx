@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Mail, Phone, MapPin, Calendar, AlertTriangle, User, Briefcase,
-  Building2, BadgeCheck, CreditCard, LogOut, Loader2, Clock,
+  Building2, BadgeCheck, CreditCard, LogOut, Loader2, Clock, Bell,
   LayoutDashboard, ChevronRight, Menu, X, KeyRound, Banknote, ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
@@ -9,8 +9,9 @@ import { supabase } from '../lib/supabase';
 import { type IdCard, STATUS_META, fmtDate } from '../types';
 import { CashCollectionsPage } from './CashCollectionsPage';
 import { ActivitiesPage } from './ActivitiesPage';
+import { NotificationPreferencesPanel } from '../../components/NotificationPreferencesPanel';
 
-type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities';
+type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications';
 
 export function EmployeeDashboardPage() {
   const { employee, user, signOut } = useAuth();
@@ -68,6 +69,7 @@ export function EmployeeDashboardPage() {
     { key: 'id-card', label: 'ID Card', icon: CreditCard },
     { key: 'cash-collections', label: 'Cash Collections', icon: Banknote },
     { key: 'profile', label: 'Profile', icon: User },
+    { key: 'notifications', label: 'Notifications', icon: Bell },
   ];
 
   const handleNav = (p: Page) => {
@@ -186,6 +188,12 @@ export function EmployeeDashboardPage() {
           {page === 'id-card' && <IdCardPage employee={employee} idCard={idCard} loading={cardLoading} cardStatus={cardStatus} />}
           {page === 'cash-collections' && <CashCollectionsPage onBack={() => setPage('overview')} />}
           {page === 'profile' && <ProfilePage employee={employee} />}
+          {page === 'notifications' && (
+            <div className="max-w-2xl mx-auto">
+              <h2 className="text-lg font-bold text-slate-900 mb-4">Notification Settings</h2>
+              <NotificationPreferencesPanel dark />
+            </div>
+          )}
         </main>
       </div>
     </div>
