@@ -32,6 +32,8 @@ import { BundlesManagementPage } from './pages/BundlesManagementPage';
 import { FieldDispatchPage } from './pages/FieldDispatchPage';
 import { BookingReviewPage } from './pages/BookingReviewPage';
 import { MessagesPage } from './pages/MessagesPage';
+import { FieldJobReviewPage } from './pages/FieldJobReviewPage';
+import { FieldIncidentsPage } from './pages/FieldIncidentsPage';
 
 function AdminContent() {
   const [currentPage, setCurrentPage] = useState('overview');
@@ -88,6 +90,10 @@ function AdminContent() {
         return <ProcurementPage />;
       case 'field-dispatch':
         return <FieldDispatchPage />;
+      case 'field-job-review':
+        return <FieldJobReviewPage />;
+      case 'field-incidents':
+        return <FieldIncidentsPage />;
       case 'documents':
         return <DocumentsManagementPage />;
       case 'finance':

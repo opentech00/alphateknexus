@@ -6,6 +6,7 @@ import {
   Briefcase, CreditCard, UserCog, History, Contact, Database,
   Receipt as ReceiptIcon, Star, Gift, Landmark,
   Navigation, ClipboardCheck, MessageSquare,
+  AlertTriangle, CheckSquare,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAdminNotifications } from './contexts/AdminNotificationsContext';
@@ -65,6 +66,8 @@ const navSections: NavSection[] = [
     title: 'FIELD OPERATIONS',
     items: [
       { label: 'Field Dispatch', page: 'field-dispatch', icon: Navigation },
+      { label: 'Job Review', page: 'field-job-review', icon: CheckSquare },
+      { label: 'Incidents', page: 'field-incidents', icon: AlertTriangle },
     ],
   },
   {
@@ -160,6 +163,8 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
     finance: 0,
     reviews: 0,
     'field-dispatch': 0,
+    'field-job-review': 0,
+    'field-incidents': 0,
     bundles: 0,
     referrals: 0,
     settings: 0,
