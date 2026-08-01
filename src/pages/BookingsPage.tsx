@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Calendar, MapPin, Clock, AlertCircle, Loader2, Plus,
   MessageSquare, Paperclip, ChevronDown, ChevronUp, Star, RotateCcw,
   Truck, Wallet, Search, CalendarDays, Recycle, ChevronRight, Ban, Trash2,
-  Package, CheckCircle2, X,
+  CheckCircle2, X, FileText, Receipt, CreditCard, TrendingUp, Package,
+  Filter, ArrowUpDown, Inbox, Bell, Phone, Mail, User, Zap,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { MessageThread } from '../components/MessageThread';
@@ -55,34 +56,14 @@ interface BookingsPageProps {
   initialExpandId?: string | null;
 }
 
-const statusColors: Record<string, string> = {
-  pending: 'bg-amber-50 text-amber-700 border-amber-200',
-  pending_review: 'bg-orange-50 text-orange-700 border-orange-200',
-  approved: 'bg-teal-50 text-teal-700 border-teal-200',
-  confirmed: 'bg-blue-50 text-blue-700 border-blue-200',
-  in_progress: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  completed: 'bg-slate-50 text-slate-600 border-slate-200',
-  cancelled: 'bg-red-50 text-red-700 border-red-200',
-};
-
-const statusLabels: Record<string, string> = {
-  pending: 'Pending',
-  pending_review: 'Awaiting Review',
-  approved: 'Approved',
-  confirmed: 'Confirmed',
-  in_progress: 'In Progress',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
-};
-
-const statusDots: Record<string, string> = {
-  pending: 'bg-amber-500',
-  pending_review: 'bg-orange-500',
-  approved: 'bg-teal-500',
-  confirmed: 'bg-blue-500',
-  in_progress: 'bg-emerald-500',
-  completed: 'bg-slate-400',
-  cancelled: 'bg-red-500',
+const statusConfig: Record<string, { label: string; badge: string; dot: string; accent: string }> = {
+  pending:        { label: 'Pending',     badge: 'text-amber-700 bg-amber-50 border-amber-200',     dot: 'bg-amber-500',   accent: 'border-l-amber-400' },
+  pending_review: { label: 'In Review',   badge: 'text-orange-700 bg-orange-50 border-orange-200', dot: 'bg-orange-500',  accent: 'border-l-orange-400' },
+  approved:       { label: 'Approved',     badge: 'text-teal-700 bg-teal-50 border-teal-200',      dot: 'bg-teal-500',   accent: 'border-l-teal-400' },
+  confirmed:      { label: 'Confirmed',   badge: 'text-blue-700 bg-blue-50 border-blue-200',      dot: 'bg-blue-500',   accent: 'border-l-blue-400' },
+  in_progress:    { label: 'In Progress', badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500', accent: 'border-l-emerald-400' },
+  completed:      { label: 'Completed',   badge: 'text-slate-600 bg-slate-100 border-slate-200',  dot: 'bg-slate-400',  accent: 'border-l-slate-300' },
+  cancelled:      { label: 'Cancelled',   badge: 'text-red-700 bg-red-50 border-red-200',         dot: 'bg-red-500',    accent: 'border-l-red-400' },
 };
 
 const SERVICE_IMAGES: Record<string, string> = {
@@ -95,7 +76,7 @@ const SERVICE_IMAGES: Record<string, string> = {
 };
 
 type Tab = 'all' | 'active' | 'subscriptions' | 'completed' | 'calendar';
-
+type SortBy = 'date_desc' | 'date_asc' | 'status' | 'service';
 const ACTIVE_STATUSES = ['pending', 'pending_review', 'approved', 'confirmed', 'in_progress'];
 
 export function BookingsPage({ onNavigate, onRebook, initialExpandId }: BookingsPageProps) {
@@ -104,15 +85,16 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('all');
   const [search, setSearch] = useState('');
-  const [animateIn, setAnimateIn] = useState(false);
-  const [expandedBooking, setExpandedBooking] = useState<string | null>(initialExpandId ?? null);
-  const [activeSubTab, setActiveSubTab] = useState<'tracker' | 'messages' | 'documents'>('tracker');
+  const [sortBy, setSortBy] = useState<SortBy>('date_desc');
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(initialExpandId ?? null);
+  const [detailTab, setDetailTab] = useState<'overview' | 'tracker' | 'messages' | 'documents'>('overview');
   const [reviewModal, setReviewModal] = useState<{ bookingId: string; serviceId: string; serviceName: string } | null>(null);
   const [reviewedBookings, setReviewedBookings] = useState<Set<string>>(new Set());
   const [walletBalance, setWalletBalance] = useState(0);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [trackingBookingId, setTrackingBookingId] = useState<string | null>(null);
   const [cancelDeleteModal, setCancelDeleteModal] = useState<{ bookingId: string; status: string; serviceName: string } | null>(null);
+  const [animateIn, setAnimateIn] = useState(false);
 
   const fetchBookings = useCallback(async () => {
     const { data } = await supabase
@@ -157,63 +139,46 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
     fetchSubscriptions();
   }, [fetchBookings, fetchReviews, fetchWallet, fetchSubscriptions]);
 
-  const filteredBookings = bookings.filter((b) => {
-    if (tab === 'active' && !ACTIVE_STATUSES.includes(b.status)) return false;
-    if (tab === 'completed' && b.status !== 'completed') return false;
-    if (tab === 'subscriptions' || tab === 'calendar') return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return (
-        b.services?.name.toLowerCase().includes(q) ||
-        (b.location || '').toLowerCase().includes(q) ||
-        (b.contact_name || '').toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
-
-  const WASTE_LABELS: Record<string, string> = {
-    general: 'General Waste', recyclables: 'Recyclables', organic: 'Organic / Green',
-    construction: 'Construction', ewaste: 'E-Waste', bulk: 'Bulk Items',
-  };
-  const FREQ_LABELS: Record<string, string> = {
-    'one-time': 'One-Time', daily: 'Daily', 'twice-weekly': 'Twice Weekly',
-    weekly: 'Weekly', 'three-weeks': 'Every 3 Weeks', monthly: 'Monthly',
-  };
-  const SLOT_LABELS: Record<string, string> = {
-    morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening',
-  };
-  const SUB_STATUS_COLORS: Record<string, string> = {
-    active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    paused: 'bg-amber-50 text-amber-700 border-amber-200',
-    cancelled: 'bg-red-50 text-red-700 border-red-200',
-  };
-
-  const filteredSubs = subscriptions.filter((s) => {
-    if (search) {
-      const q = search.toLowerCase();
-      return (s.address || '').toLowerCase().includes(q) ||
-        (s.plan_name || '').toLowerCase().includes(q) ||
-        (WASTE_LABELS[s.waste_type] || '').toLowerCase().includes(q);
-    }
-    return true;
-  });
-
-  const toggleExpand = (id: string) => {
-    setExpandedBooking(expandedBooking === id ? null : id);
-    setActiveSubTab('tracker');
-  };
-
   const activeCount = bookings.filter(b => ACTIVE_STATUSES.includes(b.status)).length;
   const completedCount = bookings.filter(b => b.status === 'completed').length;
   const subCount = subscriptions.filter(s => s.status !== 'cancelled').length;
 
-  const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: 'all', label: 'All', count: bookings.length },
-    { id: 'active', label: 'Active', count: activeCount },
-    { id: 'subscriptions', label: 'Subscriptions', count: subCount },
-    { id: 'calendar', label: 'Calendar', count: 0 },
-    { id: 'completed', label: 'Completed', count: completedCount },
+  const filteredBookings = useMemo(() => {
+    let list = bookings.filter((b) => {
+      if (tab === 'active' && !ACTIVE_STATUSES.includes(b.status)) return false;
+      if (tab === 'completed' && b.status !== 'completed') return false;
+      if (tab === 'subscriptions' || tab === 'calendar') return false;
+      if (search) {
+        const q = search.toLowerCase();
+        return (
+          b.services?.name.toLowerCase().includes(q) ||
+          (b.location || '').toLowerCase().includes(q) ||
+          (b.contact_name || '').toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+
+    list = [...list].sort((a, b) => {
+      switch (sortBy) {
+        case 'date_asc': return new Date(a.scheduled_date).getTime() - new Date(b.scheduled_date).getTime();
+        case 'date_desc': return new Date(b.scheduled_date).getTime() - new Date(a.scheduled_date).getTime();
+        case 'status': return a.status.localeCompare(b.status);
+        case 'service': return (a.services?.name || '').localeCompare(b.services?.name || '');
+        default: return 0;
+      }
+    });
+    return list;
+  }, [bookings, tab, search, sortBy]);
+
+  const selectedBooking = bookings.find(b => b.id === selectedBookingId);
+
+  const tabs: { id: Tab; label: string; count: number; icon: typeof Inbox }[] = [
+    { id: 'all',           label: 'All Bookings',    count: bookings.length,    icon: Inbox },
+    { id: 'active',        label: 'Active',          count: activeCount,         icon: Truck },
+    { id: 'subscriptions', label: 'Subscriptions',  count: subCount,            icon: Recycle },
+    { id: 'calendar',      label: 'Calendar',        count: 0,                   icon: Calendar },
+    { id: 'completed',      label: 'Completed',       count: completedCount,      icon: CheckCircle2 },
   ];
 
   if (loading) {
@@ -228,45 +193,69 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
     return <BookingTrackingPage bookingId={trackingBookingId} onBack={() => setTrackingBookingId(null)} />;
   }
 
-  return (
-    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-5">
-      {/* Wallet Banner */}
-      {wallet_enabled && (
-      <div
-        className={`flex items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm transition-all duration-500 ${
-          animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'
-        }`}
-      >
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Wallet className="w-5 h-5 text-slate-700" />
-          </div>
+  // ── Calendar Tab (full-width, no split) ──
+  if (tab === 'calendar') {
+    return (
+      <div className="max-w-6xl mx-auto space-y-5">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="font-semibold text-slate-900 text-sm">
-              Wallet balance: Le {walletBalance.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-            </p>
-            <p className="text-xs text-slate-400 mt-0.5">Use your wallet to pay for any service across all divisions.</p>
+            <h1 className="text-2xl font-bold text-slate-900">Calendar</h1>
+            <p className="text-sm text-slate-400 mt-0.5">All your bookings and subscriptions in one timeline</p>
           </div>
+          <button onClick={() => setTab('all')} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1.5">
+            <ChevronRight className="w-4 h-4 rotate-180" /> Back to list
+          </button>
         </div>
-        <button
-          onClick={() => onNavigate('account')}
-          className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white font-medium rounded-xl hover:bg-slate-900 transition-colors text-sm whitespace-nowrap flex-shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          Top up
-        </button>
+        <UnifiedCalendar onNavigate={onNavigate} />
       </div>
-      )}
+    );
+  }
 
-      {/* Header */}
-      <div
-        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all duration-500 delay-75 ${
-          animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
-        }`}
-      >
+  // ── Subscriptions Tab (full-width, no split) ──
+  if (tab === 'subscriptions') {
+    return (
+      <div className="max-w-5xl mx-auto space-y-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">My Subscriptions</h1>
+            <p className="text-sm text-slate-400 mt-0.5">Recurring services you've subscribed to</p>
+          </div>
+          <button onClick={() => onNavigate('subscriptions')} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+            <RotateCcw className="w-4 h-4" /> Manage all
+          </button>
+        </div>
+        {subscriptions.filter(s => s.status !== 'cancelled').length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+            <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-100 rounded-full mb-4">
+              <Recycle className="w-6 h-6 text-slate-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900">No subscriptions yet</h3>
+            <p className="mt-2 text-slate-500 text-sm">Subscribe to a Smart Sort plan for regular scheduled waste collection.</p>
+            <button onClick={() => onNavigate('services')} className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-900 transition-colors text-sm">
+              <Recycle className="w-4 h-4" /> Browse Plans
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {subscriptions.filter(s => s.status !== 'cancelled').map((sub, i) => (
+              <div key={sub.id} className={`transition-all duration-500 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: `${i * 50}ms` }}>
+                <SubscriptionLifecycle subscription={sub as any} onUpdated={fetchSubscriptions} onNavigate={onNavigate} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Main Split Layout (All / Active / Completed tabs) ──
+  return (
+    <div className={`max-w-6xl mx-auto transition-all duration-500 ${animateIn ? 'opacity-100' : 'opacity-0'}`}>
+      {/* ── Page Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">My Bookings</h1>
-          <p className="mt-0.5 text-slate-400 text-sm">
+          <p className="text-sm text-slate-400 mt-0.5">
             {bookings.length} total booking{bookings.length !== 1 ? 's' : ''}
             {subCount > 0 && ` · ${subCount} active subscription${subCount !== 1 ? 's' : ''}`}
           </p>
@@ -280,339 +269,203 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
         </button>
       </div>
 
-      {/* Summary stats - visible on all screens */}
-      <div className={`grid grid-cols-3 gap-3 transition-all duration-500 delay-75 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
-            <Truck className="w-4 h-4 text-blue-600" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-slate-400">Active</p>
-            <p className="text-sm font-bold text-slate-800">{activeCount}</p>
-          </div>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center flex-shrink-0">
-            <Recycle className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-slate-400">Subscriptions</p>
-            <p className="text-sm font-bold text-slate-800">{subCount}</p>
-          </div>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
-            <CheckCircle2 className="w-4 h-4 text-slate-500" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-slate-400">Completed</p>
-            <p className="text-sm font-bold text-slate-800">{completedCount}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Tab Filters + Search */}
-      <div
-        className={`flex flex-col sm:flex-row sm:items-center gap-3 transition-all duration-500 delay-100 ${
-          animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-        }`}
-      >
-        {/* Tabs - scrollable on mobile */}
-        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 flex-shrink-0 overflow-x-auto"
-          style={{ scrollbarWidth: 'none' }}>
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                tab === t.id
-                  ? 'bg-slate-800 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {t.label}
-              {t.count > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                  tab === t.id ? 'bg-white/20' : 'bg-slate-100'
-                }`}>
-                  {t.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Search */}
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search bookings..."
-            className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none"
+      {/* ── Stats Row ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        <StatCard icon={<Truck className="w-4 h-4" />} label="Active" value={activeCount} color="blue" />
+        <StatCard icon={<Recycle className="w-4 h-4" />} label="Subscriptions" value={subCount} color="emerald" />
+        <StatCard icon={<CheckCircle2 className="w-4 h-4" />} label="Completed" value={completedCount} color="slate" />
+        {wallet_enabled && (
+          <StatCard
+            icon={<Wallet className="w-4 h-4" />}
+            label="Wallet Balance"
+            value={`Le ${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+            color="amber"
+            onClick={() => onNavigate('account')}
           />
-        </div>
+        )}
       </div>
 
-      {/* Subscriptions sub-header */}
-      {tab === 'subscriptions' && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-slate-500">Recurring services you've subscribed to</p>
-          <button
-            onClick={() => onNavigate('subscriptions')}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
-          >
-            <RotateCcw className="w-4 h-4" />
-            Manage all
-          </button>
-        </div>
-      )}
-
-      {/* Subscriptions Tab Content */}
-      {tab === 'subscriptions' && (
-        filteredSubs.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center">
-            <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-100 rounded-full mb-4">
-              <Recycle className="w-6 h-6 text-slate-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-slate-900">
-              {search ? 'No results found' : 'No subscriptions yet'}
-            </h3>
-            <p className="mt-2 text-slate-500 text-sm">
-              {search
-                ? 'Try a different search term.'
-                : 'Subscribe to a Smart Sort plan for regular scheduled waste collection.'}
-            </p>
-            {!search && (
-              <button
-                onClick={() => onNavigate('services')}
-                className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-900 transition-colors text-sm"
-              >
-                <Recycle className="w-4 h-4" />
-                Browse Plans
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredSubs.map((sub, index) => (
-              <div
-                key={sub.id}
-                className={`transition-all duration-500 ${
-                  animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-                }`}
-                style={{ transitionDelay: `${150 + index * 50}ms` }}
-              >
-                <SubscriptionLifecycle
-                  subscription={sub as any}
-                  onUpdated={fetchSubscriptions}
-                  onNavigate={onNavigate}
-                />
-              </div>
-            ))}
-          </div>
-        )
-      )}
-
-      {/* Calendar Tab Content */}
-      {tab === 'calendar' && (
-        <UnifiedCalendar onNavigate={onNavigate} />
-      )}
-
-      {/* Bookings List (All / Active / Completed tabs) */}
-      {tab !== 'subscriptions' && tab !== 'calendar' && (
-        filteredBookings.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center">
-            <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-100 rounded-full mb-4">
-              <AlertCircle className="w-6 h-6 text-slate-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-slate-900">
-              {search ? 'No results found' : tab === 'all' ? 'No bookings yet' : `No ${tab} bookings`}
-            </h3>
-            <p className="mt-2 text-slate-500 text-sm">
-              {search
-                ? 'Try a different search term.'
-                : tab === 'all'
-                ? 'Browse our services and place your first booking to get started.'
-                : 'Try switching to a different tab to see more results.'}
-            </p>
-            {tab === 'all' && !search && (
-              <button
-                onClick={() => onNavigate('services')}
-                className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-900 transition-colors text-sm"
-              >
-                <Plus className="w-4 h-4" />
-                Browse Services
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredBookings.map((booking, index) => {
-              const isCompleted = booking.status === 'completed';
-              const hasReview = reviewedBookings.has(booking.id);
-              const serviceImage = SERVICE_IMAGES[booking.services?.slug] || '/service-smart-sort.webp';
-              const sc = statusColors[booking.status];
-              const sd = statusDots[booking.status];
+      {/* ── Sidebar Tabs + Content ── */}
+      <div className="flex gap-5">
+        {/* Left sidebar */}
+        <div className="w-52 flex-shrink-0 hidden lg:block">
+          <div className="bg-white border border-slate-200 rounded-2xl p-2 sticky top-20">
+            {tabs.map((t) => {
+              const Icon = t.icon;
+              const isActive = tab === t.id;
               return (
-                <div
-                  key={booking.id}
-                  className={`bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-all duration-500 ${
-                    animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    isActive ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
                   }`}
-                  style={{ transitionDelay: `${150 + index * 50}ms` }}
                 >
-                  {/* Service image banner */}
-                  <div className="relative h-14 sm:h-16 overflow-hidden">
-                    <img
-                      src={serviceImage}
-                      alt={booking.services.name}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                    <div className="absolute top-2 right-2">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] sm:text-xs font-semibold rounded-full border ${sc}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${sd}`} />
-                        {statusLabels[booking.status]}
-                      </span>
-                    </div>
-                    <h3 className="absolute bottom-1.5 left-3 text-sm sm:text-base font-bold text-white drop-shadow">{booking.services.name}</h3>
-                  </div>
-
-                  {/* Body */}
-                  <div className="p-4 sm:p-5">
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-slate-500">
-                          <span className="inline-flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5" />
-                            {new Date(booking.scheduled_date).toLocaleDateString('en-US', {
-                              weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
-                            })}
-                          </span>
-                          {booking.scheduled_time && (
-                            <span className="inline-flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5" />
-                              {booking.scheduled_time}
-                            </span>
-                          )}
-                          {booking.location && (
-                            <span className="inline-flex items-center gap-1.5 truncate max-w-[200px]">
-                              <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                              {booking.location}
-                            </span>
-                          )}
-                        </div>
-                        {booking.notes && (
-                          <p className="mt-2 text-sm text-slate-400 line-clamp-1">{booking.notes}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {(isCompleted || booking.status === 'cancelled') && (
-                          <button
-                            onClick={() => onRebook?.(booking)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 border border-emerald-200 transition-colors"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                            Rebook
-                          </button>
-                        )}
-                        {!isCompleted && booking.status !== 'cancelled' && (
-                          <button
-                            onClick={() => setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name })}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 border border-amber-200 transition-colors"
-                          >
-                            <Ban className="w-3.5 h-3.5" />
-                            Cancel
-                          </button>
-                        )}
-                        {(isCompleted || booking.status === 'cancelled') && (
-                          <button
-                            onClick={() => setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name })}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 border border-red-200 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Delete
-                          </button>
-                        )}
-                        {isCompleted && !hasReview && (
-                          <button
-                            onClick={() => setReviewModal({
-                              bookingId: booking.id,
-                              serviceId: booking.service_id,
-                              serviceName: booking.services.name,
-                            })}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 border border-amber-200 transition-colors"
-                          >
-                            <Star className="w-3.5 h-3.5" />
-                            Review
-                          </button>
-                        )}
-                        {isCompleted && hasReview && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-emerald-600 bg-emerald-50 rounded-full">
-                            <Star className="w-3 h-3 fill-emerald-500" />
-                            Reviewed
-                          </span>
-                        )}
-                        <button
-                          onClick={() => setTrackingBookingId(booking.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors"
-                        >
-                          <Truck className="w-3.5 h-3.5" />
-                          Track
-                        </button>
-                        <button
-                          onClick={() => toggleExpand(booking.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          <Paperclip className="w-3.5 h-3.5" />
-                          {expandedBooking === booking.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {expandedBooking === booking.id && (
-                    <div className="border-t border-slate-100">
-                      <div className="flex border-b border-slate-100">
-                        {(['tracker', 'messages', 'documents'] as const).map((t) => (
-                          <button
-                            key={t}
-                            onClick={() => setActiveSubTab(t)}
-                            className={`flex-1 py-3 text-xs font-medium text-center transition-colors capitalize ${
-                              activeSubTab === t
-                                ? 'text-emerald-700 border-b-2 border-emerald-500 bg-emerald-50/50'
-                                : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                          >
-                            {t === 'tracker' && <Truck className="w-3.5 h-3.5 inline mr-1.5" />}
-                            {t === 'messages' && <MessageSquare className="w-3.5 h-3.5 inline mr-1.5" />}
-                            {t === 'documents' && <Paperclip className="w-3.5 h-3.5 inline mr-1.5" />}
-                            {t.charAt(0).toUpperCase() + t.slice(1)}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="p-4">
-                        {activeSubTab === 'tracker' ? (
-                          <BookingTracker bookingId={booking.id} currentStatus={booking.status} />
-                        ) : activeSubTab === 'messages' ? (
-                          <MessageThread bookingId={booking.id} />
-                        ) : (
-                          <DocumentUpload bookingId={booking.id} serviceSlug={booking.services?.slug} />
-                        )}
-                      </div>
-                    </div>
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <span className="flex-1 text-left">{t.label}</span>
+                  {t.count > 0 && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {t.count}
+                    </span>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
-        )
-      )}
+        </div>
+
+        {/* Mobile/tablet tab bar */}
+        <div className="lg:hidden mb-4">
+          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                  tab === t.id ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {t.label}
+                {t.count > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === t.id ? 'bg-white/20' : 'bg-slate-100'}`}>{t.count}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Main content area */}
+        <div className="flex-1 min-w-0">
+          {/* Search + Sort bar */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search bookings..."
+                className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition-all"
+              />
+            </div>
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortBy)}
+                className="appearance-none pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 focus:ring-2 focus:ring-slate-400 outline-none cursor-pointer"
+              >
+                <option value="date_desc">Newest first</option>
+                <option value="date_asc">Oldest first</option>
+                <option value="status">By status</option>
+                <option value="service">By service</option>
+              </select>
+              <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Split: list + detail */}
+          <div className="flex gap-4">
+            {/* Booking list */}
+            <div className={`${selectedBooking ? 'hidden xl:block w-[340px] flex-shrink-0' : 'flex-1'}`}>
+              {filteredBookings.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                  <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-100 rounded-full mb-4">
+                    <AlertCircle className="w-6 h-6 text-slate-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    {search ? 'No results found' : tab === 'all' ? 'No bookings yet' : `No ${tab} bookings`}
+                  </h3>
+                  <p className="mt-2 text-slate-500 text-sm">
+                    {search ? 'Try a different search term.' : 'Browse our services and place your first booking to get started.'}
+                  </p>
+                  {tab === 'all' && !search && (
+                    <button onClick={() => onNavigate('services')} className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-900 transition-colors text-sm">
+                      <Plus className="w-4 h-4" /> Browse Services
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {filteredBookings.map((booking, i) => {
+                    const sc = statusConfig[booking.status] || statusConfig.pending;
+                    const isSelected = selectedBookingId === booking.id;
+                    const hasReview = reviewedBookings.has(booking.id);
+                    const serviceImage = SERVICE_IMAGES[booking.services?.slug] || '/service-smart-sort.webp';
+                    return (
+                      <button
+                        key={booking.id}
+                        onClick={() => { setSelectedBookingId(booking.id); setDetailTab('overview'); }}
+                        className={`w-full text-left bg-white rounded-xl border overflow-hidden hover:shadow-md transition-all duration-300 border-l-4 ${sc.accent} ${
+                          isSelected ? 'ring-2 ring-slate-800 ring-offset-1 shadow-md' : 'border-y-slate-200 border-r-slate-200'
+                        } ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+                        style={{ transitionDelay: `${i * 40}ms` }}
+                      >
+                        <div className="flex items-stretch">
+                          {/* Thumbnail */}
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 relative overflow-hidden">
+                            <img src={serviceImage} alt="" className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }} />
+                          </div>
+                          {/* Content */}
+                          <div className="flex-1 min-w-0 p-3">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <h3 className="font-semibold text-slate-900 text-sm truncate">{booking.services.name}</h3>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full border ${sc.badge} flex-shrink-0`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                                {sc.label}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-slate-400">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(booking.scheduled_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                              {booking.scheduled_time && (
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" /> {booking.scheduled_time}
+                                </span>
+                              )}
+                              {booking.location && (
+                                <span className="flex items-center gap-1 truncate">
+                                  <MapPin className="w-3 h-3 flex-shrink-0" /> {booking.location}
+                                </span>
+                              )}
+                            </div>
+                            {hasReview && (
+                              <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-emerald-600">
+                                <Star className="w-2.5 h-2.5 fill-emerald-500" /> Reviewed
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Detail panel (desktop only) */}
+            {selectedBooking && (
+              <div className="hidden xl:block flex-1 min-w-0">
+                <BookingDetailPanel
+                  booking={selectedBooking}
+                  onBack={() => setSelectedBookingId(null)}
+                  onRebook={onRebook}
+                  onCancelDelete={(b) => setCancelDeleteModal({ bookingId: b.id, status: b.status, serviceName: b.services.name })}
+                  onReview={(b) => setReviewModal({ bookingId: b.id, serviceId: b.service_id, serviceName: b.services.name })}
+                  onTrack={(id) => setTrackingBookingId(id)}
+                  hasReview={reviewedBookings.has(selectedBooking.id)}
+                  detailTab={detailTab}
+                  setDetailTab={setDetailTab}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {reviewModal && (
         <ReviewModal
@@ -620,10 +473,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
           serviceId={reviewModal.serviceId}
           serviceName={reviewModal.serviceName}
           onClose={() => setReviewModal(null)}
-          onSuccess={() => {
-            setReviewModal(null);
-            fetchReviews();
-          }}
+          onSuccess={() => { setReviewModal(null); fetchReviews(); }}
         />
       )}
 
@@ -633,12 +483,193 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
           bookingStatus={cancelDeleteModal.status}
           serviceName={cancelDeleteModal.serviceName}
           onClose={() => setCancelDeleteModal(null)}
-          onSuccess={() => {
-            setCancelDeleteModal(null);
-            fetchBookings();
-          }}
+          onSuccess={() => { setCancelDeleteModal(null); fetchBookings(); }}
         />
       )}
+    </div>
+  );
+}
+
+// ── Booking Detail Panel (right side of split layout) ──
+function BookingDetailPanel({
+  booking, onBack, onRebook, onCancelDelete, onReview, onTrack, hasReview, detailTab, setDetailTab,
+}: {
+  booking: Booking;
+  onBack: () => void;
+  onRebook?: (b: Booking) => void;
+  onCancelDelete: (b: Booking) => void;
+  onReview: (b: Booking) => void;
+  onTrack: (id: string) => void;
+  hasReview: boolean;
+  detailTab: 'overview' | 'tracker' | 'messages' | 'documents';
+  setDetailTab: (t: 'overview' | 'tracker' | 'messages' | 'documents') => void;
+}) {
+  const sc = statusConfig[booking.status] || statusConfig.pending;
+  const isCompleted = booking.status === 'completed';
+  const isCancelled = booking.status === 'cancelled';
+  const serviceImage = SERVICE_IMAGES[booking.services?.slug] || '/service-smart-sort.webp';
+
+  const detailTabs = [
+    { id: 'overview' as const, label: 'Overview', icon: FileText },
+    { id: 'tracker' as const, label: 'Tracker', icon: Truck },
+    { id: 'messages' as const, label: 'Messages', icon: MessageSquare },
+    { id: 'documents' as const, label: 'Documents', icon: Paperclip },
+  ];
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden sticky top-20 max-h-[calc(100vh-6rem)] flex flex-col">
+      {/* Hero image */}
+      <div className="relative h-28 overflow-hidden flex-shrink-0">
+        <img src={serviceImage} alt={booking.services.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }} />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        <button onClick={onBack} className="absolute top-3 left-3 w-8 h-8 bg-white/90 rounded-lg flex items-center justify-center hover:bg-white transition-colors">
+          <X className="w-4 h-4 text-slate-700" />
+        </button>
+        <div className="absolute bottom-3 left-4 right-4">
+          <h2 className="text-lg font-bold text-white drop-shadow">{booking.services.name}</h2>
+          <div className="flex items-center gap-2 mt-1">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full border ${sc.badge} bg-white/90`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+              {sc.label}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Detail tabs */}
+      <div className="flex border-b border-slate-100 flex-shrink-0">
+        {detailTabs.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setDetailTab(t.id)}
+              className={`flex-1 py-2.5 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                detailTab === t.id
+                  ? 'text-emerald-700 border-b-2 border-emerald-500 bg-emerald-50/50'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab content */}
+      <div className="flex-1 overflow-y-auto p-5">
+        {detailTab === 'overview' && (
+          <div className="space-y-4">
+            {/* Key info grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <InfoTile icon={<Calendar className="w-4 h-4" />} label="Date" value={new Date(booking.scheduled_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} />
+              <InfoTile icon={<Clock className="w-4 h-4" />} label="Time" value={booking.scheduled_time || 'Flexible'} />
+              <InfoTile icon={<MapPin className="w-4 h-4" />} label="Location" value={booking.location || 'Not specified'} />
+              <InfoTile icon={<User className="w-4 h-4" />} label="Contact" value={booking.contact_name} />
+              <InfoTile icon={<Phone className="w-4 h-4" />} label="Phone" value={booking.contact_phone} />
+              {booking.contact_email && <InfoTile icon={<Mail className="w-4 h-4" />} label="Email" value={booking.contact_email} />}
+            </div>
+
+            {/* Notes */}
+            {booking.notes && (
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Notes</p>
+                <div className="bg-slate-50 rounded-xl p-3 text-sm text-slate-600">{booking.notes}</div>
+              </div>
+            )}
+
+            {/* Details from booking */}
+            {booking.details && Object.keys(booking.details).length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Booking Details</p>
+                <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
+                  {Object.entries(booking.details).slice(0, 8).map(([key, val]) => (
+                    val != null && typeof val !== 'object' && (
+                      <div key={key} className="flex items-center justify-between text-sm">
+                        <span className="text-slate-400 capitalize">{key.replace(/_/g, ' ')}</span>
+                        <span className="font-medium text-slate-700">{String(val)}</span>
+                      </div>
+                    )
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex flex-wrap gap-2 pt-2">
+              {!isCompleted && !isCancelled && (
+                <button onClick={() => onTrack(booking.id)} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors">
+                  <Truck className="w-3.5 h-3.5" /> Track
+                </button>
+              )}
+              {(isCompleted || isCancelled) && (
+                <button onClick={() => onRebook?.(booking)} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 border border-emerald-200 transition-colors">
+                  <RotateCcw className="w-3.5 h-3.5" /> Rebook
+                </button>
+              )}
+              {!isCompleted && !isCancelled && (
+                <button onClick={() => onCancelDelete(booking)} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 border border-amber-200 transition-colors">
+                  <Ban className="w-3.5 h-3.5" /> Cancel
+                </button>
+              )}
+              {(isCompleted || isCancelled) && (
+                <button onClick={() => onCancelDelete(booking)} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 border border-red-200 transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                </button>
+              )}
+              {isCompleted && !hasReview && (
+                <button onClick={() => onReview(booking)} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 border border-amber-200 transition-colors">
+                  <Star className="w-3.5 h-3.5" /> Review
+                </button>
+              )}
+              {isCompleted && hasReview && (
+                <span className="inline-flex items-center gap-1 px-3 py-2 text-xs text-emerald-600 bg-emerald-50 rounded-lg">
+                  <Star className="w-3.5 h-3.5 fill-emerald-500" /> Reviewed
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {detailTab === 'tracker' && <BookingTracker bookingId={booking.id} currentStatus={booking.status} />}
+        {detailTab === 'messages' && <MessageThread bookingId={booking.id} />}
+        {detailTab === 'documents' && <DocumentUpload bookingId={booking.id} serviceSlug={booking.services?.slug} />}
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ icon, label, value, color, onClick }: { icon: React.ReactNode; label: string; value: string | number; color: string; onClick?: () => void }) {
+  const colorMap: Record<string, string> = {
+    emerald: 'bg-emerald-50 text-emerald-600',
+    blue: 'bg-blue-50 text-blue-600',
+    slate: 'bg-slate-100 text-slate-600',
+    amber: 'bg-amber-50 text-amber-600',
+  };
+  return (
+    <button
+      onClick={onClick}
+      disabled={!onClick}
+      className={`bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 text-left ${onClick ? 'hover:shadow-sm transition-shadow cursor-pointer' : ''}`}
+    >
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${colorMap[color]}`}>{icon}</div>
+      <div className="min-w-0">
+        <p className="text-xs text-slate-400 truncate">{label}</p>
+        <p className="text-sm font-bold text-slate-800 truncate">{value}</p>
+      </div>
+    </button>
+  );
+}
+
+function InfoTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="bg-slate-50 rounded-xl p-3">
+      <div className="flex items-center gap-1.5 text-slate-400 mb-1">
+        {icon}
+        <span className="text-[10px] uppercase tracking-wider font-semibold">{label}</span>
+      </div>
+      <p className="text-sm font-medium text-slate-700 truncate">{value}</p>
     </div>
   );
 }
