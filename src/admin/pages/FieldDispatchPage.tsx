@@ -6,6 +6,8 @@ import {
   Plus, X, Loader2, CheckCircle2, AlertCircle, Truck, Zap, Star,
   TrendingUp, Route, ArrowRight, Battery, Wifi, WifiOff,
   Radar, Sparkles, Timer, Send, RefreshCw, Navigation2,
+  Play, Pause, SkipBack, SkipForward, FastForward, History,
+  MapPinned, LogIn, LogOut, Gauge, Home,
 } from 'lucide-react';
 
 // ============================================================
@@ -33,6 +35,7 @@ interface AdminAssignment {
   status: string;
   latitude: number | null;
   longitude: number | null;
+  geofence_radius: number | null;
   amount: number | null;
   booking_id: string | null;
 }
@@ -54,6 +57,18 @@ interface LocationPing {
   battery_level: number | null;
   heading: number | null;
   speed: number | null;
+  created_at: string;
+}
+
+interface GeofenceEvent {
+  id: string;
+  assignment_id: string;
+  employee_id: string;
+  event_type: 'enter' | 'exit';
+  latitude: number;
+  longitude: number;
+  distance_meters: number | null;
+  eta_minutes: number | null;
   created_at: string;
 }
 
@@ -119,7 +134,7 @@ interface OfflineSyncItem {
   created_at: string;
 }
 
-type View = 'dispatch' | 'map' | 'calendar' | 'leaderboard' | 'auto' | 'routes' | 'sync';
+type View = 'dispatch' | 'map' | 'calendar' | 'leaderboard' | 'auto' | 'routes' | 'sync' | 'replay';
 
 // ============================================================
 // Main Component
@@ -135,6 +150,7 @@ export function FieldDispatchPage() {
   const [suggestions, setSuggestions] = useState<DispatchSuggestion[]>([]);
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
   const [syncQueue, setSyncQueue] = useState<OfflineSyncItem[]>([]);
+  const [geofenceEvents, setGeofenceEvents] = useState<GeofenceEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -153,6 +169,7 @@ export function FieldDispatchPage() {
         { data: suggestData, error: suggestErr },
         { data: routeData, error: routeErr },
         { data: syncData, error: syncErr },
+        { data: geoData, error: geoErr },
       ] = await Promise.all([
         supabase.from('employees').select('id, full_name, position, photo_url, service_id, performance_score, jobs_completed, status').eq('status', 'active'),
         supabase.from('field_assignments').select('*').order('scheduled_date', { ascending: true }),
@@ -163,6 +180,7 @@ export function FieldDispatchPage() {
         supabase.from('field_dispatch_suggestions').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('field_route_stops').select('*').order('stop_order', { ascending: true }),
         supabase.from('field_offline_sync_queue').select('*').order('created_at', { ascending: false }).limit(100),
+        supabase.from('field_geofence_events').select('*').order('created_at', { ascending: false }).limit(100),
       ]);
 
       if (empErr) throw empErr;
@@ -174,6 +192,7 @@ export function FieldDispatchPage() {
       if (suggestErr) throw suggestErr;
       if (routeErr) throw routeErr;
       if (syncErr) throw syncErr;
+      if (geoErr) throw geoErr;
 
       setEmployees(empData || []);
       setAssignments(assignData || []);
@@ -191,6 +210,7 @@ export function FieldDispatchPage() {
       setSuggestions(suggestData || []);
       setRouteStops(routeData || []);
       setSyncQueue(syncData || []);
+      setGeofenceEvents((geoData as GeofenceEvent[]) || []);
     } catch (err: any) {
       setError(err.message || 'Failed to load dispatch data');
     } finally {
@@ -212,6 +232,9 @@ export function FieldDispatchPage() {
         setJobEvents(prev => [payload.new as JobEvent, ...prev].slice(0, 200));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'field_offline_sync_queue' }, () => { loadData(); })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'field_geofence_events' }, (payload: any) => {
+        setGeofenceEvents(prev => [payload.new as GeofenceEvent, ...prev].slice(0, 100));
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [loadData]);
@@ -245,7 +268,9 @@ export function FieldDispatchPage() {
     pendingBookings: bookings.length,
     pendingSyncItems: syncQueue.filter(s => !s.synced).length,
     enRouteJobs: jobEvents.filter(e => e.event_type === 'en_route').length,
-  }), [employees, workerStats, assignments, bookings, syncQueue, jobEvents]);
+    geofenceEnters: geofenceEvents.filter(e => e.event_type === 'enter').length,
+    geofenceExits: geofenceEvents.filter(e => e.event_type === 'exit').length,
+  }), [employees, workerStats, assignments, bookings, syncQueue, jobEvents, geofenceEvents]);
 
   if (loading) return <Spinner />;
   if (error) return <ErrorBanner message={error} />;
@@ -258,6 +283,7 @@ export function FieldDispatchPage() {
     { key: 'calendar', label: 'Calendar', icon: Calendar },
     { key: 'leaderboard', label: 'Scores', icon: Award },
     { key: 'sync', label: 'Sync Queue', icon: RefreshCw },
+    { key: 'replay', label: 'Route Replay', icon: History },
   ];
 
   return (
@@ -286,6 +312,8 @@ export function FieldDispatchPage() {
         <StatCard label="En Route" value={stats.enRouteJobs} icon={Navigation2} color="text-cyan-600" accent="bg-cyan-50" />
         <StatCard label="Sync Pending" value={stats.pendingSyncItems} icon={RefreshCw} color="text-rose-600" accent="bg-rose-50" />
         <StatCard label="Total Jobs" value={stats.totalJobs} icon={Truck} color="text-slate-600" accent="bg-slate-50" />
+        <StatCard label="Geofence In" value={stats.geofenceEnters} icon={LogIn} color="text-emerald-600" accent="bg-emerald-50" />
+        <StatCard label="Geofence Out" value={stats.geofenceExits} icon={LogOut} color="text-rose-600" accent="bg-rose-50" />
       </div>
 
       {/* View tabs */}
@@ -312,12 +340,13 @@ export function FieldDispatchPage() {
       </div>
 
       {view === 'dispatch' && <DispatchView workers={workerStats} assignments={assignments} jobEvents={jobEvents} onAssign={() => setShowAssignModal(true)} />}
-      {view === 'map' && <MapView workers={workerStats} pings={locationPings} assignments={assignments} />}
+      {view === 'map' && <MapView workers={workerStats} pings={locationPings} assignments={assignments} geofenceEvents={geofenceEvents} />}
       {view === 'auto' && <AutoDispatchView workers={workerStats} assignments={assignments} bookings={bookings} suggestions={suggestions} onRefresh={loadData} />}
       {view === 'routes' && <RouteOptimizationView workers={workerStats} assignments={assignments} routeStops={routeStops} onRefresh={loadData} />}
       {view === 'calendar' && <CalendarView assignments={assignments} employees={employees} />}
       {view === 'leaderboard' && <LeaderboardView workers={workerStats} jobScores={jobScores} assignments={assignments} />}
       {view === 'sync' && <SyncQueueView syncQueue={syncQueue} workers={workerStats} onRefresh={loadData} />}
+      {view === 'replay' && <RouteReplayView workers={workerStats} pings={locationPings} assignments={assignments} geofenceEvents={geofenceEvents} />}
 
       {showAssignModal && (
         <AssignModal
@@ -571,13 +600,15 @@ function JobTimelineView({ assignment, events, worker, onBack }: {
 // ============================================================
 // MAP VIEW — Feature 1: Live GPS tracking map with worker pins & job markers
 // ============================================================
-function MapView({ workers, pings, assignments }: {
+function MapView({ workers, pings, assignments, geofenceEvents }: {
   workers: (AdminEmployee & { activeJobCount: number; latestPing?: LocationPing })[];
   pings: LocationPing[];
   assignments: AdminAssignment[];
+  geofenceEvents: GeofenceEvent[];
 }) {
   const workersWithLocation = workers.filter(w => w.latestPing);
   const jobMarkers = assignments.filter(a => a.latitude != null && a.longitude != null && ['assigned', 'accepted', 'in_progress'].includes(a.status));
+  const recentGeofenceEvents = geofenceEvents.slice(0, 8);
 
   if (workersWithLocation.length === 0 && jobMarkers.length === 0) {
     return <EmptyState icon={MapPin} title="No live locations" description="Worker GPS pings and job markers will appear here when jobs are in progress" />;
@@ -652,6 +683,30 @@ function MapView({ workers, pings, assignments }: {
             );
           })}
         </div>
+
+        {/* Geofence event alerts */}
+        {recentGeofenceEvents.length > 0 && (
+          <div className="mt-4 space-y-1.5">
+            <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5"><Radar className="w-3.5 h-3.5 text-emerald-600" /> Recent Geofence Events</h4>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {recentGeofenceEvents.map(ev => {
+                const worker = workers.find(w => w.id === ev.employee_id);
+                const job = assignments.find(a => a.id === ev.assignment_id);
+                const isEnter = ev.event_type === 'enter';
+                return (
+                  <div key={ev.id} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs ${isEnter ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                    {isEnter ? <LogIn className="w-3.5 h-3.5 flex-shrink-0" /> : <LogOut className="w-3.5 h-3.5 flex-shrink-0" />}
+                    <span className="font-semibold">{worker?.full_name?.split(' ')[0] || 'Worker'}</span>
+                    <span className="text-slate-500">{isEnter ? 'arrived at' : 'left'} {job?.service_name || 'job'}</span>
+                    {ev.distance_meters != null && <span className="text-slate-400">· {Math.round(ev.distance_meters)}m</span>}
+                    {ev.eta_minutes != null && ev.eta_minutes > 0 && <span className="text-slate-400">· ETA {ev.eta_minutes}m</span>}
+                    <span className="text-slate-400 ml-auto">{timeAgo(ev.created_at)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Legend */}
         <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
@@ -1408,4 +1463,404 @@ function statusBorderColor(status: string): string {
     rejected: 'border-red-200 bg-red-50/50',
   };
   return map[status] || 'border-slate-200 bg-slate-50/50';
+}
+
+// ============================================================
+// ROUTE REPLAY VIEW — Feature 2: Live Route Replay & Playback History
+// ============================================================
+function RouteReplayView({ workers, pings, assignments, geofenceEvents }: {
+  workers: (AdminEmployee & { activeJobCount: number; latestPing?: LocationPing })[];
+  pings: LocationPing[];
+  assignments: AdminAssignment[];
+  geofenceEvents: GeofenceEvent[];
+}) {
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
+  const [playbackIdx, setPlaybackIdx] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [routePings, setRoutePings] = useState<LocationPing[]>([]);
+  const [loadingRoute, setLoadingRoute] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Load pings for selected assignment
+  useEffect(() => {
+    if (!selectedAssignmentId) { setRoutePings([]); return; }
+    setLoadingRoute(true);
+    setPlaybackIdx(0);
+    setIsPlaying(false);
+    supabase
+      .from('field_location_pings')
+      .select('*')
+      .eq('assignment_id', selectedAssignmentId)
+      .order('created_at', { ascending: true })
+      .limit(500)
+      .then(({ data }: any) => {
+        setRoutePings(data || []);
+        setLoadingRoute(false);
+      });
+  }, [selectedAssignmentId]);
+
+  // Playback animation
+  useEffect(() => {
+    if (isPlaying && routePings.length > 0) {
+      intervalRef.current = setInterval(() => {
+        setPlaybackIdx(prev => {
+          if (prev >= routePings.length - 1) {
+            setIsPlaying(false);
+            return routePings.length - 1;
+          }
+          return prev + 1;
+        });
+      }, 1000 / playbackSpeed);
+    } else if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [isPlaying, playbackSpeed, routePings.length]);
+
+  const completedAssignments = assignments.filter(a =>
+    ['pending_review', 'approved', 'rejected'].includes(a.status)
+  );
+  const selectedAssignment = assignments.find(a => a.id === selectedAssignmentId);
+  const selectedWorker = workers.find(w => w.id === selectedAssignment?.employee_id);
+  const jobGeofenceEvents = geofenceEvents.filter(e => e.assignment_id === selectedAssignmentId);
+
+  // Route stats
+  const routeStats = useMemo(() => {
+    if (routePings.length < 2) return { totalKm: 0, durationMin: 0, idleMin: 0, avgSpeed: 0, maxSpeed: 0 };
+    let totalKm = 0;
+    let idleCount = 0;
+    let maxSpeed = 0;
+    for (let i = 1; i < routePings.length; i++) {
+      const a = routePings[i - 1], b = routePings[i];
+      const km = haversineKm(a.latitude, a.longitude, b.latitude, b.longitude);
+      totalKm += km;
+      if (a.speed != null && a.speed < 0.5) idleCount++;
+      if (b.speed != null && b.speed > maxSpeed) maxSpeed = b.speed;
+    }
+    const durationMs = new Date(routePings[routePings.length - 1].created_at).getTime() - new Date(routePings[0].created_at).getTime();
+    const durationMin = Math.max(0, Math.round(durationMs / 60000));
+    const idleMin = Math.round((idleCount / routePings.length) * durationMin);
+    const avgSpeed = durationMin > 0 ? (totalKm / (durationMin / 60)) : 0;
+    return { totalKm, durationMin, idleMin, avgSpeed, maxSpeed: maxSpeed * 3.6 };
+  }, [routePings]);
+
+  const currentPing = routePings[playbackIdx];
+  const progressPct = routePings.length > 0 ? ((playbackIdx + 1) / routePings.length) * 100 : 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-1">
+          <History className="w-4 h-4 text-blue-600" /> Route Replay & Playback History
+        </h3>
+        <p className="text-xs text-slate-400 mb-4">Replay worker GPS trails for completed jobs — audit routes, speed, idle time, and detours</p>
+
+        {/* Job selector */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {completedAssignments.length === 0 ? (
+            <p className="text-sm text-slate-400">No completed jobs with route data yet</p>
+          ) : completedAssignments.map(a => {
+            const w = workers.find(w => w.id === a.employee_id);
+            const active = selectedAssignmentId === a.id;
+            return (
+              <button
+                key={a.id}
+                onClick={() => setSelectedAssignmentId(a.id)}
+                className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${active ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              >
+                <span className="font-semibold">{a.service_name}</span>
+                <span className="opacity-60 ml-1.5">· {w?.full_name?.split(' ')[0] || 'Worker'}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {!selectedAssignmentId ? (
+          <div className="text-center py-12">
+            <History className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+            <p className="text-sm text-slate-400">Select a completed job above to view its route replay</p>
+          </div>
+        ) : loadingRoute ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+          </div>
+        ) : routePings.length === 0 ? (
+          <div className="text-center py-12">
+            <MapPin className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm text-slate-400">No GPS pings recorded for this job</p>
+          </div>
+        ) : (
+          <>
+            {/* Route stats */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+              <RouteStat icon={Route} label="Distance" value={`${routeStats.totalKm.toFixed(2)} km`} color="text-blue-600" />
+              <RouteStat icon={Clock} label="Duration" value={`${routeStats.durationMin} min`} color="text-slate-600" />
+              <RouteStat icon={Timer} label="Idle Time" value={`${routeStats.idleMin} min`} color="text-amber-600" />
+              <RouteStat icon={Gauge} label="Avg Speed" value={`${routeStats.avgSpeed.toFixed(1)} km/h`} color="text-emerald-600" />
+              <RouteStat icon={Zap} label="Max Speed" value={`${routeStats.maxSpeed.toFixed(1)} km/h`} color="text-rose-600" />
+            </div>
+
+            {/* Mini map visualization */}
+            <div className="relative bg-slate-900 rounded-xl overflow-hidden h-64 mb-4">
+              <RouteCanvas pings={routePings} currentIdx={playbackIdx} geofenceEvents={jobGeofenceEvents} assignment={selectedAssignment} />
+              {/* Overlay info */}
+              <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm rounded-lg px-2.5 py-1.5 text-xs text-white">
+                <span className="font-semibold">{selectedWorker?.full_name || 'Worker'}</span>
+                <span className="opacity-60 ml-1.5">· {selectedAssignment?.service_name}</span>
+              </div>
+              <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm rounded-lg px-2.5 py-1.5 text-xs text-white">
+                Ping {playbackIdx + 1} / {routePings.length}
+              </div>
+            </div>
+
+            {/* Playback controls */}
+            <div className="space-y-3">
+              {/* Progress bar */}
+              <div className="relative h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div className="absolute h-full bg-blue-500 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
+              </div>
+
+              {/* Controls row */}
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => setPlaybackIdx(0)}
+                  className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
+                  title="Skip to start"
+                >
+                  <SkipBack className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setPlaybackIdx(p => Math.max(0, p - 5))}
+                  className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
+                  title="Back 5 pings"
+                >
+                  <SkipBack className="w-4 h-4 opacity-50" />
+                </button>
+                <button
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center text-white shadow-md transition-colors"
+                  title={isPlaying ? 'Pause' : 'Play'}
+                >
+                  {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                </button>
+                <button
+                  onClick={() => setPlaybackIdx(p => Math.min(routePings.length - 1, p + 5))}
+                  className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
+                  title="Forward 5 pings"
+                >
+                  <SkipForward className="w-4 h-4 opacity-50" />
+                </button>
+                <button
+                  onClick={() => setPlaybackIdx(routePings.length - 1)}
+                  className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
+                  title="Skip to end"
+                >
+                  <SkipForward className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Speed selector */}
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-xs text-slate-400">Speed:</span>
+                {[0.5, 1, 2, 4].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setPlaybackSpeed(s)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${playbackSpeed === s ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                  >
+                    {s}x
+                  </button>
+                ))}
+              </div>
+
+              {/* Current ping info */}
+              {currentPing && (
+                <div className="bg-slate-50 rounded-xl p-3 flex items-center gap-4 text-xs">
+                  <div className="flex items-center gap-1.5 text-slate-600">
+                    <MapPin className="w-3.5 h-3.5 text-blue-500" />
+                    <span>{currentPing.latitude.toFixed(5)}, {currentPing.longitude.toFixed(5)}</span>
+                  </div>
+                  {currentPing.speed != null && (
+                    <div className="flex items-center gap-1.5 text-slate-600">
+                      <Gauge className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>{(currentPing.speed * 3.6).toFixed(1)} km/h</span>
+                    </div>
+                  )}
+                  {currentPing.battery_level != null && (
+                    <div className="flex items-center gap-1.5 text-slate-600">
+                      <Battery className="w-3.5 h-3.5 text-amber-500" />
+                      <span>{currentPing.battery_level}%</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1.5 text-slate-500 ml-auto">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>{new Date(currentPing.created_at).toLocaleTimeString()}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Geofence events timeline */}
+              {jobGeofenceEvents.length > 0 && (
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5"><Radar className="w-3.5 h-3.5 text-emerald-600" /> Geofence Events</h4>
+                  {jobGeofenceEvents.map(ev => (
+                    <div key={ev.id} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs ${ev.event_type === 'enter' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                      {ev.event_type === 'enter' ? <LogIn className="w-3.5 h-3.5" /> : <LogOut className="w-3.5 h-3.5" />}
+                      <span className="font-semibold">{ev.event_type === 'enter' ? 'Entered' : 'Exited'} geofence</span>
+                      {ev.distance_meters != null && <span className="opacity-60">· {Math.round(ev.distance_meters)}m from center</span>}
+                      <span className="opacity-60 ml-auto">{new Date(ev.created_at).toLocaleTimeString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RouteStat({ icon: Icon, label, value, color }: { icon: typeof Home; label: string; value: string; color: string }) {
+  return (
+    <div className="bg-slate-50 rounded-xl p-2.5 text-center">
+      <Icon className={`w-4 h-4 ${color} mx-auto mb-1`} />
+      <p className="text-sm font-bold text-slate-900">{value}</p>
+      <p className="text-[10px] text-slate-400">{label}</p>
+    </div>
+  );
+}
+
+// Canvas-based route visualization
+function RouteCanvas({ pings, currentIdx, geofenceEvents, assignment }: {
+  pings: LocationPing[];
+  currentIdx: number;
+  geofenceEvents: GeofenceEvent[];
+  assignment: AdminAssignment | undefined;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || pings.length === 0) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = canvas.width = canvas.offsetWidth;
+    const h = canvas.height = canvas.offsetHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    // Calculate bounds
+    const lats = pings.map(p => p.latitude);
+    const lngs = pings.map(p => p.longitude);
+    if (assignment?.latitude && assignment?.longitude) {
+      lats.push(assignment.latitude);
+      lngs.push(assignment.longitude);
+    }
+    geofenceEvents.forEach(e => { lats.push(e.latitude); lngs.push(e.longitude); });
+
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+    const latRange = maxLat - minLat || 0.001;
+    const lngRange = maxLng - minLng || 0.001;
+    const padding = 40;
+    const scaleX = (w - padding * 2) / lngRange;
+    const scaleY = (h - padding * 2) / latRange;
+    const scale = Math.min(scaleX, scaleY);
+
+    const project = (lat: number, lng: number) => ({
+      x: padding + (lng - minLng) * scale + (w - padding * 2 - lngRange * scale) / 2,
+      y: h - padding - (lat - minLat) * scale - (h - padding * 2 - latRange * scale) / 2,
+    });
+
+    // Draw geofence circle
+    if (assignment?.latitude && assignment?.longitude && assignment?.geofence_radius) {
+      const center = project(assignment.latitude, assignment.longitude);
+      const radiusPx = assignment.geofence_radius * scale * 0.000009;
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, Math.max(15, radiusPx), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Job marker
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Draw route trail (full, faded)
+    if (pings.length > 1) {
+      ctx.strokeStyle = 'rgba(59, 130, 246, 0.25)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const first = project(pings[0].latitude, pings[0].longitude);
+      ctx.moveTo(first.x, first.y);
+      for (let i = 1; i < pings.length; i++) {
+        const pt = project(pings[i].latitude, pings[i].longitude);
+        ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.stroke();
+    }
+
+    // Draw traveled portion (bright)
+    if (currentIdx > 0) {
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      const first = project(pings[0].latitude, pings[0].longitude);
+      ctx.moveTo(first.x, first.y);
+      for (let i = 1; i <= currentIdx && i < pings.length; i++) {
+        const pt = project(pings[i].latitude, pings[i].longitude);
+        ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.stroke();
+    }
+
+    // Draw geofence event markers
+    geofenceEvents.forEach(ev => {
+      const pt = project(ev.latitude, ev.longitude);
+      ctx.fillStyle = ev.event_type === 'enter' ? '#10b981' : '#f43f5e';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Draw current position
+    if (currentIdx < pings.length) {
+      const pt = project(pings[currentIdx].latitude, pings[currentIdx].longitude);
+      // Pulse ring
+      ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 12, 0, Math.PI * 2);
+      ctx.stroke();
+      // Dot
+      ctx.fillStyle = '#3b82f6';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Start marker
+    if (pings.length > 0) {
+      const start = project(pings[0].latitude, pings[0].longitude);
+      ctx.fillStyle = '#64748b';
+      ctx.beginPath();
+      ctx.arc(start.x, start.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }, [pings, currentIdx, geofenceEvents, assignment]);
+
+  return <canvas ref={canvasRef} className="w-full h-full" />;
 }

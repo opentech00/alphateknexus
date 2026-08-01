@@ -60,6 +60,10 @@ export function formatDistance(km: number): string {
   return `${km.toFixed(1)} km`;
 }
 
+export function estimateEtaMinutes(km: number): number {
+  return Math.max(1, Math.round((km / 30) * 60));
+}
+
 export function estimateTravelTimeKm(km: number): string {
   const minutes = Math.max(1, Math.round((km / 30) * 60));
   if (minutes < 60) return `${minutes} min`;

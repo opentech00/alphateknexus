@@ -146,6 +146,18 @@ export interface FieldJobScore {
   scored_at: string;
 }
 
+export interface FieldGeofenceEvent {
+  id: string;
+  assignment_id: string;
+  employee_id: string;
+  event_type: 'enter' | 'exit';
+  latitude: number;
+  longitude: number;
+  distance_meters: number | null;
+  eta_minutes: number | null;
+  created_at: string;
+}
+
 export const STATUS_META: Record<AssignmentStatus, { label: string; color: string; bg: string; dot: string }> = {
   pending:         { label: 'Pending',         color: 'text-slate-600',   bg: 'bg-slate-100',   dot: 'bg-slate-400'   },
   assigned:        { label: 'Assigned',        color: 'text-blue-600',     bg: 'bg-blue-50',      dot: 'bg-blue-500'    },

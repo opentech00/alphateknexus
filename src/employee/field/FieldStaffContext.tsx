@@ -6,6 +6,7 @@ import type {
   FieldEvidence, FieldIncident, FieldAttendance, ChecklistTemplate,
   SyncQueueItem, JobMessage, FieldJobNote, FieldLocationPing, FieldJobScore,
 } from './types';
+import { haversineKm, haversineMeters, isInsideGeofence, estimateEtaMinutes, getBatteryLevel, watchPosition, type Coords } from './geo';
 
 // Job event types that map to field_job_events table
 const JOB_EVENT_MAP: Record<string, string> = {
@@ -615,7 +616,7 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
     await logJobEvent(assignmentId, 'resumed');
   }, [writeOrQueue, logJobEvent]);
 
-  // === NEW: Location pings ===
+  // === Location pings ===
   const sendLocationPing = useCallback(async (
     assignmentId: string, lat: number, lng: number,
     batteryLevel?: number, heading?: number, speed?: number,
@@ -631,6 +632,89 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
       await supabase.from('field_location_pings').insert(payload);
     } catch { /* ignore */ }
   }, [employee]);
+
+  // === Geofence auto-status + ETA tracking ===
+  const geofenceStateRef = useRef<Record<string, boolean>>({});
+  const lastPingTimeRef = useRef<Record<string, number>>({});
+  const lastEtaRef = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!employee) return;
+    const trackableJobs = assignments.filter(a =>
+      ['assigned', 'accepted', 'in_progress'].includes(a.status) &&
+      a.latitude != null && a.longitude != null
+    );
+    if (trackableJobs.length === 0) return;
+
+    const stopWatch = watchPosition(async (coords: Coords) => {
+      const battery = getBatteryLevel();
+      const now = Date.now();
+
+      for (const job of trackableJobs) {
+        const target: Coords = { lat: job.latitude!, lng: job.longitude! };
+        const radius = job.geofence_radius || 100;
+        const inside = isInsideGeofence(coords, target, radius);
+        const wasInside = geofenceStateRef.current[job.id] ?? false;
+        const distMeters = haversineMeters(coords, target);
+
+        // Send location ping every 30 seconds per job
+        const lastPing = lastPingTimeRef.current[job.id] ?? 0;
+        if (now - lastPing > 30000) {
+          lastPingTimeRef.current[job.id] = now;
+          await sendLocationPing(job.id, coords.lat, coords.lng, battery, coords.heading, coords.speed);
+        }
+
+        // Geofence ENTER detected
+        if (inside && !wasInside) {
+          geofenceStateRef.current[job.id] = true;
+          await logJobEvent(job.id, 'geofence_entered', {
+            lat: coords.lat, lng: coords.lng,
+            note: `Arrived at job site (${Math.round(distMeters)}m from center)`,
+          });
+          try {
+            await supabase.from('field_geofence_events').insert({
+              assignment_id: job.id, employee_id: employee.id,
+              event_type: 'enter', latitude: coords.lat, longitude: coords.lng,
+              distance_meters: Math.round(distMeters), eta_minutes: 0,
+            });
+          } catch { /* best-effort */ }
+          pushToast({ type: 'info', title: 'Arrived at Job Site', body: `${job.service_name} — geofence entered` });
+        }
+
+        // Geofence EXIT detected (only if job not completed)
+        if (!inside && wasInside) {
+          geofenceStateRef.current[job.id] = false;
+          await logJobEvent(job.id, 'geofence_exited', {
+            lat: coords.lat, lng: coords.lng,
+            note: `Left job site (${Math.round(distMeters)}m from center)`,
+          });
+          try {
+            await supabase.from('field_geofence_events').insert({
+              assignment_id: job.id, employee_id: employee.id,
+              event_type: 'exit', latitude: coords.lat, longitude: coords.lng,
+              distance_meters: Math.round(distMeters), eta_minutes: null,
+            });
+          } catch { /* best-effort */ }
+        }
+
+        // ETA updates when outside geofence (every 2 minutes or if ETA changed by 5+ min)
+        if (!inside) {
+          const distKm = haversineKm(coords, target);
+          const eta = estimateEtaMinutes(distKm);
+          const lastEta = lastEtaRef.current[job.id] ?? 0;
+          if (Math.abs(eta - lastEta) >= 5 || lastEta === 0) {
+            lastEtaRef.current[job.id] = eta;
+            await logJobEvent(job.id, 'eta_updated', {
+              lat: coords.lat, lng: coords.lng, etaMinutes: eta,
+              note: `${Math.round(distKm * 1000)}m away, ETA ~${eta} min`,
+            });
+          }
+        }
+      }
+    });
+
+    return () => { stopWatch?.(); };
+  }, [employee, assignments, sendLocationPing, logJobEvent]);
 
   return (
     <FieldStaffContext.Provider value={{
