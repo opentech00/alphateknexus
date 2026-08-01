@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
+import { ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AdminNotificationsProvider } from './contexts/AdminNotificationsContext';
+import { AdminLoginPage } from './pages/AdminLoginPage';
+import { TwoFactorPage } from '../pages/TwoFactorPage';
 import { AdminSidebar } from './AdminSidebar';
 import { OverviewPage } from './pages/OverviewPage';
 import { BookingsManagementPage } from './pages/BookingsManagementPage';
@@ -34,10 +37,11 @@ import { BookingReviewPage } from './pages/BookingReviewPage';
 import { MessagesPage } from './pages/MessagesPage';
 import { FieldJobReviewPage } from './pages/FieldJobReviewPage';
 import { FieldIncidentsPage } from './pages/FieldIncidentsPage';
+import { AdminSessionsPage } from './pages/AdminSessionsPage';
 
 function AdminContent() {
   const [currentPage, setCurrentPage] = useState('overview');
-  const { user, isAdmin, loading } = useAuth();
+  const { user, isAdmin, loading, needs2FA, pending2FAEmail, pending2FAPassword, clear2FA, signOut } = useAuth();
 
   if (loading) {
     return (
@@ -47,18 +51,36 @@ function AdminContent() {
     );
   }
 
-  if (!user || !isAdmin) {
+  if (needs2FA) {
+    return (
+      <TwoFactorPage
+        email={pending2FAEmail}
+        password={pending2FAPassword}
+        onBack={() => clear2FA()}
+        onSuccess={() => clear2FA()}
+      />
+    );
+  }
+
+  if (!user) {
+    return <AdminLoginPage />;
+  }
+
+  if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center">
+        <div className="text-center max-w-sm">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-red-50 rounded-full mb-4">
+            <ShieldCheck className="w-7 h-7 text-red-400" />
+          </div>
           <h1 className="text-2xl font-bold text-slate-900 mb-2">Access Denied</h1>
-          <p className="text-slate-500 mb-6">{user ? 'Your account does not have admin privileges.' : 'You must be logged in to access the admin dashboard.'}</p>
-          <a
-            href="/"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition-colors text-sm"
+          <p className="text-slate-500 mb-6">Your account does not have admin privileges.</p>
+          <button
+            onClick={() => signOut()}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-800 text-white font-medium rounded-xl hover:bg-slate-900 transition-colors text-sm"
           >
-            Go to Login
-          </a>
+            Sign out
+          </button>
         </div>
       </div>
     );
@@ -128,6 +150,8 @@ function AdminContent() {
         return <UsersManagementPage />;
       case 'bundles':
         return <BundlesManagementPage />;
+      case 'admin-sessions':
+        return <AdminSessionsPage />;
       case 'settings':
         return <SettingsPage />;
       default:

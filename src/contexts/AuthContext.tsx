@@ -106,6 +106,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     } catch { /* non-critical */ }
 
+    // If this user is an admin, log the session for audit
+    try {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .maybeSingle();
+
+      if (profileData?.role === 'admin') {
+        const token = data.session?.access_token || '';
+        const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+        const tokenHash = Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
+
+        await supabase.from('admin_sessions').insert({
+          user_id: data.user.id,
+          user_agent: navigator.userAgent,
+          session_token_hash: tokenHash,
+        });
+      }
+    } catch { /* non-critical — don't block login if audit logging fails */ }
+
     // Check if 2FA is enabled for this user
     try {
       const { data: checkData } = await supabase.functions.invoke('manage-2fa', {
@@ -149,6 +170,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    if (user) {
+      try {
+        await supabase.from('admin_sessions')
+          .update({ logout_at: new Date().toISOString() })
+          .is('logout_at', null)
+          .eq('user_id', user.id)
+          .order('login_at', { ascending: false })
+          .limit(1);
+      } catch { /* non-critical */ }
+    }
     await supabase.auth.signOut();
     setProfile(null);
     setNeeds2FA(false);

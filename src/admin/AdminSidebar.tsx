@@ -75,6 +75,7 @@ const navSections: NavSection[] = [
     items: [
       { label: 'Finance Module', page: 'finance', icon: Landmark },
       { label: 'Data Backup', page: 'backup', icon: Database },
+      { label: 'Admin Sessions', page: 'admin-sessions', icon: ShieldCheck },
       { label: 'Settings', page: 'settings', icon: Settings },
     ],
   },
