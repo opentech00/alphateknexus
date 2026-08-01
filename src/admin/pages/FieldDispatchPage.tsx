@@ -155,8 +155,8 @@ export function FieldDispatchPage() {
   const [error, setError] = useState('');
   const [showAssignModal, setShowAssignModal] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     setError('');
     try {
       const [
@@ -214,7 +214,7 @@ export function FieldDispatchPage() {
     } catch (err: any) {
       setError(err.message || 'Failed to load dispatch data');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, []);
 
@@ -227,11 +227,11 @@ export function FieldDispatchPage() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'field_location_pings' }, (payload: any) => {
         setLocationPings(prev => [payload.new as LocationPing, ...prev].slice(0, 100));
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'field_assignments' }, () => { loadData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'field_assignments' }, () => { loadData(false); })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'field_job_events' }, (payload: any) => {
         setJobEvents(prev => [payload.new as JobEvent, ...prev].slice(0, 200));
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'field_offline_sync_queue' }, () => { loadData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'field_offline_sync_queue' }, () => { loadData(false); })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'field_geofence_events' }, (payload: any) => {
         setGeofenceEvents(prev => [payload.new as GeofenceEvent, ...prev].slice(0, 100));
       })
@@ -341,11 +341,11 @@ export function FieldDispatchPage() {
 
       {view === 'dispatch' && <DispatchView workers={workerStats} assignments={assignments} jobEvents={jobEvents} onAssign={() => setShowAssignModal(true)} />}
       {view === 'map' && <MapView workers={workerStats} pings={locationPings} assignments={assignments} geofenceEvents={geofenceEvents} />}
-      {view === 'auto' && <AutoDispatchView workers={workerStats} assignments={assignments} bookings={bookings} suggestions={suggestions} onRefresh={loadData} />}
-      {view === 'routes' && <RouteOptimizationView workers={workerStats} assignments={assignments} routeStops={routeStops} onRefresh={loadData} />}
+      {view === 'auto' && <AutoDispatchView workers={workerStats} assignments={assignments} bookings={bookings} suggestions={suggestions} onRefresh={() => loadData(false)} />}
+      {view === 'routes' && <RouteOptimizationView workers={workerStats} assignments={assignments} routeStops={routeStops} onRefresh={() => loadData(false)} />}
       {view === 'calendar' && <CalendarView assignments={assignments} employees={employees} />}
       {view === 'leaderboard' && <LeaderboardView workers={workerStats} jobScores={jobScores} assignments={assignments} />}
-      {view === 'sync' && <SyncQueueView syncQueue={syncQueue} workers={workerStats} onRefresh={loadData} />}
+      {view === 'sync' && <SyncQueueView syncQueue={syncQueue} workers={workerStats} onRefresh={() => loadData(false)} />}
       {view === 'replay' && <RouteReplayView workers={workerStats} pings={locationPings} assignments={assignments} geofenceEvents={geofenceEvents} />}
 
       {showAssignModal && (
@@ -354,7 +354,7 @@ export function FieldDispatchPage() {
           bookings={bookings}
           assignments={assignments}
           onClose={() => setShowAssignModal(false)}
-          onCreated={loadData}
+          onCreated={() => loadData(false)}
         />
       )}
     </div>
