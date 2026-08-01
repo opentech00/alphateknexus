@@ -49,79 +49,162 @@ const CATEGORY_MAP: Record<string, keyof NotificationPreferences> = {
   system: "cat_system",
 };
 
-function buildEmailHtml(title: string, body: string, subtitle: string): string {
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;padding:24px 0;">
-<tr><td align="center">
-<table width="480" cellpadding="0" cellspacing="0" style="background-color:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-<tr><td style="background:linear-gradient(135deg,#0f172a,#1e293b);padding:32px 40px;text-align:center;">
-<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;letter-spacing:-0.3px;">AlphaTek Nexus</h1>
-<p style="margin:6px 0 0;color:#94a3b8;font-size:13px;">${subtitle}</p>
-</td></tr>
-<tr><td style="padding:32px 40px 0;text-align:center;">
-<h2 style="margin:0 0 4px;color:#0f172a;font-size:20px;font-weight:700;">${title}</h2>
-<p style="margin:0;color:#64748b;font-size:14px;">${body}</p>
-</td></tr>
-<tr><td style="padding:0 40px 32px;text-align:center;">
-<p style="margin:24px 0 0;color:#94a3b8;font-size:12px;line-height:1.6;">This is an automated message. No reply is needed.<br/>Log in to your AlphaTek Nexus portal for details.</p>
-<p style="margin:16px 0 0;color:#cbd5e1;font-size:11px;">&copy; AlphaTek Nexus. All rights reserved.</p>
-</td></tr>
-</table>
-</td></tr>
-</table>
-</body></html>`;
+// ── FCM HTTP v1 helpers ──────────────────────────────────────────
+
+interface ServiceAccount {
+  project_id: string;
+  private_key: string;
+  client_email: string;
 }
 
-function buildEmailText(title: string, body: string): string {
-  return `AlphaTek Nexus\n\n${title}\n${body}\n\nThis is an automated message. No reply is needed.`;
+let cachedAccessToken: { token: string; expiresAt: number } | null = null;
+
+function getServiceAccount(): ServiceAccount | null {
+  const raw = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON");
+  if (!raw) return null;
+  try {
+    const sa = JSON.parse(raw) as ServiceAccount;
+    if (!sa.project_id || !sa.private_key || !sa.client_email) return null;
+    return sa;
+  } catch {
+    return null;
+  }
 }
 
-function getSubjectForEvent(eventType: string, title: string): string {
-  const prefix = "AlphaTek Nexus";
-  if (eventType.startsWith("booking")) return `${title} - ${prefix}`;
-  if (eventType.startsWith("payment") || eventType.startsWith("wallet") || eventType.startsWith("withdrawal"))
-    return `${title} - ${prefix}`;
-  if (eventType.startsWith("job") || eventType.startsWith("field")) return `${title} - ${prefix}`;
-  if (eventType.startsWith("hr") || eventType.startsWith("employee")) return `${title} - ${prefix}`;
-  if (eventType.startsWith("incident")) return `${title} - ${prefix}`;
-  if (eventType.startsWith("smart_sort") || eventType.startsWith("subscription"))
-    return `${title} - ${prefix}`;
-  if (eventType.startsWith("announcement")) return `${title} - ${prefix}`;
-  return `${title} - ${prefix}`;
+function base64UrlEncode(data: ArrayBuffer): string {
+  const bytes = new Uint8Array(data);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-async function sendEmail(
-  supabase: ReturnType<typeof createClient>,
-  recipientEmail: string,
-  subject: string,
-  html: string,
-  text: string,
+function strToArrayBuffer(str: string): ArrayBuffer {
+  const encoder = new TextEncoder();
+  return encoder.encode(str).buffer as ArrayBuffer;
+}
+
+async function signJwtWithRsa(privateKeyPem: string, payload: Record<string, unknown>): Promise<string> {
+  // Parse PKCS#8 PEM private key
+  const pemContents = privateKeyPem
+    .replace(/-----BEGIN PRIVATE KEY-----/, "")
+    .replace(/-----END PRIVATE KEY-----/, "")
+    .replace(/\s/g, "");
+  const binaryDer = Uint8Array.from(atob(pemContents), (c) => c.charCodeAt(0));
+
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    binaryDer.buffer,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+
+  const header = { alg: "RS256", typ: "JWT" };
+  const headerB64 = base64UrlEncode(strToArrayBuffer(JSON.stringify(header)));
+  const payloadB64 = base64UrlEncode(strToArrayBuffer(JSON.stringify(payload)));
+  const signingInput = `${headerB64}.${payloadB64}`;
+
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    strToArrayBuffer(signingInput),
+  );
+
+  return `${signingInput}.${base64UrlEncode(signature)}`;
+}
+
+async function getFcmAccessToken(sa: ServiceAccount): Promise<string> {
+  if (cachedAccessToken && Date.now() < cachedAccessToken.expiresAt - 60_000) {
+    return cachedAccessToken.token;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const jwt = await signJwtWithRsa(sa.private_key, {
+    iss: sa.client_email,
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+  });
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`OAuth2 token fetch failed: ${errText}`);
+  }
+
+  const data = await res.json() as { access_token: string; expires_in: number };
+  cachedAccessToken = {
+    token: data.access_token,
+    expiresAt: Date.now() + data.expires_in * 1000,
+  };
+  return data.access_token;
+}
+
+async function sendPushV1(
+  projectId: string,
+  accessToken: string,
+  token: string,
+  platform: string,
+  title: string,
+  body: string,
+  metadata: Record<string, unknown>,
 ): Promise<{ ok: boolean; error?: string }> {
-  const resendKey = Deno.env.get("RESEND_API_KEY");
-  if (!resendKey) {
-    return { ok: false, error: "RESEND_API_KEY not configured" };
+  const message: Record<string, unknown> = {
+    token,
+    notification: { title, body },
+    data: {
+      ...Object.fromEntries(
+        Object.entries(metadata).map(([k, v]) => [k, String(v)]),
+      ),
+      title,
+      body,
+      click_action: String(metadata.click_action || "OPEN_APP"),
+    },
+    android: {
+      notification: {
+        channel_id: String(metadata.channel_id || "general"),
+        priority: "high",
+      },
+    },
+    apns: {
+      payload: {
+        aps: { sound: "default", badge: 1 },
+      },
+    },
+  };
+
+  if (platform === "web") {
+    message["webpush"] = {
+      notification: { title, body, icon: "/alphateknexus_logo.png" },
+      fcm_options: { link: String(metadata.link || "/") },
+    };
   }
 
   try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${resendKey}`,
-        "Content-Type": "application/json",
+    const res = await fetch(
+      `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message }),
       },
-      body: JSON.stringify({
-        from: "AlphaTek Nexus <noreply@alphateknexus.com>",
-        to: [recipientEmail],
-        subject,
-        html,
-        text,
-      }),
-    });
+    );
 
     if (!res.ok) {
       const errText = await res.text();
+      // Check for unregistered/invalid token
+      if (errText.includes("UNREGISTERED") || errText.includes("invalid-registration-token")) {
+        return { ok: false, error: "InvalidRegistration" };
+      }
       return { ok: false, error: errText };
     }
     return { ok: true };
@@ -130,7 +213,7 @@ async function sendEmail(
   }
 }
 
-async function sendPushToToken(
+async function sendPushLegacy(
   token: string,
   platform: string,
   title: string,
@@ -158,10 +241,7 @@ async function sendPushToToken(
     },
     apns: {
       payload: {
-        aps: {
-          sound: "default",
-          badge: 1,
-        },
+        aps: { sound: "default", badge: 1 },
       },
     },
   };
@@ -198,6 +278,101 @@ async function sendPushToToken(
   }
 }
 
+async function sendPushToToken(
+  token: string,
+  platform: string,
+  title: string,
+  body: string,
+  metadata: Record<string, unknown>,
+): Promise<{ ok: boolean; error?: string }> {
+  const sa = getServiceAccount();
+  if (sa) {
+    try {
+      const accessToken = await getFcmAccessToken(sa);
+      return await sendPushV1(sa.project_id, accessToken, token, platform, title, body, metadata);
+    } catch (err) {
+      // Fall back to legacy if v1 fails for any reason
+      console.error("FCM v1 failed, falling back to legacy:", (err as Error).message);
+    }
+  }
+  return sendPushLegacy(token, platform, title, body, metadata);
+}
+
+// ── Email helpers ───────────────────────────────────────────────
+
+function buildEmailHtml(title: string, body: string, subtitle: string): string {
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;padding:24px 0;">
+<tr><td align="center">
+<table width="480" cellpadding="0" cellspacing="0" style="background-color:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+<tr><td style="background:linear-gradient(135deg,#0f172a,#1e293b);padding:32px 40px;text-align:center;">
+<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;letter-spacing:-0.3px;">AlphaTek Nexus</h1>
+<p style="margin:6px 0 0;color:#94a3b8;font-size:13px;">${subtitle}</p>
+</td></tr>
+<tr><td style="padding:32px 40px 0;text-align:center;">
+<h2 style="margin:0 0 4px;color:#0f172a;font-size:20px;font-weight:700;">${title}</h2>
+<p style="margin:0;color:#64748b;font-size:14px;">${body}</p>
+</td></tr>
+<tr><td style="padding:0 40px 32px;text-align:center;">
+<p style="margin:24px 0 0;color:#94a3b8;font-size:12px;line-height:1.6;">This is an automated message. No reply is needed.<br/>Log in to your AlphaTek Nexus portal for details.</p>
+<p style="margin:16px 0 0;color:#cbd5e1;font-size:11px;">&copy; AlphaTek Nexus. All rights reserved.</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
+}
+
+function buildEmailText(title: string, body: string): string {
+  return `AlphaTek Nexus\n\n${title}\n${body}\n\nThis is an automated message. No reply is needed.`;
+}
+
+function getSubjectForEvent(eventType: string, title: string): string {
+  return `${title} - AlphaTek Nexus`;
+}
+
+async function sendEmail(
+  _supabase: ReturnType<typeof createClient>,
+  recipientEmail: string,
+  subject: string,
+  html: string,
+  text: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const resendKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendKey) {
+    return { ok: false, error: "RESEND_API_KEY not configured" };
+  }
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "AlphaTek Nexus <noreply@alphateknexus.com>",
+        to: [recipientEmail],
+        subject,
+        html,
+        text,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      return { ok: false, error: errText };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+// ── Main handler ─────────────────────────────────────────────────
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -209,7 +384,6 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Process mode: poll the outbox for unprocessed rows
     const url = new URL(req.url);
     const mode = url.searchParams.get("mode") || "process";
 
@@ -248,7 +422,6 @@ Deno.serve(async (req: Request) => {
         let emailSkipped = false;
         let pushSkipped = false;
 
-        // Fetch user preferences
         const { data: prefs } = await supabase
           .from("notification_preferences")
           .select("*")
@@ -343,7 +516,6 @@ Deno.serve(async (req: Request) => {
 
             if (anyPushSent) pushSent = true;
 
-            // Deactivate invalid tokens
             for (const subId of invalidTokens) {
               await supabase
                 .from("push_subscriptions")
@@ -357,7 +529,6 @@ Deno.serve(async (req: Request) => {
           pushSkipped = true;
         }
 
-        // Mark as processed
         const errorMessage = errors.length > 0 ? errors.join("; ") : null;
         await supabase
           .from("notification_outbox")
@@ -383,16 +554,11 @@ Deno.serve(async (req: Request) => {
       }
 
       return new Response(
-        JSON.stringify({
-          success: true,
-          processed: results.length,
-          results,
-        }),
+        JSON.stringify({ success: true, processed: results.length, results }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // Direct send mode: send a notification immediately without the outbox
     if (mode === "direct") {
       const body = await req.json();
       const {
@@ -422,7 +588,6 @@ Deno.serve(async (req: Request) => {
         p_metadata: metadata,
       });
 
-      // Immediately process this single row
       const { data: row } = await supabase
         .from("notification_outbox")
         .select("*")
