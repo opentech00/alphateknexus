@@ -4,6 +4,7 @@ import {
   Building2, BarChart3, CheckCircle2, AlertCircle, FileText, Upload,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 
 interface Service {
   id: string; name: string; slug: string;
@@ -135,6 +136,7 @@ export function CleaningQuoteForm({ service, onCancel, onSuccess }: Props) {
       location: `${address}, ${city}, ${country}`,
       notes: specialRequirements || null,
       details,
+      status: 'pending_review',
     });
     setLoading(false);
     if (err) setError(err.message);
@@ -142,24 +144,13 @@ export function CleaningQuoteForm({ service, onCancel, onSuccess }: Props) {
   };
 
   if (submitted) return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-16">
-      <div className="text-center max-w-md">
-        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Send className="w-8 h-8 text-blue-600" />
-        </div>
-        <h2 className="text-2xl font-bold text-slate-900">Quote Request Sent!</h2>
-        <p className="mt-3 text-slate-500 leading-relaxed">
-          Your Cleaning &amp; Janitorial quote request has been received. Our operations team will
-          contact <span className="font-medium text-slate-700">{contactPerson}</span> at{' '}
-          <span className="font-medium text-slate-700">{phone}</span> within 24 hours.
-        </p>
-        <p className="mt-2 text-xs text-slate-400">Quotes are typically delivered within 24 hours via email or phone.</p>
-        <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-          <button onClick={onSuccess} className="px-6 py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors">View My Bookings</button>
-          <button onClick={onCancel} className="px-6 py-3 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition-colors">Back to Services</button>
-        </div>
-      </div>
-    </div>
+    <ReviewSubmittedScreen
+      serviceName={service.name}
+      contactName={contactPerson}
+      contactPhone={phone}
+      onDone={onCancel}
+      onViewBookings={onSuccess}
+    />
   );
 
   return (

@@ -30,7 +30,8 @@ import { BackupPage } from './pages/BackupPage';
 import { UsersManagementPage } from './pages/UsersManagementPage';
 import { BundlesManagementPage } from './pages/BundlesManagementPage';
 import { FieldDispatchPage } from './pages/FieldDispatchPage';
-import { RbacManagementPage } from './pages/RbacManagementPage';
+import { BookingReviewPage } from './pages/BookingReviewPage';
+import { MessagesPage } from './pages/MessagesPage';
 
 function AdminContent() {
   const [currentPage, setCurrentPage] = useState('overview');
@@ -65,8 +66,12 @@ function AdminContent() {
     switch (currentPage) {
       case 'overview':
         return <OverviewPage />;
+      case 'booking-review':
+        return <BookingReviewPage />;
       case 'bookings':
         return <BookingsManagementPage />;
+      case 'messages':
+        return <MessagesPage />;
       case 'clients':
         return <ClientsPage />;
       case 'divisions':
@@ -117,8 +122,6 @@ function AdminContent() {
         return <UsersManagementPage />;
       case 'bundles':
         return <BundlesManagementPage />;
-      case 'rbac-management':
-        return <RbacManagementPage />;
       case 'settings':
         return <SettingsPage />;
       default:

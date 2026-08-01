@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ServicePaymentStep, PaymentSuccessScreen, PaymentFailedScreen } from './ServicePaymentStep';
+import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 
 interface Props {
   service: Service;
@@ -21,7 +22,7 @@ interface Service {
   price_range: string;
 }
 
-type Step = 'form' | 'review' | 'payment' | 'success' | 'payment_failed';
+type Step = 'form' | 'review' | 'payment' | 'success' | 'payment_failed' | 'review_submitted';
 
 const SERVICE_TYPES = [
   { id: 'unarmed', label: 'Unarmed Guards', desc: 'Trained security personnel', price: 0 },
@@ -164,10 +165,11 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
       contact_name: fullName, contact_phone: phone, contact_email: email || null,
       scheduled_date: startDate, location: `${siteAddress}, ${city}`,
       notes: notes || null, details, payment_status: 'pending',
+      status: 'pending_review',
     }).select('id').single();
     setLoading(false);
     if (err) { setError(err.message); setStep('form'); return; }
-    setBookingId(bookingRow.id); setStep('payment');
+    setBookingId(bookingRow.id); setStep('review_submitted');
   };
 
   if (step === 'payment') return (
@@ -176,6 +178,16 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
       onSuccess={(m, r) => { setPayMethod(m); setPayRef(r || ''); setStep('success'); }}
       onFail={(msg) => { setPayError(msg); setStep('payment_failed'); }} />
   );
+  if (step === 'review_submitted') return (
+    <ReviewSubmittedScreen
+      serviceName={service.name}
+      contactName={fullName}
+      contactPhone={phone}
+      onDone={onCancel}
+      onViewBookings={onSuccess}
+    />
+  );
+
   if (step === 'payment_failed') return <PaymentFailedScreen message={payError} onRetry={() => setStep('payment')} onViewBookings={onSuccess} />;
   if (step === 'success') return (
     <PaymentSuccessScreen serviceName={service.name} amount={total} method={payMethod}
@@ -231,7 +243,7 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
           <div className="flex gap-3">
             <button onClick={() => setStep('form')} className="px-6 py-3.5 border border-slate-200 rounded-xl text-slate-700 font-medium hover:bg-slate-50 text-sm">Edit</button>
             <button onClick={handleSubmit} disabled={loading} className="flex-1 py-3.5 bg-slate-800 text-white rounded-xl font-semibold hover:bg-slate-900 text-sm disabled:opacity-50 flex items-center justify-center gap-2">
-              {loading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Submitting...</> : <><CheckCircle2 className="w-4 h-4" />Proceed to Payment</>}
+              {loading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Submitting...</> : <><CheckCircle2 className="w-4 h-4" />Submit for Review</>}
             </button>
           </div>
         </div>

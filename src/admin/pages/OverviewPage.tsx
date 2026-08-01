@@ -57,7 +57,7 @@ export function OverviewPage() {
       const allBookings = data || [];
 
       const active = allBookings.filter((b: any) => ['confirmed', 'in_progress'].includes(b.status)).length;
-      const pending = allBookings.filter((b: any) => b.status === 'pending').length;
+      const pending = allBookings.filter((b: any) => ['pending', 'pending_review'].includes(b.status)).length;
       const uniqueClients = new Set(allBookings.map((b: any) => b.contact_phone)).size;
       const scheduled = allBookings.filter((b: any) => b.status === 'confirmed' && new Date(b.scheduled_date) > new Date()).length;
       const quotes = allBookings.filter((b: any) => b.details?.quote_request === true).length;

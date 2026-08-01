@@ -156,7 +156,7 @@ export function FieldDispatchPage() {
       ] = await Promise.all([
         supabase.from('employees').select('id, full_name, position, photo_url, service_id, performance_score, jobs_completed, status').eq('status', 'active'),
         supabase.from('field_assignments').select('*').order('scheduled_date', { ascending: true }),
-        supabase.from('bookings').select('id, service_id, contact_name, location, status, services(name)').in('status', ['pending', 'confirmed', 'in_progress']).limit(50),
+        supabase.from('bookings').select('id, service_id, contact_name, location, status, services(name)').in('status', ['pending', 'approved', 'confirmed', 'in_progress']).limit(50),
         supabase.from('field_location_pings').select('*').order('created_at', { ascending: false }).limit(100),
         supabase.from('field_job_scores').select('*').order('scored_at', { ascending: false }),
         supabase.from('field_job_events').select('*').order('created_at', { ascending: false }).limit(200),

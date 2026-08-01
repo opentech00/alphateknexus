@@ -149,6 +149,8 @@ export function MessageThread({ bookingId, onClose }: MessageThreadProps) {
         is_admin: isAdmin,
         attachment_url: imageAttachment?.url ?? null,
         attachment_name: imageAttachment?.name ?? null,
+        category: 'general',
+        priority: 'normal',
       });
 
       if (insertError) {

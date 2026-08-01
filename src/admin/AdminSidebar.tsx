@@ -5,7 +5,7 @@ import {
   BarChart3, Truck, Brush, ShieldCheck, Package, ArrowLeft, Recycle, FolderOpen,
   Briefcase, CreditCard, UserCog, History, Contact, Database,
   Receipt as ReceiptIcon, Star, Gift, Landmark,
-  Navigation,
+  Navigation, ClipboardCheck, MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAdminNotifications } from './contexts/AdminNotificationsContext';
@@ -50,7 +50,9 @@ const navSections: NavSection[] = [
   {
     title: 'CLIENT PORTAL',
     items: [
+      { label: 'Booking Review', page: 'booking-review', icon: ClipboardCheck },
       { label: 'All Bookings', page: 'bookings', icon: CalendarDays },
+      { label: 'Messages', page: 'messages', icon: MessageSquare },
       { label: 'Documents', page: 'documents', icon: FolderOpen },
       { label: 'Clients', page: 'clients', icon: Users },
       { label: 'User Management', page: 'users', icon: UserCog },
@@ -69,7 +71,6 @@ const navSections: NavSection[] = [
     title: 'MANAGEMENT',
     items: [
       { label: 'Finance Module', page: 'finance', icon: Landmark },
-      { label: 'Access Control', page: 'rbac-management', icon: ShieldCheck },
       { label: 'Data Backup', page: 'backup', icon: Database },
       { label: 'Settings', page: 'settings', icon: Settings },
     ],
@@ -151,7 +152,9 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
     'division-cleaning': unreadBySlug['cleaning-janitorial'] || 0,
     'division-security': unreadBySlug['private-security'] || 0,
     'division-procurement': unreadBySlug['procurement'] || 0,
+    'booking-review': 0,
     bookings: (unreadByType['booking_update'] || 0) + (unreadByType['message'] || 0),
+    messages: unreadByType['message'] || 0,
     documents: 0,
     clients: 0,
     finance: 0,

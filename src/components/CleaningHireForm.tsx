@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ServicePaymentStep, PaymentSuccessScreen, PaymentFailedScreen } from './ServicePaymentStep';
+import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 
 interface Service {
   id: string; name: string; slug: string;
@@ -54,7 +55,7 @@ function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: 
 
 const inputCls = 'w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all bg-white';
 
-type Step = 'form' | 'review' | 'payment' | 'success' | 'payment_failed';
+type Step = 'form' | 'review' | 'payment' | 'success' | 'payment_failed' | 'review_submitted';
 
 const fmtSLE = (n: number) => `Le ${n.toLocaleString()}`;
 
@@ -122,11 +123,12 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
       notes: notes || null,
       details,
       payment_status: 'pending',
+      status: 'pending_review',
     }).select('id').single();
     setLoading(false);
     if (err) { setError(err.message); setStep('form'); return; }
     setBookingId(bookingRow.id);
-    setStep('payment');
+    setStep('review_submitted');
   };
 
   if (step === 'payment') return (
@@ -138,6 +140,16 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
       onBack={() => setStep('review')}
       onSuccess={(method, ref) => { setPayMethod(method); setPayRef(ref || ''); setStep('success'); }}
       onFail={(msg) => { setPayError(msg); setStep('payment_failed'); }}
+    />
+  );
+
+  if (step === 'review_submitted') return (
+    <ReviewSubmittedScreen
+      serviceName={service.name}
+      contactName={fullName}
+      contactPhone={phone}
+      onDone={onCancel}
+      onViewBookings={onSuccess}
     />
   );
 
@@ -206,7 +218,7 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
         <div className="flex gap-3">
           <button onClick={() => setStep('form')} className="flex-1 py-3.5 border border-slate-200 rounded-xl text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm">Back &amp; Edit</button>
           <button onClick={handleSubmit} disabled={loading} className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2">
-            {loading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Submitting...</> : <><CheckCircle2 className="w-4 h-4" />Proceed to Payment</>}
+            {loading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Submitting...</> : <><CheckCircle2 className="w-4 h-4" />Submit for Review</>}
           </button>
         </div>
       </div>

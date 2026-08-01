@@ -5,6 +5,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 
 interface Service { id: string; name: string; slug: string; }
 
@@ -229,7 +230,7 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
       scheduled_date: startDate || null,
       location: [address.trim(), city].filter(Boolean).join(', '),
       notes: additionalNotes || null,
-      status: 'pending',
+      status: 'pending_review',
       details: {
         type: 'smart-sort-quote',
         quote_request: true,
@@ -265,23 +266,13 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
 
   if (view === 'done') {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center">
-          <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 className="w-7 h-7 text-emerald-600" />
-          </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Quote Request Submitted!</h2>
-          <p className="text-sm text-slate-500 mb-6">
-            A Smart Sort coordinator will review your request and get back to you within 24 hours via phone or email.
-          </p>
-          <button
-            onClick={onSuccess}
-            className="w-full py-3 bg-[#1e293b] text-white font-semibold rounded-xl hover:bg-[#0f172a] transition-colors"
-          >
-            View My Bookings
-          </button>
-        </div>
-      </div>
+      <ReviewSubmittedScreen
+        serviceName={service.name}
+        contactName={contactPerson}
+        contactPhone={phone}
+        onDone={onCancel}
+        onViewBookings={onSuccess}
+      />
     );
   }
 

@@ -93,6 +93,8 @@ interface Booking {
 
 const statusColors: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-700 border-amber-200',
+  pending_review: 'bg-orange-50 text-orange-700 border-orange-200',
+  approved: 'bg-teal-50 text-teal-700 border-teal-200',
   confirmed: 'bg-blue-50 text-blue-700 border-blue-200',
   in_progress: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   completed: 'bg-slate-50 text-slate-600 border-slate-200',
@@ -101,13 +103,15 @@ const statusColors: Record<string, string> = {
 
 const statusLabels: Record<string, string> = {
   pending: 'Pending',
+  pending_review: 'Pending Review',
+  approved: 'Approved',
   confirmed: 'Confirmed',
   in_progress: 'In Progress',
   completed: 'Completed',
   cancelled: 'Cancelled',
 };
 
-const allStatuses = ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'];
+const allStatuses = ['pending', 'pending_review', 'approved', 'confirmed', 'in_progress', 'completed', 'cancelled'];
 type ModeFilter = 'all' | 'hire' | 'quote';
 
 function DetailRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value?: string | null }) {

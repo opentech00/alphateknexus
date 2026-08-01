@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Plus, Trash2, FileText, CheckCircle2, DollarSign, MapPin, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 
 interface Service {
   id: string;
@@ -94,6 +95,7 @@ export function ProcurementQuoteForm({ service, onCancel, onSuccess }: Props) {
       location: deliveryAddress.trim() || null,
       notes: description.trim() || null,
       details,
+      status: 'pending_review',
     });
 
     if (err) {
@@ -107,31 +109,13 @@ export function ProcurementQuoteForm({ service, onCancel, onSuccess }: Props) {
 
   if (success) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-10 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 rounded-full mb-5">
-            <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900">Quote Request Sent!</h2>
-          <p className="mt-3 text-slate-500 text-sm">
-            We've received your quote request. Our procurement team will review your requirements and send competitive pricing within 48 hours.
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={onSuccess}
-              className="px-6 py-2.5 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition-colors text-sm"
-            >
-              View My Bookings
-            </button>
-            <button
-              onClick={onCancel}
-              className="px-6 py-2.5 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition-colors text-sm"
-            >
-              Back to Services
-            </button>
-          </div>
-        </div>
-      </div>
+      <ReviewSubmittedScreen
+        serviceName={service.name}
+        contactName={contactName}
+        contactPhone={phone}
+        onDone={onCancel}
+        onViewBookings={onSuccess}
+      />
     );
   }
 

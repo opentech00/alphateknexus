@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Plus, Trash2, Package, CheckCircle2, MapPin, Calendar, Eye, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ServicePaymentStep, PaymentSuccessScreen, PaymentFailedScreen } from './ServicePaymentStep';
+import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 
 interface Service {
   id: string;
@@ -44,7 +45,7 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [step, setStep] = useState<'form' | 'review' | 'payment' | 'success' | 'payment_failed'>('form');
+  const [step, setStep] = useState<'form' | 'review' | 'payment' | 'success' | 'payment_failed' | 'review_submitted'>('form');
   const [bookingId, setBookingId] = useState('');
   const [payMethod, setPayMethod] = useState('');
   const [payRef, setPayRef] = useState('');
@@ -90,6 +91,7 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
       notes: description.trim() || null,
       details,
       payment_status: 'pending',
+      status: 'pending_review',
     }).select('id').single();
 
     if (err) {
@@ -97,7 +99,7 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
       setLoading(false);
     } else {
       setBookingId(bookingRow.id);
-      setStep('payment');
+      setStep('review_submitted');
       setLoading(false);
     }
   };
@@ -111,6 +113,16 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
       onBack={() => setStep('form')}
       onSuccess={(method, ref) => { setPayMethod(method); setPayRef(ref || ''); setStep('success'); }}
       onFail={(msg) => { setPayError(msg); setStep('payment_failed'); }}
+    />
+  );
+
+  if (step === 'review_submitted') return (
+    <ReviewSubmittedScreen
+      serviceName={service.name}
+      contactName={contactName}
+      contactPhone={phone}
+      onDone={onCancel}
+      onViewBookings={onSuccess}
     />
   );
 

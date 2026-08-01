@@ -52,11 +52,13 @@ interface Props {
 }
 
 const statusConfig: Record<string, { label: string; badge: string; dot: string }> = {
-  pending:     { label: 'Pending',     badge: 'text-amber-700 bg-amber-50 border-amber-200',     dot: 'bg-amber-500' },
-  confirmed:   { label: 'Confirmed',   badge: 'text-blue-700 bg-blue-50 border-blue-200',       dot: 'bg-blue-500' },
-  in_progress: { label: 'In Progress', badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
-  completed:   { label: 'Completed',   badge: 'text-slate-600 bg-slate-100 border-slate-200',   dot: 'bg-slate-400' },
-  cancelled:   { label: 'Cancelled',   badge: 'text-red-700 bg-red-50 border-red-200',           dot: 'bg-red-500' },
+  pending:        { label: 'Pending',         badge: 'text-amber-700 bg-amber-50 border-amber-200',     dot: 'bg-amber-500' },
+  pending_review: { label: 'Awaiting Review', badge: 'text-orange-700 bg-orange-50 border-orange-200',   dot: 'bg-orange-500' },
+  approved:       { label: 'Approved',         badge: 'text-teal-700 bg-teal-50 border-teal-200',         dot: 'bg-teal-500' },
+  confirmed:      { label: 'Confirmed',        badge: 'text-blue-700 bg-blue-50 border-blue-200',        dot: 'bg-blue-500' },
+  in_progress:    { label: 'In Progress',      badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
+  completed:      { label: 'Completed',        badge: 'text-slate-600 bg-slate-100 border-slate-200',    dot: 'bg-slate-400' },
+  cancelled:      { label: 'Cancelled',        badge: 'text-red-700 bg-red-50 border-red-200',           dot: 'bg-red-500' },
 };
 
 const SERVICE_IMAGES: Record<string, string> = {
@@ -68,7 +70,7 @@ const SERVICE_IMAGES: Record<string, string> = {
 };
 
 type Tab = 'all' | 'active' | 'subscriptions' | 'completed';
-const ACTIVE_STATUSES = ['pending', 'confirmed', 'in_progress'];
+const ACTIVE_STATUSES = ['pending', 'pending_review', 'approved', 'confirmed', 'in_progress'];
 
 export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Props) {
   const [bookings, setBookings] = useState<Booking[]>([]);
