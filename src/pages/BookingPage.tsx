@@ -37,6 +37,8 @@ interface RebookData {
   contact_email: string | null;
   location: string | null;
   notes: string | null;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
 }
 
 interface BookingPageProps {
@@ -343,8 +345,8 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
         contact_name: rebookData.contact_name || '',
         contact_phone: rebookData.contact_phone || '',
         contact_email: rebookData.contact_email || '',
-        scheduled_date: '',
-        scheduled_time: '',
+        scheduled_date: rebookData.scheduled_date || '',
+        scheduled_time: rebookData.scheduled_time || '',
         location: rebookData.location || '',
         notes: rebookData.notes || '',
       });

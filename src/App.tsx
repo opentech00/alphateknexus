@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { RbacProvider } from './contexts/RbacContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Loader2 } from 'lucide-react';
 import { LoginPage } from './pages/LoginPage';
@@ -115,7 +114,7 @@ function PortalContent() {
   };
 
   const handleQuickBook = (serviceId: string, preset: any) => {
-    setRebookData({ serviceId, preset });
+    setRebookData(preset);
     setPage('booking');
   };
 
@@ -180,7 +179,7 @@ function PortalContent() {
           onToggleDevAdmin={() => {}}
         />
         <main className="pt-16 min-h-screen">
-          {page === 'home'     && <DashboardPage onNavigate={handleNavigate} onSelectService={handleSelectService} />}
+          {page === 'home'     && <DashboardPage onNavigate={handleNavigate} onSelectService={handleSelectService} onQuickBook={handleQuickBook} />}
           {page === 'services' && <ServicesPage onNavigate={handleNavigate} onSelectService={handleSelectService} />}
           {page === 'bookings' && <BookingsPage onNavigate={handleNavigate} onRebook={handleRebook} />}
           {page === 'account'  && <AccountPage onNavigate={handleNavigate} onQuickBook={handleQuickBook} />}
@@ -195,11 +194,9 @@ function PortalContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <RbacProvider>
-        <ThemeProvider>
-          <PortalContent />
-        </ThemeProvider>
-      </RbacProvider>
+      <ThemeProvider>
+        <PortalContent />
+      </ThemeProvider>
     </AuthProvider>
   );
 }

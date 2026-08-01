@@ -16,6 +16,7 @@ import { AppReviewModal } from '../components/AppReviewModal';
 interface DashboardPageProps {
   onNavigate?: (page: string) => void;
   onSelectService?: (service: Service, mode?: 'hire' | 'quote' | 'pickup' | 'subscribe') => void;
+  onQuickBook?: (serviceId: string, preset: any) => void;
 }
 
 interface BookingRow {
@@ -204,7 +205,7 @@ function StatusTimeline({ status }: { status: string }) {
 }
 
 /* ── Main dashboard ───────────────────────────────────────── */
-export function DashboardPage({ onNavigate, onSelectService }: DashboardPageProps) {
+export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: DashboardPageProps) {
   const { profile } = useAuth();
   const [services, setServices]         = useState<Service[]>([]);
   const [bookings, setBookings]         = useState<BookingRow[]>([]);
@@ -624,6 +625,9 @@ export function DashboardPage({ onNavigate, onSelectService }: DashboardPageProp
             const svc = services.find(s => s.id === serviceId);
             if (svc && onSelectService) {
               onSelectService(svc, 'hire');
+            }
+            if (onQuickBook) {
+              onQuickBook(serviceId, preset);
             }
           }}
         />
