@@ -1,4 +1,7 @@
-/admin/*    /admin.html    200
-/employee/* /employee.html 200
+/admin      /admin.html     200
+/admin/*    /admin.html     200
+/employee   /employee.html  200
+/employee/* /employee.html  200
+/field      /field.html     200
 /field/*    /field.html     200
 /*          /index.html     200

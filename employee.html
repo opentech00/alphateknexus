@@ -11,19 +11,19 @@
     <script>
       (function(){try{var s=localStorage.getItem('atn-theme-prefs');var p=s?JSON.parse(s):{};var t=p.theme||'light';var a=p.accent_color||'emerald';var rm=p.reduced_motion||false;var cm=p.compact_mode||false;var r=document.documentElement;r.classList.remove('dark','black','system','light');if(t==='system'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}r.classList.add(t);r.setAttribute('data-accent',a);if(rm)r.classList.add('reduced-motion');if(cm)r.classList.add('compact-mode');r.style.colorScheme=t==='light'?'light':'dark';}catch(e){}})();
     </script>
-  </head>
-  <body>
-    <div id="root"></div>
     <script>
       (function(){
         var h = window.location.hostname.split('.');
         var sub = h.length > 2 ? h[0] : '';
-        var map = { 'admin': '/admin', 'employee': '/employee', 'field': '/field' };
+        var map = { 'admin': '/admin.html', 'employee': '/employee.html', 'field': '/field.html' };
         if (map[sub] && window.location.pathname !== map[sub]) {
           window.location.replace(map[sub]);
         }
       })();
     </script>
+  </head>
+  <body>
+    <div id="root"></div>
     <script type="module" src="/src/employee-main.tsx"></script>
   </body>
 </html>
