@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Users, Search, RefreshCw, X, Mail, Phone, Building2,
   Briefcase, AlertCircle, CheckCircle2, UserPlus, KeyRound,
-  ImagePlus, Upload, RefreshCcw, Eye, EyeOff,
+  ImagePlus, Upload, RefreshCcw, Eye, EyeOff, Pencil, Trash2,
+  AlertTriangle, Loader2, Calendar, FileText, MapPin, Contact,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard, EmptyState, Spinner, ErrorBanner } from '../components/ui';
@@ -29,6 +30,9 @@ export function HrEmployeesPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [divisionFilter, setDivisionFilter] = useState('all');
   const [showAdd, setShowAdd] = useState(false);
+  const [viewEmp, setViewEmp] = useState<Employee | null>(null);
+  const [editEmp, setEditEmp] = useState<Employee | null>(null);
+  const [deleteEmp, setDeleteEmp] = useState<Employee | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -218,14 +222,25 @@ export function HrEmployeesPage() {
                 </div>
                 <div className="flex items-center justify-between text-xs text-slate-400 border-t border-slate-100 pt-2.5">
                   <span>Hired: {fmtDate(e.hire_date)}</span>
-                  <select
-                    value={e.status} onChange={ev => updateStatus(e.id, ev.target.value)}
-                    className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white outline-none"
-                  >
-                    <option value="active">Active</option>
-                    <option value="on_leave">On Leave</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={e.status} onChange={ev => updateStatus(e.id, ev.target.value)}
+                      className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white outline-none"
+                    >
+                      <option value="active">Active</option>
+                      <option value="on_leave">On Leave</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                    <button onClick={() => setViewEmp(e)} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors" title="View details">
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => setEditEmp(e)} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors" title="Edit">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => setDeleteEmp(e)} className="p-1.5 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors" title="Delete">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -241,6 +256,440 @@ export function HrEmployeesPage() {
           onCreated={() => { setShowAdd(false); load(); }}
         />
       )}
+
+      {viewEmp && (
+        <ViewEmployeeModal employee={viewEmp} roles={roles} onClose={() => setViewEmp(null)} />
+      )}
+
+      {editEmp && (
+        <EditEmployeeModal
+          employee={editEmp}
+          roles={roles}
+          services={services}
+          onClose={() => setEditEmp(null)}
+          onSaved={() => { setEditEmp(null); load(); }}
+        />
+      )}
+
+      {deleteEmp && (
+        <DeleteEmployeeModal
+          employee={deleteEmp}
+          onClose={() => setDeleteEmp(null)}
+          onDeleted={() => { setDeleteEmp(null); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── View Employee Modal ─────────────────────────────────────────────────────
+
+function ViewEmployeeModal({ employee: e, roles, onClose }: {
+  employee: Employee;
+  roles: HrRole[];
+  onClose: () => void;
+}) {
+  const [activity, setActivity] = useState<any[]>([]);
+  const [loadingAct, setLoadingAct] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('employee_activity_logs')
+        .select('id, action, description, metadata, created_at')
+        .eq('employee_id', e.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      setActivity(data || []);
+      setLoadingAct(false);
+    })();
+  }, [e.id]);
+
+  const sm = STATUS_META[e.status] ?? STATUS_META.active;
+  const roleName = e.hr_roles?.name || roles.find(r => r.id === e.role_id)?.name || 'None';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh]" onClick={ev => ev.stopPropagation()}>
+        <div className="flex items-center gap-3.5 px-6 py-5 border-b border-slate-100 flex-shrink-0">
+          <div className="w-11 h-11 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Eye className="w-5 h-5 text-slate-600" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-lg font-bold text-slate-900 leading-tight">Employee Details</h2>
+            <p className="text-sm text-slate-500 mt-0.5">Full profile and recent activity</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors flex-shrink-0">
+            <X className="w-5 h-5 text-slate-400" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+          {/* Profile header */}
+          <div className="flex items-center gap-4">
+            {e.photo_url ? (
+              <img src={e.photo_url} className="w-16 h-16 rounded-2xl object-cover flex-shrink-0" alt={e.full_name} />
+            ) : (
+              <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center flex-shrink-0">
+                <span className="text-xl font-bold text-emerald-700">{e.full_name[0]?.toUpperCase()}</span>
+              </div>
+            )}
+            <div>
+              <h3 className="text-base font-bold text-slate-900">{e.full_name}</h3>
+              <p className="text-xs text-slate-400 font-mono">{e.employee_number}</p>
+              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 mt-1 rounded-full text-xs font-medium border ${sm.cls}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${sm.dot}`} />
+                {sm.label}
+              </span>
+            </div>
+          </div>
+
+          {/* Contact */}
+          <div className={sectionCls}>
+            <span className={sectionLabelCls}>Contact</span>
+            <div className="space-y-2 text-sm text-slate-600">
+              <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-slate-400" /> {e.email}</p>
+              {e.phone && <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-slate-400" /> {e.phone}</p>}
+              {(e as any).address && <p className="flex items-start gap-2"><MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5" /> {(e as any).address}</p>}
+              {(e as any).emergency_contact && <p className="flex items-center gap-2"><Contact className="w-3.5 h-3.5 text-slate-400" /> {(e as any).emergency_contact}</p>}
+            </div>
+          </div>
+
+          {/* Work */}
+          <div className={sectionCls}>
+            <span className={sectionLabelCls}>Work</span>
+            <div className="space-y-2 text-sm text-slate-600">
+              <p className="flex items-center gap-2"><Building2 className="w-3.5 h-3.5 text-slate-400" /> {e.services?.name || 'Unassigned'}</p>
+              <p className="flex items-center gap-2"><Briefcase className="w-3.5 h-3.5 text-slate-400" /> {roleName}</p>
+              {(e as any).position && <p className="flex items-center gap-2"><Briefcase className="w-3.5 h-3.5 text-slate-400" /> {(e as any).position}</p>}
+              {e.hire_date && <p className="flex items-center gap-2"><Calendar className="w-3.5 h-3.5 text-slate-400" /> Hired {fmtDate(e.hire_date)}</p>}
+              {(e as any).date_of_birth && <p className="flex items-center gap-2"><Calendar className="w-3.5 h-3.5 text-slate-400" /> DOB {fmtDate((e as any).date_of_birth)}</p>}
+            </div>
+          </div>
+
+          {/* Portal access */}
+          <div className={sectionCls}>
+            <span className={sectionLabelCls}>Portal Access</span>
+            <div className="flex items-center gap-2 text-sm">
+              {e.user_id ? (
+                <><KeyRound className="w-3.5 h-3.5 text-blue-500" /><span className="text-slate-600">Has portal login (linked to auth user)</span></>
+              ) : (
+                <><AlertCircle className="w-3.5 h-3.5 text-slate-400" /><span className="text-slate-400">No portal login</span></>
+              )}
+            </div>
+          </div>
+
+          {/* Recent activity */}
+          <div className={sectionCls}>
+            <span className={sectionLabelCls}>Recent Activity</span>
+            {loadingAct ? (
+              <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 text-slate-400 animate-spin" /></div>
+            ) : activity.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-3">No activity recorded yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {activity.map((a) => (
+                  <div key={a.id} className="flex items-start gap-2.5 text-sm">
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-slate-700 font-medium capitalize">{(a.action || '').replace(/_/g, ' ')}</p>
+                      {a.description && <p className="text-xs text-slate-400">{a.description}</p>}
+                      <p className="text-xs text-slate-300 mt-0.5">{new Date(a.created_at).toLocaleString()}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end flex-shrink-0">
+          <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit Employee Modal ────────────────────────────────────────────────────
+
+function EditEmployeeModal({ employee: e, roles, services, onClose, onSaved }: {
+  employee: Employee;
+  roles: HrRole[];
+  services: Service[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [fullName, setFullName] = useState(e.full_name);
+  const [email, setEmail] = useState(e.email);
+  const [phone, setPhone] = useState(e.phone || '');
+  const [position, setPosition] = useState((e as any).position || '');
+  const [serviceId, setServiceId] = useState(e.service_id || '');
+  const [roleId, setRoleId] = useState(e.role_id || '');
+  const [hireDate, setHireDate] = useState(e.hire_date || '');
+  const [dob, setDob] = useState((e as any).date_of_birth || '');
+  const [emergencyContact, setEmergencyContact] = useState((e as any).emergency_contact || '');
+  const [address, setAddress] = useState((e as any).address || '');
+  const [status, setStatus] = useState(e.status);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const filteredRoles = serviceId
+    ? roles.filter(r => !r.service_id || r.service_id === serviceId)
+    : roles;
+
+  const handleSave = async () => {
+    setError('');
+    if (!fullName.trim()) { setError('Full name is required.'); return; }
+    if (!email.trim()) { setError('Email is required.'); return; }
+    setLoading(true);
+
+    const updates: Record<string, any> = {
+      full_name: fullName.trim(),
+      email: email.trim(),
+      phone: phone || null,
+      position: position || null,
+      service_id: serviceId || null,
+      role_id: roleId || null,
+      hire_date: hireDate || null,
+      date_of_birth: dob || null,
+      emergency_contact: emergencyContact || null,
+      address: address || null,
+      status,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: updateErr } = await supabase.from('employees').update(updates).eq('id', e.id);
+    if (updateErr) { setError(updateErr.message); setLoading(false); return; }
+
+    await supabase.from('employee_activity_logs').insert({
+      employee_id: e.id,
+      action: 'profile_updated',
+      description: 'Employee profile updated by admin',
+      metadata: { fields: Object.keys(updates) },
+    });
+
+    setLoading(false);
+    onSaved();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl flex flex-col max-h-[92vh]" onClick={ev => ev.stopPropagation()}>
+        <div className="flex items-center gap-3.5 px-6 py-5 border-b border-slate-100 flex-shrink-0">
+          <div className="w-11 h-11 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Pencil className="w-5 h-5 text-slate-600" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-lg font-bold text-slate-900 leading-tight">Edit Employee</h2>
+            <p className="text-sm text-slate-500 mt-0.5">Update profile, role, and work details</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors flex-shrink-0">
+            <X className="w-5 h-5 text-slate-400" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+          {error && <ErrorBanner message={error} />}
+
+          <div className={sectionCls}>
+            <span className={sectionLabelCls}>Personal</span>
+            <div className="space-y-3">
+              <div>
+                <label className={fieldLabelCls}>Full Name <span className="text-red-500">*</span></label>
+                <input value={fullName} onChange={ev => setFullName(ev.target.value)} className={inputCls} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={fieldLabelCls}>Email <span className="text-red-500">*</span></label>
+                  <input type="email" value={email} onChange={ev => setEmail(ev.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  <label className={fieldLabelCls}>Phone</label>
+                  <input value={phone} onChange={ev => setPhone(ev.target.value)} className={inputCls} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={fieldLabelCls}>Date of Birth</label>
+                  <input type="date" value={dob} onChange={ev => setDob(ev.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  <label className={fieldLabelCls}>Emergency Contact</label>
+                  <input value={emergencyContact} onChange={ev => setEmergencyContact(ev.target.value)} className={inputCls} />
+                </div>
+              </div>
+              <div>
+                <label className={fieldLabelCls}>Address</label>
+                <textarea value={address} onChange={ev => setAddress(ev.target.value)} rows={2} className={inputCls + ' resize-none'} />
+              </div>
+            </div>
+          </div>
+
+          <div className={sectionCls}>
+            <span className={sectionLabelCls}>Work</span>
+            <div className="space-y-3">
+              <div>
+                <label className={fieldLabelCls}>Position</label>
+                <input value={position} onChange={ev => setPosition(ev.target.value)} className={inputCls} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={fieldLabelCls}>Division</label>
+                  <select value={serviceId} onChange={ev => { setServiceId(ev.target.value); setRoleId(''); }} className={inputCls}>
+                    <option value="">Select division</option>
+                    {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={fieldLabelCls}>Role</label>
+                  <select value={roleId} onChange={ev => setRoleId(ev.target.value)} className={inputCls}>
+                    <option value="">Division Staff</option>
+                    {filteredRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={fieldLabelCls}>Hire Date</label>
+                  <input type="date" value={hireDate} onChange={ev => setHireDate(ev.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  <label className={fieldLabelCls}>Status</label>
+                  <select value={status} onChange={ev => setStatus(ev.target.value as Employee['status'])} className={inputCls}>
+                    <option value="active">Active</option>
+                    <option value="on_leave">On Leave</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 flex-shrink-0">
+          <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={loading} className="flex items-center gap-2 px-5 py-2.5 bg-[#1e293b] text-white text-sm font-semibold rounded-xl hover:bg-[#0f172a] transition-colors disabled:opacity-60">
+            {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <><CheckCircle2 className="w-4 h-4" /> Save Changes</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Delete Employee Modal ───────────────────────────────────────────────────
+
+function DeleteEmployeeModal({ employee: e, onClose, onDeleted }: {
+  employee: Employee;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [confirmText, setConfirmText] = useState('');
+
+  const handleDelete = async () => {
+    setError('');
+    setLoading(true);
+
+    // If employee has a linked auth user, call admin-delete-user edge function
+    if (e.user_id) {
+      const { data: { session } } = await supabase.auth.getSession();
+      try {
+        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-delete-user`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ targetUserId: e.user_id }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setError(data.error || 'Failed to delete user'); setLoading(false); return; }
+      } catch (err: any) {
+        setError(err.message || 'Network error');
+        setLoading(false); return;
+      }
+    } else {
+      // No linked auth user — just delete the employee record + related data
+      try {
+        if (e.photo_url) {
+          const photoPath = e.photo_url.split('/').pop();
+          if (photoPath) await supabase.storage.from('employee-photos').remove([photoPath]);
+        }
+        if ((e as any).resume_url) {
+          await supabase.storage.from('employee-resumes').remove([(e as any).resume_url]);
+        }
+        await supabase.from('employee_activity_logs').delete().eq('employee_id', e.id);
+        await supabase.from('employee_id_cards').delete().eq('employee_id', e.id);
+        const { error: delErr } = await supabase.from('employees').delete().eq('id', e.id);
+        if (delErr) { setError(delErr.message); setLoading(false); return; }
+      } catch (err: any) {
+        setError(err.message || 'Failed to delete employee');
+        setLoading(false); return;
+      }
+    }
+
+    setLoading(false);
+    onDeleted();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={ev => ev.stopPropagation()}>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-11 h-11 bg-red-50 rounded-xl flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Delete Employee</h2>
+            <p className="text-sm text-slate-500">This cannot be undone.</p>
+          </div>
+        </div>
+
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl mb-4">
+          <p className="text-sm text-red-700">
+            {e.user_id ? (
+              <>This will permanently delete <strong>{e.full_name}</strong>'s employee record, their portal login, ID cards, and all associated data.</>
+            ) : (
+              <>This will permanently delete <strong>{e.full_name}</strong>'s employee record, ID cards, and activity logs. No portal login is linked.</>
+            )}
+          </p>
+        </div>
+
+        {error && <div className="mb-4"><ErrorBanner message={error} /></div>}
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">
+            Type <span className="font-mono text-red-600">{e.employee_number}</span> to confirm
+          </label>
+          <input
+            value={confirmText}
+            onChange={ev => setConfirmText(ev.target.value)}
+            className={inputCls}
+            placeholder={e.employee_number}
+          />
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="px-4 py-2.5 border border-slate-200 rounded-xl text-slate-700 font-medium hover:bg-slate-50 text-sm">
+            Cancel
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={loading || confirmText !== e.employee_number}
+            className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            Delete Permanently
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

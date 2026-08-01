@@ -89,6 +89,29 @@ Deno.serve(async (req: Request) => {
     await adminClient.from("messages").delete().eq("sender_id", targetUserId);
     await adminClient.from("referral_invitations").delete().eq("referrer_id", targetUserId);
 
+    // Delete employee record linked to this user (if any)
+    const { data: empRecord } = await adminClient
+      .from("employees")
+      .select("id, photo_url, resume_url")
+      .eq("user_id", targetUserId);
+    if (empRecord && empRecord.length > 0) {
+      const emp = empRecord[0] as any;
+      // Clean up employee storage files
+      if (emp.photo_url) {
+        try {
+          const photoPath = emp.photo_url.split("/").pop();
+          if (photoPath) await adminClient.storage.from("employee-photos").remove([photoPath]);
+        } catch { /* best-effort */ }
+      }
+      if (emp.resume_url) {
+        try { await adminClient.storage.from("employee-resumes").remove([emp.resume_url]); } catch { /* best-effort */ }
+      }
+      // Delete employee activity logs and ID cards
+      await adminClient.from("employee_activity_logs").delete().eq("employee_id", emp.id);
+      await adminClient.from("employee_id_cards").delete().eq("employee_id", emp.id);
+      await adminClient.from("employees").delete().eq("id", emp.id);
+    }
+
     // Delete booking_status_history via booking_ids
     const { data: userBookings } = await adminClient
       .from("bookings")
