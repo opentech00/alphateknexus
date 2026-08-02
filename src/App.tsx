@@ -7,6 +7,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { TwoFactorPage } from './pages/TwoFactorPage';
+import { EmailVerificationPage } from './pages/EmailVerificationPage';
 import { ServicesPage } from './pages/ServicesPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { BookingsPage } from './pages/BookingsPage';
@@ -21,7 +22,7 @@ import { FinanceToastContainer } from './components/FinanceToast';
 
 
 function PortalContent() {
-  const { user, loading, needs2FA, pending2FAEmail, pending2FAPassword, clear2FA } = useAuth();
+  const { user, loading, needs2FA, needsEmailVerification, pending2FAEmail, pending2FAPassword, clear2FA, refreshVerification, signOut } = useAuth();
   const [page, setPage] = useState('home');
   const [authView, setAuthView] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
   const [devAdmin] = useState(false);
@@ -100,6 +101,17 @@ function PortalContent() {
       <LoginPage onSwitch={() => setAuthView('register')} onForgot={() => setAuthView('forgot')} />
     ) : (
       <RegisterPage onNavigate={() => setAuthView('login')} />
+    );
+  }
+
+  // Email verification gate — user is logged in but email not verified
+  if (needsEmailVerification && user) {
+    return (
+      <EmailVerificationPage
+        email={user.email || ''}
+        onBack={() => { signOut(); setAuthView('login'); }}
+        onVerified={() => { refreshVerification(); }}
+      />
     );
   }
 

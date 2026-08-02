@@ -9,9 +9,16 @@ import { supabase } from '../lib/supabase';
 import { type IdCard, STATUS_META, fmtDate } from '../types';
 import { CashCollectionsPage } from './CashCollectionsPage';
 import { ActivitiesPage } from './ActivitiesPage';
+import {
+  BookingsPage,
+  SchedulePage,
+  DocumentsPage,
+  ReportPage,
+  PerformancePage,
+} from './ActivityPages';
 import { NotificationPreferencesPanel } from '../../components/NotificationPreferencesPanel';
 
-type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications';
+type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications' | 'bookings' | 'schedule' | 'documents' | 'report' | 'performance';
 
 export function EmployeeDashboardPage() {
   const { employee, user, signOut } = useAuth();
@@ -188,6 +195,11 @@ export function EmployeeDashboardPage() {
           {page === 'id-card' && <IdCardPage employee={employee} idCard={idCard} loading={cardLoading} cardStatus={cardStatus} />}
           {page === 'cash-collections' && <CashCollectionsPage onBack={() => setPage('overview')} />}
           {page === 'profile' && <ProfilePage employee={employee} />}
+          {page === 'bookings' && <BookingsPage employee={employee} />}
+          {page === 'schedule' && <SchedulePage employee={employee} />}
+          {page === 'documents' && <DocumentsPage employee={employee} />}
+          {page === 'report' && <ReportPage employee={employee} onBack={() => handleNav('activities')} />}
+          {page === 'performance' && <PerformancePage employee={employee} />}
           {page === 'notifications' && (
             <div className="max-w-2xl mx-auto">
               <h2 className="text-lg font-bold text-slate-900 mb-4">Notification Settings</h2>

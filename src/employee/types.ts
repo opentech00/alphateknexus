@@ -47,6 +47,9 @@ export interface Employee {
 }
 
 export const STATUS_META: Record<string, { label: string; cls: string; dot: string }> = {
+  pending:    { label: 'Pending',   cls: 'bg-amber-50 text-amber-700 border-amber-200',          dot: 'bg-amber-400' },
+  confirmed:  { label: 'Confirmed', cls: 'bg-blue-50 text-blue-700 border-blue-200',             dot: 'bg-blue-500' },
+  in_progress:{ label: 'In Progress',cls: 'bg-blue-50 text-blue-700 border-blue-200',            dot: 'bg-blue-500' },
   active:    { label: 'Active',    cls: 'bg-emerald-50 text-emerald-700 border-emerald-200',    dot: 'bg-emerald-500' },
   on_leave:  { label: 'On Leave',  cls: 'bg-amber-50 text-amber-700 border-amber-200',          dot: 'bg-amber-400' },
   inactive:  { label: 'Inactive',  cls: 'bg-slate-100 text-slate-500 border-slate-200',         dot: 'bg-slate-400' },

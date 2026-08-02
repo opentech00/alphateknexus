@@ -25,7 +25,7 @@ export function ResetPasswordPage({ onBack }: ResetPasswordPageProps) {
 
   const strength = (() => {
     const checks = {
-      length: password.length >= 8,
+      length: password.length >= 10,
       uppercase: /[A-Z]/.test(password),
       lowercase: /[a-z]/.test(password),
       number: /[0-9]/.test(password),
@@ -37,8 +37,11 @@ export function ResetPasswordPage({ onBack }: ResetPasswordPageProps) {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
-    if (strength < 3) { setError('Please choose a stronger password'); return; }
+    if (password.length < 10) { setError('Password must be at least 10 characters'); return; }
+    if (!/[A-Z]/.test(password)) { setError('Password must include an uppercase letter'); return; }
+    if (!/[0-9]/.test(password)) { setError('Password must include a number'); return; }
+    if (!/[^A-Za-z0-9]/.test(password)) { setError('Password must include a special character'); return; }
+    if (strength < 4) { setError('Please choose a stronger password'); return; }
     if (password !== confirmPassword) { setError('Passwords do not match'); return; }
     setLoading(true);
     const { error: updateError } = await supabase.auth.updateUser({ password });
@@ -107,7 +110,7 @@ export function ResetPasswordPage({ onBack }: ResetPasswordPageProps) {
               required
               autoComplete="new-password"
               className="w-full pl-10 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white outline-none transition-all text-sm"
-              placeholder="Min 8 characters"
+              placeholder="Min 10 characters"
             />
             <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
               {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

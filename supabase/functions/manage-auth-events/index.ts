@@ -257,7 +257,57 @@ Deno.serve(async (req: Request) => {
         last_active_at: new Date().toISOString(),
       }, { onConflict: "session_token" });
 
-      return new Response(JSON.stringify({ success: true }), {
+      // ── New Device Login Alert ──
+      // Compute a device fingerprint hash from user_agent + IP subnet
+      const ipSubnet = ip.split(".").slice(0, 3).join(".");
+      const deviceHashInput = `${userAgent}|${ipSubnet}`;
+      const deviceHashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(deviceHashInput));
+      const deviceHash = Array.from(new Uint8Array(deviceHashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+
+      // Check if this device is already recognized
+      const { data: existingDevice } = await supabase
+        .from("recognized_devices")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("device_hash", deviceHash)
+        .maybeSingle();
+
+      const isNewDevice = !existingDevice;
+
+      if (isNewDevice) {
+        // Register the new device
+        await supabase.from("recognized_devices").insert({
+          user_id: user.id,
+          device_hash: deviceHash,
+          device_name: deviceName,
+          browser,
+          os,
+          ip_address: ip,
+        });
+      } else {
+        // Update last_seen_at
+        await supabase.from("recognized_devices").update({
+          last_seen_at: new Date().toISOString(),
+        }).eq("user_id", user.id).eq("device_hash", deviceHash);
+      }
+
+      // Queue a new-device alert notification if this is an unrecognized device
+      if (isNewDevice) {
+        const alertTitle = `New login from ${deviceName}`;
+        const alertBody = `A new sign-in was detected on ${deviceName} at ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC. IP: ${ip}. If this was you, no action is needed. If not, please secure your account immediately.`;
+
+        await supabase.from("notification_outbox").insert({
+          user_id: user.id,
+          event_type: "security_new_device",
+          title: alertTitle,
+          body: alertBody,
+          category: "system",
+          channels: ["email", "push"],
+          status: "pending",
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, isNewDevice }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

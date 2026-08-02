@@ -648,12 +648,20 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPwError(''); setPwSaved(false);
-    if (newPassword.length < 8) { setPwError('Password must be at least 8 characters'); return; }
+    if (newPassword.length < 10) { setPwError('Password must be at least 10 characters'); return; }
+    if (!/[A-Z]/.test(newPassword)) { setPwError('Password must include an uppercase letter'); return; }
+    if (!/[0-9]/.test(newPassword)) { setPwError('Password must include a number'); return; }
+    if (!/[^A-Za-z0-9]/.test(newPassword)) { setPwError('Password must include a special character'); return; }
     if (newPassword !== confirmPassword) { setPwError('Passwords do not match'); return; }
     setPwSaving(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) setPwError(error.message);
-    else { setPwSaved(true); setNewPassword(''); setConfirmPassword(''); setTimeout(() => setPwSaved(false), 3000); }
+    const { data, error: fnError } = await supabase.functions.invoke('manage-password', {
+      body: { action: 'change', newPassword },
+    });
+    if (fnError || (data && !data.success)) {
+      setPwError(fnError?.message || data?.error || 'Failed to update password');
+    } else {
+      setPwSaved(true); setNewPassword(''); setConfirmPassword(''); setTimeout(() => setPwSaved(false), 3000);
+    }
     setPwSaving(false);
   };
 
@@ -911,7 +919,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
               <label className="block text-xs font-medium text-slate-600 mb-1.5">New Password</label>
               <div className="relative">
                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 8 characters" className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" />
+                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 10 characters" className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" />
               </div>
             </div>
             <div>

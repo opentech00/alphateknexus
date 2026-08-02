@@ -42,7 +42,7 @@ const slides: AuthSlide[] = [
 
 function getPasswordStrength(password: string) {
   const checks = {
-    length: password.length >= 8,
+    length: password.length >= 10,
     uppercase: /[A-Z]/.test(password),
     lowercase: /[a-z]/.test(password),
     number: /[0-9]/.test(password),
@@ -76,8 +76,11 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
 
     if (!fullName.trim()) { setError('Please enter your full name'); return; }
     if (!email.trim()) { setError('Please enter your email address'); return; }
-    if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
-    if (strength.score < 3) { setError('Please choose a stronger password'); return; }
+    if (password.length < 10) { setError('Password must be at least 10 characters'); return; }
+    if (!/[A-Z]/.test(password)) { setError('Password must include an uppercase letter'); return; }
+    if (!/[0-9]/.test(password)) { setError('Password must include a number'); return; }
+    if (!/[^A-Za-z0-9]/.test(password)) { setError('Password must include a special character'); return; }
+    if (strength.score < 4) { setError('Please choose a stronger password'); return; }
 
     setLoading(true);
     const { error } = await signUp(email.trim().toLowerCase(), password, fullName.trim());
@@ -85,7 +88,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
       setError(error);
       setLoading(false);
     } else {
-      onNavigate('dashboard');
+      onNavigate('login');
     }
   };
 
@@ -139,7 +142,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
               required
               autoComplete="new-password"
               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white outline-none transition-all text-sm pr-12"
-              placeholder="Min 8 characters"
+              placeholder="Min 10 characters"
             />
             <button
               type="button"
@@ -171,7 +174,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
               </div>
               <div className="flex flex-wrap gap-x-3 gap-y-1">
                 {[
-                  { key: 'length', label: '8+ characters' },
+                  { key: 'length', label: '10+ characters' },
                   { key: 'uppercase', label: 'Uppercase' },
                   { key: 'lowercase', label: 'Lowercase' },
                   { key: 'number', label: 'Number' },

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { initPushNotifications, unregisterDeviceToken } from '../lib/pushNotifications';
@@ -11,13 +11,19 @@ interface AuthContextValue {
   isAdmin: boolean;
   loading: boolean;
   needs2FA: boolean;
+  needsEmailVerification: boolean;
   pending2FAEmail: string;
   pending2FAPassword: string;
   signIn: (email: string, password: string) => Promise<{ error: string | null; needs2FA?: boolean }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   clear2FA: () => void;
+  refreshVerification: () => Promise<void>;
 }
+
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+const ADMIN_IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
@@ -27,8 +33,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [needs2FA, setNeeds2FA] = useState(false);
+  const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
   const [pending2FAEmail, setPending2FAEmail] = useState('');
   const [pending2FAPassword, setPending2FAPassword] = useState('');
+  const lastActivityRef = useRef<number>(Date.now());
+  const idleWarnedRef = useRef<boolean>(false);
+
+  const resetIdleTimer = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    idleWarnedRef.current = false;
+  }, []);
+
+  // Track user activity to reset idle timer
+  useEffect(() => {
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+    const handler = () => resetIdleTimer();
+    events.forEach((e) => window.addEventListener(e, handler, { passive: true }));
+    return () => events.forEach((e) => window.removeEventListener(e, handler));
+  }, [resetIdleTimer]);
+
+  // Check for idle timeout
+  useEffect(() => {
+    if (!session) return;
+    const interval = setInterval(() => {
+      const timeout = profile?.role === 'admin' ? ADMIN_IDLE_TIMEOUT_MS : IDLE_TIMEOUT_MS;
+      const elapsed = Date.now() - lastActivityRef.current;
+      if (elapsed >= timeout && !idleWarnedRef.current) {
+        idleWarnedRef.current = true;
+        supabase.auth.signOut().catch(() => {});
+      }
+    }, IDLE_CHECK_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [session, profile]);
 
   const fetchProfile = async (uid: string) => {
     const { data } = await supabase
@@ -57,8 +93,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (newSession?.user) {
           await fetchProfile(newSession.user.id);
           initPushNotifications('client').catch(() => {});
+          if (!newSession.user.email_confirmed_at) {
+            setNeedsEmailVerification(true);
+          } else {
+            setNeedsEmailVerification(false);
+          }
         } else {
           setProfile(null);
+          setNeedsEmailVerification(false);
         }
         setLoading(false);
       })();
@@ -100,6 +142,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: 'Invalid email or password.' };
     }
     if (!data.user) return { error: 'Authentication failed' };
+
+    // Check if email is verified
+    if (!data.user.email_confirmed_at) {
+      setNeedsEmailVerification(true);
+      return { error: null };
+    }
 
     // Record successful login
     try {
@@ -153,6 +201,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPending2FAPassword('');
   };
 
+  const refreshVerification = async () => {
+    const { data } = await supabase.auth.refreshSession();
+    if (data.session?.user?.email_confirmed_at) {
+      setNeedsEmailVerification(false);
+    }
+  };
+
   const signUp = async (email: string, password: string, fullName: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -185,12 +240,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setProfile(null);
     setNeeds2FA(false);
+    setNeedsEmailVerification(false);
     setPending2FAEmail('');
     setPending2FAPassword('');
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, isAdmin: profile?.role === 'admin', loading, needs2FA, pending2FAEmail, pending2FAPassword, signIn, signUp, signOut, clear2FA }}>
+    <AuthContext.Provider value={{ session, user, profile, isAdmin: profile?.role === 'admin', loading, needs2FA, needsEmailVerification, pending2FAEmail, pending2FAPassword, signIn, signUp, signOut, clear2FA, refreshVerification }}>
       {children}
     </AuthContext.Provider>
   );
