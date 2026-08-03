@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Loader2, FileText, Calendar, Upload, FileBarChart, User, CreditCard,
-  Banknote, ClipboardList, type LucideIcon,
+  Banknote, ClipboardList, GitBranch, type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { supabase } from '../lib/supabase';
@@ -24,6 +24,7 @@ const ACTIVITY_ICONS: Record<string, LucideIcon> = {
   profile: User,
   'id-card': CreditCard,
   'cash-collections': Banknote,
+  'delegated-tasks': GitBranch,
 };
 
 const TYPE_META: Record<string, { label: string; color: string; bg: string }> = {

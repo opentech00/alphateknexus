@@ -40,6 +40,7 @@ import { MessagesPage } from './pages/MessagesPage';
 import { FieldJobReviewPage } from './pages/FieldJobReviewPage';
 import { FieldIncidentsPage } from './pages/FieldIncidentsPage';
 import { AdminSessionsPage } from './pages/AdminSessionsPage';
+import { TaskDelegationPage } from './pages/TaskDelegationPage';
 
 function AdminContent() {
   const [currentPage, setCurrentPage] = useState('overview');
@@ -160,6 +161,8 @@ function AdminContent() {
         return <BundlesManagementPage />;
       case 'admin-sessions':
         return <AdminSessionsPage />;
+      case 'task-delegation':
+        return <TaskDelegationPage />;
       case 'settings':
         return <SettingsPage />;
       case 'notification-log':

@@ -6,7 +6,7 @@ import {
   Briefcase, CreditCard, UserCog, History, Contact, Database,
   Receipt as ReceiptIcon, Star, Gift, Landmark,
   Navigation, ClipboardCheck, MessageSquare,
-  AlertTriangle, CheckSquare, Bell,
+  AlertTriangle, CheckSquare, Bell, GitBranch,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAdminNotifications } from './contexts/AdminNotificationsContext';
@@ -74,6 +74,7 @@ const navSections: NavSection[] = [
     title: 'MANAGEMENT',
     items: [
       { label: 'Finance Module', page: 'finance', icon: Landmark },
+      { label: 'Task Delegation', page: 'task-delegation', icon: GitBranch },
       { label: 'Data Backup', page: 'backup', icon: Database },
       { label: 'Admin Sessions', page: 'admin-sessions', icon: ShieldCheck },
       { label: 'Settings', page: 'settings', icon: Settings },
@@ -171,6 +172,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
     referrals: 0,
     settings: 0,
     'notification-log': 0,
+    'task-delegation': 0,
     backup: 0,
     'hr-dashboard': 0,
     'hr-employees': 0,

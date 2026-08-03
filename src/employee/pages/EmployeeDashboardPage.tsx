@@ -3,6 +3,7 @@ import {
   Mail, Phone, MapPin, Calendar, AlertTriangle, User, Briefcase,
   Building2, BadgeCheck, CreditCard, LogOut, Loader2, Clock, Bell,
   LayoutDashboard, ChevronRight, Menu, X, KeyRound, Banknote, ClipboardList,
+  GitBranch,
 } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { supabase } from '../lib/supabase';
@@ -16,9 +17,10 @@ import {
   ReportPage,
   PerformancePage,
 } from './ActivityPages';
+import { DelegatedTasksPage } from './DelegatedTasksPage';
 import { NotificationPreferencesPanel } from '../../components/NotificationPreferencesPanel';
 
-type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications' | 'bookings' | 'schedule' | 'documents' | 'report' | 'performance';
+type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications' | 'bookings' | 'schedule' | 'documents' | 'report' | 'performance' | 'delegated-tasks';
 
 export function EmployeeDashboardPage() {
   const { employee, user, signOut } = useAuth();
@@ -71,6 +73,7 @@ export function EmployeeDashboardPage() {
   const navItems: { key: Page; label: string; icon: typeof LayoutDashboard }[] = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard },
     { key: 'activities', label: 'My Activities', icon: ClipboardList },
+    { key: 'delegated-tasks', label: 'Delegated Tasks', icon: GitBranch },
     { key: 'division', label: 'My Division', icon: Building2 },
     { key: 'role', label: 'My Role', icon: Briefcase },
     { key: 'id-card', label: 'ID Card', icon: CreditCard },
@@ -200,6 +203,7 @@ export function EmployeeDashboardPage() {
           {page === 'documents' && <DocumentsPage employee={employee} />}
           {page === 'report' && <ReportPage employee={employee} onBack={() => handleNav('activities')} />}
           {page === 'performance' && <PerformancePage employee={employee} />}
+          {page === 'delegated-tasks' && <DelegatedTasksPage onBack={() => handleNav('activities')} />}
           {page === 'notifications' && (
             <div className="max-w-2xl mx-auto">
               <h2 className="text-lg font-bold text-slate-900 mb-4">Notification Settings</h2>
