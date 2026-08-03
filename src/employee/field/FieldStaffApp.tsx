@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, ClipboardList, Clock, Bell, BarChart3, MapPin, WifiOff, RefreshCw } from 'lucide-react';
+import { Home, ClipboardList, Clock, Bell, BarChart3, MapPin, WifiOff, RefreshCw, Zap } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { FieldStaffProvider, useFieldStaff } from './FieldStaffContext';
 import { ToastContainer } from './components/Toast';
@@ -11,8 +11,9 @@ import { AttendanceScreen } from './screens/AttendanceScreen';
 import { InboxScreen } from './screens/InboxScreen';
 import { PerformanceScreen } from './screens/PerformanceScreen';
 import { IncidentReportScreen } from './screens/IncidentReportScreen';
+import { DispatchOffersScreen } from './screens/DispatchOffersScreen';
 
-type Tab = 'dashboard' | 'jobs' | 'attendance' | 'inbox' | 'performance';
+type Tab = 'dashboard' | 'offers' | 'jobs' | 'attendance' | 'inbox' | 'performance';
 
 function FieldStaffContent() {
   const { employee, signOut } = useAuth();
@@ -53,6 +54,7 @@ function FieldStaffContent() {
 
   const navItems: { key: Tab; label: string; icon: typeof Home }[] = [
     { key: 'dashboard',   label: 'Home',       icon: Home },
+    { key: 'offers',      label: 'Offers',      icon: Zap },
     { key: 'jobs',        label: 'Jobs',        icon: ClipboardList },
     { key: 'attendance',  label: 'Attendance', icon: Clock },
     { key: 'inbox',       label: 'Inbox',       icon: Bell },
@@ -111,6 +113,7 @@ function FieldStaffContent() {
       {/* Content */}
       <main className="flex-1 overflow-y-auto pb-20">
         {tab === 'dashboard'   && <DashboardScreen onOpenJob={(id) => setSelectedJobId(id)} onReportIncident={() => setShowIncident(true)} onViewStats={() => setTab('performance')} />}
+        {tab === 'offers'      && <DispatchOffersScreen />}
         {tab === 'jobs'        && <JobsScreen onOpenJob={(id) => setSelectedJobId(id)} />}
         {tab === 'attendance'  && <AttendanceScreen />}
         {tab === 'inbox'       && <InboxScreen />}

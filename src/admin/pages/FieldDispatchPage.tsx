@@ -134,7 +134,7 @@ interface OfflineSyncItem {
   created_at: string;
 }
 
-type View = 'dispatch' | 'map' | 'calendar' | 'leaderboard' | 'auto' | 'routes' | 'sync' | 'replay';
+type View = 'dispatch' | 'map' | 'calendar' | 'leaderboard' | 'auto' | 'routes' | 'sync' | 'replay' | 'offers';
 
 // ============================================================
 // Main Component
@@ -235,6 +235,8 @@ export function FieldDispatchPage() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'field_geofence_events' }, (payload: any) => {
         setGeofenceEvents(prev => [payload.new as GeofenceEvent, ...prev].slice(0, 100));
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dispatch_offers' }, () => { loadData(false); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dispatch_offer_responses' }, () => { loadData(false); })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [loadData]);
@@ -284,6 +286,7 @@ export function FieldDispatchPage() {
     { key: 'leaderboard', label: 'Scores', icon: Award },
     { key: 'sync', label: 'Sync Queue', icon: RefreshCw },
     { key: 'replay', label: 'Route Replay', icon: History },
+    { key: 'offers', label: 'Offers', icon: Zap },
   ];
 
   return (
@@ -347,6 +350,7 @@ export function FieldDispatchPage() {
       {view === 'leaderboard' && <LeaderboardView workers={workerStats} jobScores={jobScores} assignments={assignments} />}
       {view === 'sync' && <SyncQueueView syncQueue={syncQueue} workers={workerStats} onRefresh={() => loadData(false)} />}
       {view === 'replay' && <RouteReplayView workers={workerStats} pings={locationPings} assignments={assignments} geofenceEvents={geofenceEvents} />}
+      {view === 'offers' && <DispatchOffersView employees={employees} onAssign={() => setShowAssignModal(true)} />}
 
       {showAssignModal && (
         <AssignModal
@@ -1863,4 +1867,184 @@ function RouteCanvas({ pings, currentIdx, geofenceEvents, assignment }: {
   }, [pings, currentIdx, geofenceEvents, assignment]);
 
   return <canvas ref={canvasRef} className="w-full h-full" />;
+}
+
+// ============================================================
+// Dispatch Offers View — Uber-style job offers monitoring
+// ============================================================
+
+interface DispatchOfferRow {
+  id: string;
+  booking_id: string;
+  service_id: string | null;
+  status: string;
+  expires_at: string | null;
+  created_at: string;
+  accepted_by_employee_id: string | null;
+  bookings: {
+    id: string;
+    contact_name: string;
+    contact_phone: string;
+    location: string | null;
+    notes: string | null;
+    scheduled_date: string;
+    scheduled_time: string | null;
+    services: { name: string } | null;
+  } | null;
+  responses: {
+    employee_id: string;
+    status: string;
+    employees: { full_name: string } | null;
+  }[];
+}
+
+function DispatchOffersView({ onAssign }: { employees: AdminEmployee[]; onAssign: () => void }) {
+  const [offers, setOffers] = useState<DispatchOfferRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'open' | 'accepted' | 'expired' | 'all'>('open');
+
+  const fetchOffers = useCallback(async () => {
+    const { data } = await supabase
+      .from('dispatch_offers')
+      .select(`
+        id, booking_id, service_id, status, expires_at, created_at, accepted_by_employee_id,
+        bookings(id, contact_name, contact_phone, location, notes, scheduled_date, scheduled_time, services(name)),
+        responses:dispatch_offer_responses(employee_id, status, employees(full_name))
+      `)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    setOffers((data as unknown as DispatchOfferRow[]) || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchOffers();
+    const channel = supabase
+      .channel('admin-dispatch-offers')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dispatch_offers' }, () => fetchOffers())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dispatch_offer_responses' }, () => fetchOffers())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchOffers]);
+
+  const filtered = filter === 'all' ? offers : offers.filter(o => o.status === filter);
+
+  const counts = {
+    open: offers.filter(o => o.status === 'open').length,
+    accepted: offers.filter(o => o.status === 'accepted').length,
+    expired: offers.filter(o => o.status === 'expired').length,
+    all: offers.length,
+  };
+
+  const OFFER_STATUS_META: Record<string, { label: string; cls: string; dot: string }> = {
+    open:     { label: 'Open',     cls: 'bg-amber-50 text-amber-700 border-amber-200',    dot: 'bg-amber-400' },
+    accepted: { label: 'Accepted',  cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+    expired:  { label: 'Expired',   cls: 'bg-red-50 text-red-600 border-red-200',          dot: 'bg-red-400' },
+    cancelled:{ label: 'Cancelled', cls: 'bg-slate-100 text-slate-500 border-slate-200',   dot: 'bg-slate-400' },
+  };
+
+  function timeUntil(expiry: string | null): string {
+    if (!expiry) return '';
+    const diff = new Date(expiry).getTime() - Date.now();
+    if (diff <= 0) return 'Expired';
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m left`;
+    return `${Math.floor(mins / 60)}h ${mins % 60}m left`;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <Zap className="w-5 h-5 text-amber-500" /> Dispatch Offers
+          </h3>
+          <p className="text-sm text-slate-500">Monitor job offers broadcast to field workers. Assign manually if all workers decline or offers expire.</p>
+        </div>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {([
+          { key: 'open', label: 'Open', count: counts.open },
+          { key: 'accepted', label: 'Accepted', count: counts.accepted },
+          { key: 'expired', label: 'Expired/Declined', count: counts.expired },
+          { key: 'all', label: 'All', count: counts.all },
+        ] as const).map(t => (
+          <button key={t.key} onClick={() => setFilter(t.key)}
+            className={`px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${
+              filter === t.key ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}>
+            {t.label} <span className={`text-xs ${filter === t.key ? 'text-slate-300' : 'text-slate-400'}`}>({t.count})</span>
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-slate-400 animate-spin" /></div>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <EmptyState icon={Zap} title="No dispatch offers" description="When clients book a service, offers will appear here automatically." />
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(offer => {
+            const meta = OFFER_STATUS_META[offer.status] || OFFER_STATUS_META.open;
+            const booking = offer.bookings;
+            const acceptedWorker = offer.responses.find(r => r.status === 'accepted');
+            const declinedCount = offer.responses.filter(r => r.status === 'declined').length;
+            const pendingCount = offer.responses.filter(r => r.status === 'pending').length;
+            const needsManual = offer.status === 'expired' || (offer.status === 'open' && pendingCount === 0 && declinedCount > 0);
+            return (
+              <div key={offer.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <p className="font-bold text-slate-900 text-sm">{booking?.services?.name || 'Service'}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{booking?.contact_name || 'Customer'} · {booking?.contact_phone || 'No phone'}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {offer.status === 'open' && <span className="text-xs font-semibold text-amber-600">{timeUntil(offer.expires_at)}</span>}
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${meta.cls}`}>
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${meta.dot} mr-1.5`} />{meta.label}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 mb-3">
+                    <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {booking ? new Date(booking.scheduled_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</span>
+                    <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {booking?.scheduled_time ? booking.scheduled_time.substring(0, 5) : 'Any time'}</span>
+                    {booking?.location && <span className="flex items-center gap-1 col-span-2"><MapPin className="w-3.5 h-3.5" /> {booking.location}</span>}
+                  </div>
+                  {/* Response summary */}
+                  <div className="flex items-center gap-3 text-xs mb-3">
+                    {acceptedWorker && (
+                      <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Accepted by {acceptedWorker.employees?.full_name || 'Worker'}
+                      </span>
+                    )}
+                    <span className="text-slate-500">{pendingCount} pending</span>
+                    <span className="text-slate-400">{declinedCount} declined</span>
+                  </div>
+                  {/* Needs manual assignment alert */}
+                  {needsManual && (
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm mb-3">
+                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                      <span className="text-amber-700 font-medium">All workers declined or offer expired — manual assignment needed</span>
+                    </div>
+                  )}
+                  {/* Actions */}
+                  {needsManual && (
+                    <button onClick={onAssign}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 transition-colors">
+                      <Plus className="w-4 h-4" /> Assign Manually
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
