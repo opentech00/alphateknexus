@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, MessageSquare, Shield, X, ImagePlus, Loader2, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { openDocument } from '../lib/storageUrls';
+import { SignedImage } from './SignedImage';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Message {
@@ -111,7 +113,7 @@ export function MessageThread({ bookingId, onClose }: MessageThreadProps) {
         .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
       if (uploadError) {
-        setError(`Upload failed: ${uploadError.message}`);
+        setError('We could not upload that image. Please try a different file.');
         return;
       }
 
@@ -275,21 +277,19 @@ export function MessageThread({ bookingId, onClose }: MessageThreadProps) {
                   {message.attachment_url && (
                     <div className="mb-2">
                       <a
-                        href={message.attachment_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href="#"
+                        onClick={(e) => { e.preventDefault(); openDocument(message.attachment_url!); }}
                         className="block rounded-lg overflow-hidden group/attach"
                       >
-                        <img
-                          src={message.attachment_url}
+                        <SignedImage
+                          source={message.attachment_url}
                           alt={message.attachment_name || 'Attachment'}
                           className="max-w-full max-h-48 object-cover transition-transform duration-200 group-hover/attach:scale-105"
                         />
                       </a>
                       <a
-                        href={message.attachment_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href="#"
+                        onClick={(e) => { e.preventDefault(); openDocument(message.attachment_url!); }}
                         className={`inline-flex items-center gap-1 mt-1.5 text-xs ${own ? 'text-emerald-100 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}
                       >
                         <Download className="w-3 h-3" />
@@ -328,8 +328,8 @@ export function MessageThread({ bookingId, onClose }: MessageThreadProps) {
       {/* Pending image preview */}
       {pendingImage && (
         <div className="flex items-center gap-3 px-4 py-2 bg-slate-100 border-t border-slate-200">
-          <img
-            src={pendingImage.url}
+          <SignedImage
+            source={pendingImage.url}
             alt="Pending"
             className="w-12 h-12 object-cover rounded-lg border border-slate-300"
           />

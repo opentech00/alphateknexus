@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { openDocument } from '../lib/storageUrls';
+import { SignedImage } from './SignedImage';
 import { Upload, Image, FileText, File, Trash2, X } from 'lucide-react';
 
 interface Document {
@@ -28,7 +30,6 @@ const ACCEPTED_FILE_TYPES = [
   'image/png',
   'image/gif',
   'image/webp',
-  'image/svg+xml',
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -353,15 +354,14 @@ export function DocumentUpload({ bookingId, readOnly = false, serviceSlug }: Doc
 
               {/* File Preview */}
               <a
-                href={doc.file_url}
-                target="_blank"
-                rel="noopener noreferrer"
+                href="#"
+                onClick={(e) => { e.preventDefault(); openDocument(doc.file_url); }}
                 className="block"
               >
                 {doc.file_type.startsWith('image/') ? (
                   <div className="mb-3 rounded-lg overflow-hidden bg-slate-100 aspect-video flex items-center justify-center">
-                    <img
-                      src={doc.file_url}
+                    <SignedImage
+                      source={doc.file_url}
                       alt={doc.file_name}
                       className="w-full h-full object-cover"
                     />

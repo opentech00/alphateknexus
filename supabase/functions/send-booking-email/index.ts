@@ -9,7 +9,6 @@ const corsHeaders = {
 interface EmailPayload {
   eventType: "booking_confirmation" | "status_update" | "review_prompt" | "referral_invite" | "payment_verified" | "payment_rejected";
   bookingId?: string;
-  recipientEmail?: string;
   userId?: string;
   status?: string;
   serviceName?: string;
@@ -83,27 +82,78 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const payload: EmailPayload = await req.json();
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    let recipientEmail = payload.recipientEmail;
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+    let callerId: string | null = null;
+    let callerIsPrivileged = token.length > 0 && token === serviceKey;
+
+    if (!callerIsPrivileged) {
+      if (token.length === 0) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: authData } = await supabase.auth.getUser(token);
+      if (!authData?.user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      callerId = authData.user.id;
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", callerId)
+        .maybeSingle();
+      callerIsPrivileged = callerProfile?.role === "admin";
+    }
+
+    const payload: EmailPayload = await req.json();
+
+    // The recipient is never taken from the request body: only a privileged
+    // caller may target another account, everyone else emails themselves.
+    const targetUserId = callerIsPrivileged ? payload.userId : callerId;
+
+    if (!targetUserId) {
+      return new Response(JSON.stringify({ error: "No recipient specified" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let recipientEmail = "";
     let userName = "";
 
-    if (!recipientEmail && payload.userId) {
-      const { data: userData } = await supabase.auth.admin.getUserById(payload.userId);
-      if (userData?.user?.email) {
-        recipientEmail = userData.user.email;
-        userName = (userData.user.user_metadata as any)?.full_name || recipientEmail.split("@")[0];
-      }
+    const { data: userData } = await supabase.auth.admin.getUserById(targetUserId);
+    if (userData?.user?.email) {
+      recipientEmail = userData.user.email;
+      userName = (userData.user.user_metadata as any)?.full_name || recipientEmail.split("@")[0];
     }
 
     if (!recipientEmail) {
       return new Response(JSON.stringify({ error: "No recipient email found" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // A non-privileged caller may only reference their own booking.
+    if (!callerIsPrivileged && payload.bookingId) {
+      const { data: booking } = await supabase
+        .from("bookings")
+        .select("user_id")
+        .eq("id", payload.bookingId)
+        .maybeSingle();
+      if (!booking || booking.user_id !== callerId) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     let subject = "";
@@ -238,7 +288,7 @@ Deno.serve(async (req: Request) => {
     const resendKey = Deno.env.get("RESEND_API_KEY");
     if (!resendKey) {
       await supabase.from("email_events").insert({
-        user_id: payload.userId || null,
+        user_id: targetUserId,
         event_type: payload.eventType,
         recipient_email: recipientEmail,
         subject,
@@ -269,7 +319,7 @@ Deno.serve(async (req: Request) => {
     if (!resendRes.ok) {
       const errText = await resendRes.text();
       await supabase.from("email_events").insert({
-        user_id: payload.userId || null,
+        user_id: targetUserId,
         event_type: payload.eventType,
         recipient_email: recipientEmail,
         subject,
@@ -277,13 +327,14 @@ Deno.serve(async (req: Request) => {
         reference_id: payload.bookingId || null,
         error_message: errText,
       });
-      return new Response(JSON.stringify({ error: "Failed to send email", details: errText }), {
+      console.error("send-booking-email delivery failure:", errText);
+      return new Response(JSON.stringify({ error: "Failed to send email" }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     await supabase.from("email_events").insert({
-      user_id: payload.userId || null,
+      user_id: targetUserId,
       event_type: payload.eventType,
       recipient_email: recipientEmail,
       subject,
@@ -291,11 +342,12 @@ Deno.serve(async (req: Request) => {
       reference_id: payload.bookingId || null,
     });
 
-    return new Response(JSON.stringify({ success: true, recipientEmail }), {
+    return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    console.error("send-booking-email error:", err);
+    return new Response(JSON.stringify({ error: "Could not send email" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

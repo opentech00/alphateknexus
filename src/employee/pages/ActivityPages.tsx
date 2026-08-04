@@ -4,6 +4,7 @@ import {
   ArrowLeft, CheckCircle2, Clock, AlertCircle, FileDown, Inbox,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { openDocument } from '../../lib/storageUrls';
 import type { Employee } from '../types';
 import { fmtDate, STATUS_META } from '../types';
 
@@ -200,26 +201,50 @@ export function DocumentsPage({ employee }: { employee: Employee | null }) {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !employee?.user_id) return;
+
+    const ALLOWED = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'application/pdf', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain', 'text/csv',
+    ];
+    const MAX_SIZE = 10 * 1024 * 1024;
+
+    if (!ALLOWED.includes(file.type)) {
+      setError('That file type is not allowed. Use an image, PDF, Word, Excel or text file.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      setError('That file is larger than 10MB.');
+      e.target.value = '';
+      return;
+    }
+
     setUploading(true);
     setError('');
     try {
       const ext = file.name.split('.').pop() || 'file';
-      const path = `employee-docs/${employee.user_id}/${Date.now()}-${file.name}`;
-      const { error: upErr } = await supabase.storage.from('documents').upload(path, file);
+      const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, '_');
+      const path = `${employee.user_id}/employee-docs/${Date.now()}-${safeName}`;
+      const { error: upErr } = await supabase.storage
+        .from('documents')
+        .upload(path, file, { contentType: file.type, upsert: false });
       if (upErr) throw upErr;
-      const { data: pubData } = supabase.storage.from('documents').getPublicUrl(path);
       await supabase.from('documents').insert({
         user_id: employee.user_id,
         file_name: file.name,
-        file_url: pubData.publicUrl,
+        file_url: path,
         file_type: ext,
         file_size: file.size,
         uploaded_by_admin: false,
         service_slug: employee.services?.slug || null,
       });
       await fetchDocs();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+    } catch {
+      setError('We could not upload that document. Please try again.');
     }
     setUploading(false);
     e.target.value = '';
@@ -247,7 +272,7 @@ export function DocumentsPage({ employee }: { employee: Employee | null }) {
       ) : (
         <div className="space-y-2.5">
           {docs.map((d) => (
-            <a key={d.id} href={d.file_url} target="_blank" rel="noopener noreferrer"
+            <a key={d.id} href="#" onClick={(ev) => { ev.preventDefault(); openDocument(d.file_url, supabase); }}
               className="flex items-center gap-3 bg-white rounded-xl border border-slate-200 p-3.5 hover:shadow-sm transition-all">
               <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
                 <FileText className="w-4.5 h-4.5 text-blue-600" />

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { openDocument } from '../../lib/storageUrls';
+import { SignedImage } from '../../components/SignedImage';
 import { PageHeader, StatCard, Card, EmptyState, Spinner, ErrorBanner } from '../components/ui';
 import {
   MessageSquare, Filter, Search, Send, Inbox, Tag, AlertCircle,
@@ -316,8 +318,8 @@ export function MessagesPage() {
                     )}
                     {msg.content && <p className="text-sm whitespace-pre-wrap">{msg.content}</p>}
                     {msg.attachment_url && (
-                      <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
-                        <img src={msg.attachment_url} alt={msg.attachment_name || 'attachment'} className="max-w-full rounded-lg max-h-40" />
+                      <a href="#" onClick={(e) => { e.preventDefault(); openDocument(msg.attachment_url!); }} className="block mt-2">
+                        <SignedImage source={msg.attachment_url} alt={msg.attachment_name || 'attachment'} className="max-w-full rounded-lg max-h-40" />
                       </a>
                     )}
                     <p className={`text-[9px] mt-1 ${msg.is_admin ? 'text-emerald-100' : 'text-slate-400'}`}>

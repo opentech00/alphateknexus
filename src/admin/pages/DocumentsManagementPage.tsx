@@ -6,6 +6,7 @@ import {
   XCircle as RejectIcon, Loader2, Landmark,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { openDocument } from '../../lib/storageUrls';
 import { PageHeader, EmptyState } from '../components/ui';
 
 interface DocumentRow {
@@ -275,18 +276,13 @@ export function DocumentsManagementPage() {
     });
 
     // Send confirmation email
-    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-booking-email`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({
+    supabase.functions.invoke('send-booking-email', {
+      body: {
         eventType: 'payment_verified',
         userId: verif.user_id,
         serviceName: verif.bookings?.services?.name,
         bookingId: verif.booking_id,
-      }),
+      },
     }).catch(() => {});
 
     setVerifyingId(null);
@@ -319,18 +315,13 @@ export function DocumentsManagementPage() {
     });
 
     // Send rejection email
-    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-booking-email`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({
+    supabase.functions.invoke('send-booking-email', {
+      body: {
         eventType: 'payment_rejected',
         userId: rejectModal.user_id,
         serviceName: rejectModal.bookings?.services?.name,
         bookingId: rejectModal.booking_id,
-      }),
+      },
     }).catch(() => {});
 
     setVerifyingId(null);
@@ -439,9 +430,8 @@ export function DocumentsManagementPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <a
-                            href={verif.document_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); openDocument(verif.document_url); }}
                             className="text-sm font-semibold text-slate-800 hover:text-indigo-600 truncate"
                             title={verif.document_name}
                           >
@@ -472,9 +462,8 @@ export function DocumentsManagementPage() {
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <a
-                          href={verif.document_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          href="#"
+                          onClick={(e) => { e.preventDefault(); openDocument(verif.document_url); }}
                           className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
                           title="View / Download"
                         >
@@ -642,9 +631,8 @@ export function DocumentsManagementPage() {
                           {getFileIcon(doc.file_type, doc.file_name)}
                           <div className="min-w-0">
                             <a
-                              href={doc.file_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                              href="#"
+                              onClick={(e) => { e.preventDefault(); openDocument(doc.file_url); }}
                               className="text-sm font-medium text-slate-800 hover:text-emerald-600 truncate block max-w-[200px]"
                               title={doc.file_name}
                             >
@@ -677,9 +665,8 @@ export function DocumentsManagementPage() {
                       <td className="px-5 py-3">
                         <div className="flex items-center justify-end gap-1.5">
                           <a
-                            href={doc.file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); openDocument(doc.file_url); }}
                             className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
                             title="View / Download"
                           >

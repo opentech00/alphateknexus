@@ -150,43 +150,27 @@ export function ServicePaymentStep({
     }
 
     if (isWallet) {
-      const { data: walletTx } = await supabase
-        .from('wallet_transactions')
-        .select('amount_sle, status')
-        .eq('user_id', user.id)
-        .eq('status', 'completed');
+      const { data: result, error: walletErr } = await supabase.rpc('pay_booking_from_wallet', {
+        p_booking_id: bookingId,
+        p_amount: amount,
+      });
 
-      const balance = (walletTx || []).reduce((sum, t) => sum + Number(t.amount_sle), 0);
-      if (balance < amount) {
-        onFail(`Insufficient wallet balance. You have Le ${balance.toLocaleString()} but need Le ${amount.toLocaleString()}.`);
+      if (walletErr) {
+        onFail('We could not complete the wallet payment. Please try again.');
         setPaying(false);
         return;
       }
 
-      await supabase.from('wallet_transactions').insert({
-        user_id: user.id,
-        type: 'payment',
-        amount_sle: -amount,
-        description: `Payment for ${serviceName} booking`,
-        method: 'wallet',
-        reference: bookingId,
-        status: 'completed',
-        recorded_by: 'client',
-      });
-
-      await supabase.from('bookings').update({
-        payment_method: 'wallet',
-        payment_status: 'paid',
-      }).eq('id', bookingId);
-
-      await supabase.from('payments').insert({
-        user_id: user.id,
-        payable_type: 'booking',
-        payable_id: bookingId,
-        amount_sle: amount,
-        method: 'wallet',
-        status: 'confirmed',
-      });
+      if (!result?.success) {
+        const balance = Number(result?.balance ?? 0);
+        onFail(
+          result?.error === 'Insufficient wallet balance.'
+            ? `Insufficient wallet balance. You have Le ${balance.toLocaleString()} but need Le ${amount.toLocaleString()}.`
+            : result?.error || 'Wallet payment could not be completed.',
+        );
+        setPaying(false);
+        return;
+      }
 
       setPaying(false);
       onSuccess('wallet');
