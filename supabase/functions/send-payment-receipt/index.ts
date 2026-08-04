@@ -175,6 +175,39 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    // ── Authorization: internal (service role) callers, or a signed-in user ──
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+    let callerId: string | null = null;
+    let callerIsPrivileged = token.length > 0 && serviceKey.length > 0 && token === serviceKey;
+
+    if (!callerIsPrivileged) {
+      if (token.length === 0) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: authData } = await supabase.auth.getUser(token);
+      if (!authData?.user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      callerId = authData.user.id;
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", callerId)
+        .maybeSingle();
+      callerIsPrivileged = callerProfile?.role === "admin";
+    }
+
     const { receiptId } = await req.json();
 
     if (!receiptId) {
@@ -182,11 +215,6 @@ Deno.serve(async (req: Request) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
 
     // Fetch the receipt
     const { data: receipt, error: receiptErr } = await supabase
@@ -196,6 +224,13 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (receiptErr || !receipt) {
+      return new Response(JSON.stringify({ error: "Receipt not found" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Non-privileged callers can only send their own receipts
+    if (!callerIsPrivileged && receipt.user_id !== callerId) {
       return new Response(JSON.stringify({ error: "Receipt not found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -274,9 +309,8 @@ Deno.serve(async (req: Request) => {
     });
 
     if (!resendRes.ok) {
-      const errText = await resendRes.text();
-      console.error("Resend API error:", errText);
-      return new Response(JSON.stringify({ error: "Failed to send email", details: errText }), {
+      console.error("Resend API error:", await resendRes.text());
+      return new Response(JSON.stringify({ error: "Failed to send receipt email" }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -291,12 +325,12 @@ Deno.serve(async (req: Request) => {
       })
       .eq("id", receipt.id);
 
-    return new Response(JSON.stringify({ success: true, message: "Receipt email sent", recipientEmail }), {
+    return new Response(JSON.stringify({ success: true, message: "Receipt email sent" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("Send receipt error:", err.message);
-    return new Response(JSON.stringify({ error: err.message }), {
+    console.error("Send receipt error:", err instanceof Error ? err.message : err);
+    return new Response(JSON.stringify({ error: "Receipt delivery failed" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

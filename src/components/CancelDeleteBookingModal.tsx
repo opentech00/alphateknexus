@@ -51,7 +51,7 @@ export function CancelDeleteBookingModal({
       .eq('id', bookingId);
 
     if (err) {
-      setError(err.message);
+      setError('We could not cancel this booking. Please try again.');
       setSubmitting(false);
       return;
     }
@@ -76,7 +76,7 @@ export function CancelDeleteBookingModal({
       .eq('id', bookingId);
 
     if (err) {
-      setError(err.message);
+      setError('We could not delete this booking. Please try again.');
       setSubmitting(false);
       return;
     }

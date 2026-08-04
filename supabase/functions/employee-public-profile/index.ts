@@ -28,7 +28,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: emp, error } = await supabase
       .from("employees")
-      .select("id, full_name, employee_number, photo_url, email, phone, status, hr_roles(name), services(name)")
+      .select("id, full_name, employee_number, photo_url, status, hr_roles(name), services(name)")
       .eq("id", employeeId)
       .maybeSingle();
 
@@ -43,8 +43,6 @@ Deno.serve(async (req: Request) => {
       full_name: emp.full_name,
       employee_number: emp.employee_number,
       photo_url: emp.photo_url,
-      email: emp.email,
-      phone: emp.phone,
       status: emp.status,
       role: (emp as any).hr_roles?.name || null,
       division: (emp as any).services?.name || null,
@@ -56,7 +54,8 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
+    console.error("employee-public-profile error:", err instanceof Error ? err.message : err);
+    return new Response(JSON.stringify({ error: "Profile lookup failed" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

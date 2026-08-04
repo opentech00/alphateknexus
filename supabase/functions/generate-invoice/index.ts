@@ -43,8 +43,36 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
+    // ── Authorization: internal (service role) callers, or a signed-in user ──
+    const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+    let callerId: string | null = null;
+    let callerIsPrivileged = token.length > 0 && serviceKey.length > 0 && token === serviceKey;
+
+    if (!callerIsPrivileged) {
+      if (token.length === 0) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const { data: authData } = await supabase.auth.getUser(token);
+      if (!authData?.user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      callerId = authData.user.id;
+      const { data: callerProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', callerId)
+        .maybeSingle();
+      callerIsPrivileged = callerProfile?.role === 'admin';
+    }
+
     const body = await req.json();
-    const { action, invoiceId, recipientEmail } = body;
+    const { action, invoiceId } = body;
 
     if (action === 'generate-pdf') {
       const { data: invoice, error } = await supabase
@@ -53,6 +81,11 @@ Deno.serve(async (req: Request) => {
         .eq('id', invoiceId)
         .single();
       if (error || !invoice) {
+        return new Response(JSON.stringify({ error: 'Invoice not found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (!callerIsPrivileged && invoice.user_id !== callerId) {
         return new Response(JSON.stringify({ error: 'Invoice not found' }), {
           status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -71,6 +104,11 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'send-email') {
+      if (!callerIsPrivileged) {
+        return new Response(JSON.stringify({ error: 'Forbidden' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       const { data: invoice, error } = await supabase
         .from('invoices')
         .select('*')
@@ -88,7 +126,7 @@ Deno.serve(async (req: Request) => {
         .eq('id', invoice.user_id)
         .maybeSingle();
 
-      const email = recipientEmail || profile?.email;
+      const email = profile?.email;
       if (!email) {
         return new Response(JSON.stringify({ error: 'No recipient email found' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -166,18 +204,28 @@ Deno.serve(async (req: Request) => {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    console.error('Invoice error:', err instanceof Error ? err.message : err);
+    return new Response(JSON.stringify({ error: 'Invoice request failed' }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
 
+function esc(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function buildInvoiceHTML(inv: Invoice, profile: any): string {
   const lineItemsHtml = (inv.line_items || []).map((item, i) => `
     <tr>
       <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;color:#475569;">${i + 1}</td>
-      <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-weight:500;">${item.description}</td>
-      <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;text-align:center;color:#475569;">${item.quantity}</td>
+      <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-weight:500;">${esc(item.description)}</td>
+      <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;text-align:center;color:#475569;">${esc(item.quantity)}</td>
       <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;text-align:right;color:#475569;">${inv.currency} ${Number(item.unit_price).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
       <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;text-align:right;color:#1e293b;font-weight:600;">${inv.currency} ${Number(item.total).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
     </tr>`).join('');
@@ -222,7 +270,7 @@ function buildInvoiceHTML(inv: Invoice, profile: any): string {
   <div class="grid">
     <div>
       <h3>Bill To</h3>
-      <p><strong>${profile?.full_name || 'Client'}</strong><br>${profile?.email || ''}<br>${profile?.phone || ''}</p>
+      <p><strong>${esc(profile?.full_name || 'Client')}</strong><br>${esc(profile?.email || '')}<br>${esc(profile?.phone || '')}</p>
     </div>
     <div>
       <h3>Invoice Details</h3>
@@ -247,7 +295,7 @@ function buildInvoiceHTML(inv: Invoice, profile: any): string {
       <tr class="grand"><td>Balance Due</td><td style="text-align:right;color:${balance > 0 ? '#dc2626' : '#059669'}">${inv.currency} ${balance.toLocaleString(undefined,{minimumFractionDigits:2})}</td></tr>
     </table>
   </div>
-  ${inv.notes ? `<div style="padding:0 48px 24px"><div style="background:#f8fafc;border-radius:12px;padding:16px 20px;border:1px solid #e2e8f0"><strong style="font-size:12px;color:#64748b">Notes:</strong><p style="margin:8px 0 0;font-size:13px;color:#475569">${inv.notes}</p></div></div>` : ''}
+  ${inv.notes ? `<div style="padding:0 48px 24px"><div style="background:#f8fafc;border-radius:12px;padding:16px 20px;border:1px solid #e2e8f0"><strong style="font-size:12px;color:#64748b">Notes:</strong><p style="margin:8px 0 0;font-size:13px;color:#475569">${esc(inv.notes)}</p></div></div>` : ''}
   <div class="ftr">
     <p>Thank you for your business. Payment is due by ${dueDate}.<br>AlphaTek Nexus — Professional Services for Cleaning, Clearing & Forwarding, Private Security, Procurement, and Smart Sort.</p>
   </div>

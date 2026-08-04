@@ -76,18 +76,43 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { recipientEmail, referralCode, referrerId } = await req.json();
-
-    if (!recipientEmail || !referralCode || !referrerId) {
-      return new Response(JSON.stringify({ error: "Missing recipientEmail, referralCode, or referrerId" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // ── Auth: derive the referrer from the caller's JWT, not the request body ──
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+    let referrerId: string;
+
+    if (token.length > 0 && serviceKey.length > 0 && token === serviceKey) {
+      // Internal caller must supply referrerId in the body
+      const body = await req.json();
+      referrerId = body.referrerId;
+    } else {
+      if (token.length === 0) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: authData, error: authErr } = await supabase.auth.getUser(token);
+      if (authErr || !authData?.user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      referrerId = authData.user.id;
+    }
+
+    const { recipientEmail, referralCode } = await req.json();
+
+    if (!recipientEmail || !referralCode || !referrerId) {
+      return new Response(JSON.stringify({ error: "Missing recipientEmail or referralCode" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Get referrer profile
     const { data: profile } = await supabase
@@ -117,7 +142,7 @@ Deno.serve(async (req: Request) => {
           status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({ error: referralErr.message }), {
+      return new Response(JSON.stringify({ error: "Could not create referral record" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -164,8 +189,8 @@ Deno.serve(async (req: Request) => {
           emailError = body;
           break;
         } catch (err) {
-          emailError = err.message;
-          console.error("Email send error:", err.message);
+          emailError = "Email delivery error";
+          console.error("Email send error:", err instanceof Error ? err.message : err);
           break;
         }
       }
@@ -200,8 +225,8 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("Referral invite error:", err.message);
-    return new Response(JSON.stringify({ error: err.message }), {
+    console.error("Referral invite error:", err instanceof Error ? err.message : err);
+    return new Response(JSON.stringify({ error: "Invitation failed" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

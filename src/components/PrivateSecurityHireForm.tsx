@@ -168,7 +168,7 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
       status: 'pending_review',
     }).select('id').single();
     setLoading(false);
-    if (err) { setError(err.message); setStep('form'); return; }
+    if (err) { setError('We could not submit your request. Please try again.'); setStep('form'); return; }
     setBookingId(bookingRow.id); setStep('review_submitted');
   };
 

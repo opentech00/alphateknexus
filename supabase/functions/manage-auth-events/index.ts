@@ -81,7 +81,7 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
 
       if (!userData) {
-        return new Response(JSON.stringify({ locked: false, attempts: 0 }), {
+        return new Response(JSON.stringify({ locked: false, attempts: 0, lockedUntil: null, remaining: MAX_ATTEMPTS, retryAfter: 0 }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -93,7 +93,7 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
 
       if (!lockout) {
-        return new Response(JSON.stringify({ locked: false, attempts: 0 }), {
+        return new Response(JSON.stringify({ locked: false, attempts: 0, lockedUntil: null, remaining: MAX_ATTEMPTS, retryAfter: 0 }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -422,8 +422,8 @@ Deno.serve(async (req: Request) => {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("Auth events error:", err.message);
-    return new Response(JSON.stringify({ error: err.message }), {
+    console.error("Auth events error:", err instanceof Error ? err.message : err);
+    return new Response(JSON.stringify({ error: "Request failed" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

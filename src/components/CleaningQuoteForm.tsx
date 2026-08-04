@@ -139,7 +139,7 @@ export function CleaningQuoteForm({ service, onCancel, onSuccess }: Props) {
       status: 'pending_review',
     });
     setLoading(false);
-    if (err) setError(err.message);
+    if (err) setError('We could not submit your quote request. Please try again.');
     else setSubmitted(true);
   };
 

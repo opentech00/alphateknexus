@@ -99,7 +99,7 @@ export function ProcurementQuoteForm({ service, onCancel, onSuccess }: Props) {
     });
 
     if (err) {
-      setError(err.message);
+      setError('We could not submit your quote request. Please try again.');
       setLoading(false);
     } else {
       setSuccess(true);

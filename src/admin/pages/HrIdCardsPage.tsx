@@ -165,11 +165,18 @@ function CardPreviewModal({ card, onClose }: { card: IdCard; onClose: () => void
   const emp = card.employees;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(card.qr_payload)}`;
 
+  const esc = (v: unknown) => String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
     printWindow.document.write(`
-      <html><head><title>ID Card - ${emp?.full_name || ''}</title>
+      <html><head><title>ID Card - ${esc(emp?.full_name)}</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, system-ui, sans-serif; display: flex; justify-content: center; padding: 20px; background: #f1f5f9; }
@@ -196,18 +203,18 @@ function CardPreviewModal({ card, onClose }: { card: IdCard; onClose: () => void
           <div><h2>Alphatek Nexus</h2><p>Staff Identification</p></div>
         </div>
         <div class="card-body">
-          <div class="photo">${emp?.photo_url ? `<img src="${emp.photo_url}" alt="${emp?.full_name || ''}" />` : (emp?.full_name?.[0]?.toUpperCase() || '?')}</div>
+          <div class="photo">${emp?.photo_url ? `<img src="${esc(emp.photo_url)}" alt="${esc(emp?.full_name)}" />` : (esc(emp?.full_name?.[0]?.toUpperCase()) || '?')}</div>
           <div class="info">
-            <h3>${emp?.full_name || 'Unknown'}</h3>
-            <div class="role">${(emp as any)?.hr_roles?.name || 'Staff'}</div>
-            <div class="row">ID: ${emp?.employee_number || '—'}</div>
-            <div class="row">${emp?.email || ''}</div>
-            <div class="row">${emp?.phone || ''}</div>
-            <div class="row">${(emp as any)?.services?.name || ''}</div>
+            <h3>${esc(emp?.full_name || 'Unknown')}</h3>
+            <div class="role">${esc((emp as any)?.hr_roles?.name || 'Staff')}</div>
+            <div class="row">ID: ${esc(emp?.employee_number || '—')}</div>
+            <div class="row">${esc(emp?.email)}</div>
+            <div class="row">${esc(emp?.phone)}</div>
+            <div class="row">${esc((emp as any)?.services?.name)}</div>
           </div>
         </div>
         <div class="card-footer">
-          <div class="card-no">Card: ${card.card_number}<br>Issued: ${fmtDate(card.issue_date)}</div>
+          <div class="card-no">Card: ${esc(card.card_number)}<br>Issued: ${esc(fmtDate(card.issue_date))}</div>
           <img class="qr" src="${qrUrl}" alt="QR" />
         </div>
       </div>

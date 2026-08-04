@@ -1015,7 +1015,7 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
       status: 'pending',
     }).select('id').single();
 
-    if (err) { setSubmitting(false); setError(err.message); return; }
+    if (err) { setSubmitting(false); setError('We could not process your withdrawal. Please try again.'); return; }
 
     // For mobile money, automatically process the Monime payout — no admin approval needed
     if (method === 'mobile_money') {

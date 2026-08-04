@@ -150,7 +150,7 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
     }).select('id').single();
 
     setLoading(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError('We could not schedule your pickup. Please try again.'); return; }
     setBookingId(bookingRow.id);
     setPaymentStep('payment');
   };

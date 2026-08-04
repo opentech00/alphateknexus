@@ -14,24 +14,48 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
-    const { action, reportType, userId, periodStart, periodEnd, sendEmail } = await req.json();
-
-    if (!action) {
-      return new Response(JSON.stringify({ error: "Missing action" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // ── Authorization: internal (service role) callers, or a signed-in admin ──
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+    let authorized = token.length > 0 && serviceKey.length > 0 && token === serviceKey;
+
+    if (!authorized) {
+      if (token.length === 0) return json({ error: "Unauthorized" }, 401);
+      const { data: authData } = await supabase.auth.getUser(token);
+      if (!authData?.user) return json({ error: "Unauthorized" }, 401);
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", authData.user.id)
+        .maybeSingle();
+      authorized = callerProfile?.role === "admin";
+      if (!authorized) return json({ error: "Forbidden" }, 403);
+    }
+
+    const { action, reportType, userId, periodStart, periodEnd, sendEmail } = await req.json();
+
+    if (!action) {
+      return json({ error: "Missing action" }, 400);
+    }
 
     // ── Generate a report ──
     if (action === "generate") {
@@ -170,9 +194,8 @@ Deno.serve(async (req: Request) => {
         .single();
 
       if (reportErr) {
-        return new Response(JSON.stringify({ error: reportErr.message }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        console.error("Finance report insert error:", reportErr.message);
+        return json({ error: "Could not save the report" }, 500);
       }
 
       // Optionally email the report
@@ -228,9 +251,8 @@ Deno.serve(async (req: Request) => {
       if (userId) query.eq("user_id", userId);
       const { data, error } = await query;
       if (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        console.error("Finance report list error:", error.message);
+        return json({ error: "Could not load reports" }, 500);
       }
       return new Response(JSON.stringify({ reports: data }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -241,10 +263,8 @@ Deno.serve(async (req: Request) => {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("Finance report error:", err.message);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("Finance report error:", err instanceof Error ? err.message : err);
+    return json({ error: "Report generation failed" }, 500);
   }
 });
 

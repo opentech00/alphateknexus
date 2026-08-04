@@ -161,7 +161,7 @@ export function PrivateSecurityQuoteForm({ service, onCancel, onSuccess }: Props
     });
 
     setLoading(false);
-    if (err) setError(err.message);
+    if (err) setError('We could not submit your quote request. Please try again.');
     else setSuccess(true);
   };
 

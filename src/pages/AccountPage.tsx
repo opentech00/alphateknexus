@@ -205,7 +205,7 @@ function PaymentMethods() {
       is_default: methods.length === 0,
     });
     setAdding(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError('We could not save this payment method. Please try again.'); return; }
     const { data } = await supabase.from('payment_methods').select('*').order('created_at', { ascending: false });
     setMethods(data || []);
     resetForm(); setSaved(true); setTimeout(() => setSaved(false), 2500);
@@ -235,7 +235,7 @@ function PaymentMethods() {
       is_default: methods.length === 0,
     });
     setAdding(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError('We could not save this card. Please try again.'); return; }
     const { data } = await supabase.from('payment_methods').select('*').order('created_at', { ascending: false });
     setMethods(data || []);
     resetForm(); setSaved(true); setTimeout(() => setSaved(false), 2500);

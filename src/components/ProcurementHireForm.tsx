@@ -95,7 +95,7 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
     }).select('id').single();
 
     if (err) {
-      setError(err.message);
+      setError('We could not submit your request. Please try again.');
       setLoading(false);
     } else {
       setBookingId(bookingRow.id);
