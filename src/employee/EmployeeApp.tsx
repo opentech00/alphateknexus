@@ -1,4 +1,5 @@
 import { AuthProvider, useAuth } from './contexts/EmployeeAuthContext';
+import { EmployeeNotificationsProvider } from './contexts/EmployeeNotificationsContext';
 import { LoginPage } from './pages/LoginPage';
 import { EmployeeDashboardPage } from './pages/EmployeeDashboardPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
@@ -46,7 +47,11 @@ function EmployeeContent() {
     );
   }
 
-  return <EmployeeDashboardPage />;
+  return (
+    <EmployeeNotificationsProvider>
+      <EmployeeDashboardPage />
+    </EmployeeNotificationsProvider>
+  );
 }
 
 export function EmployeeApp() {

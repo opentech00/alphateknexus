@@ -18,7 +18,8 @@ import {
   PerformancePage,
 } from './ActivityPages';
 import { DelegatedTasksPage } from './DelegatedTasksPage';
-import { NotificationPreferencesPanel } from '../../components/NotificationPreferencesPanel';
+import { EmployeeNotificationsBell } from '../components/EmployeeNotificationsBell';
+import { EmployeeNotificationsPage } from './EmployeeNotificationsPage';
 
 type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications' | 'bookings' | 'schedule' | 'documents' | 'report' | 'performance' | 'delegated-tasks';
 
@@ -97,9 +98,12 @@ export function EmployeeDashboardPage() {
           </div>
           <span className="font-bold text-slate-900 text-sm">Employee Portal</span>
         </div>
-        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors">
-          {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-1">
+          <EmployeeNotificationsBell onNavigate={(p) => handleNav(p as Page)} />
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors">
+            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </header>
 
       {/* Mobile overlay */}
@@ -114,10 +118,11 @@ export function EmployeeDashboardPage() {
           <div className="w-9 h-9 bg-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
             <Building2 className="w-5 h-5 text-white" />
           </div>
-          <div>
+          <div className="flex-1">
             <p className="font-bold text-white text-sm leading-tight">Alphatek Nexus</p>
             <p className="text-[10px] text-slate-400 uppercase tracking-widest">Employee Portal</p>
           </div>
+          <EmployeeNotificationsBell onNavigate={(p) => handleNav(p as Page)} />
         </div>
 
         {/* Employee info */}
@@ -204,12 +209,7 @@ export function EmployeeDashboardPage() {
           {page === 'report' && <ReportPage employee={employee} onBack={() => handleNav('activities')} />}
           {page === 'performance' && <PerformancePage employee={employee} />}
           {page === 'delegated-tasks' && <DelegatedTasksPage onBack={() => handleNav('activities')} />}
-          {page === 'notifications' && (
-            <div className="max-w-2xl mx-auto">
-              <h2 className="text-lg font-bold text-slate-900 mb-4">Notification Settings</h2>
-              <NotificationPreferencesPanel dark />
-            </div>
-          )}
+          {page === 'notifications' && <EmployeeNotificationsPage />}
         </main>
       </div>
     </div>
