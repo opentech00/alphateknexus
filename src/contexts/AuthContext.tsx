@@ -235,49 +235,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    // Set guard so onAuthStateChange doesn't overwrite our state
     signUpInProgressRef.current = true;
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
+      // Use server-side edge function to create the account.
+      // This uses the admin API which bypasses Supabase's email rate limits.
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('create-account', {
+        body: { email: email.trim().toLowerCase(), password, fullName: fullName.trim() },
+      });
+
+      if (fnError) {
+        const body = fnData as Record<string, string> | null;
+        const msg = body?.error || fnError.message || 'Account creation failed.';
+        return { error: msg };
+      }
+
+      if (!fnData?.success) {
+        return { error: fnData?.error || 'Account creation failed. Please try again.' };
+      }
+
+      // Account + profile created server-side. Now sign in so we have a session.
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
         password,
-        options: {
-          data: { full_name: fullName },
-          emailRedirectTo: undefined,
-        },
       });
 
-      if (error) {
-        const msg = error.message.toLowerCase();
-        if (msg.includes('rate limit') || msg.includes('email rate')) {
-          setNeedsEmailVerification(true);
-          return { error: null };
-        }
-        return { error: error.message };
-      }
-
-      if (!data.user) {
-        return { error: 'Account creation failed. Please try again.' };
-      }
-
-      // Wait briefly for session to be established so the profile insert
-      // passes RLS (auth.uid() must equal the profile id)
-      await new Promise(r => setTimeout(r, 200));
-
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        email,
-        full_name: fullName,
-        role: 'user',
-      });
-
-      if (profileError) {
-        console.error('signUp: profile insert failed:', profileError.message);
-        // If profile already exists (duplicate key), that's fine — continue
-        if (!profileError.message.includes('duplicate')) {
-          return { error: 'Account was created but profile setup failed. Please try signing in.' };
-        }
+      if (signInError) {
+        return { error: 'Account created but auto sign-in failed. Please sign in manually.' };
       }
 
       // Send the 6-digit verification code email
@@ -292,6 +276,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setNeedsEmailVerification(true);
       return { error: null };
+    } catch {
+      return { error: 'Could not create account. Please try again.' };
     } finally {
       signUpInProgressRef.current = false;
     }
