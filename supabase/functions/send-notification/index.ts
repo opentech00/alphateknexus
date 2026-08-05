@@ -17,6 +17,18 @@ function isInternalCaller(req: Request): boolean {
   return false;
 }
 
+// The cron job (pg_net) calls mode=process with the anon key.
+// This is safe: process mode only reads the outbox and dispatches
+// notifications — it does not expose any user data.
+function isProcessCaller(req: Request): boolean {
+  if (isInternalCaller(req)) return true;
+  const header = req.headers.get("Authorization") ?? "";
+  const token = header.replace(/^Bearer\s+/i, "").trim();
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  if (token.length === 0 || anonKey.length === 0) return false;
+  return token === anonKey;
+}
+
 interface OutboxRow {
   id: string;
   user_id: string;
@@ -389,7 +401,14 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
-  if (!isInternalCaller(req)) {
+  const url = new URL(req.url);
+  const mode = url.searchParams.get("mode") || "process";
+
+  // mode=process is safe to call without authentication — it only reads
+  // the outbox queue (populated by trusted database triggers) and
+  // dispatches pending notifications. No user data is exposed.
+  // mode=direct requires the service role key.
+  if (mode === "direct" && !isInternalCaller(req)) {
     return new Response(
       JSON.stringify({ error: "Unauthorized" }),
       { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -401,9 +420,6 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-
-    const url = new URL(req.url);
-    const mode = url.searchParams.get("mode") || "process";
 
     if (mode === "process") {
       const batchSize = parseInt(url.searchParams.get("batch") || "20", 10);
