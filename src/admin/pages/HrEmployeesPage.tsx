@@ -4,6 +4,7 @@ import {
   Briefcase, AlertCircle, CheckCircle2, UserPlus, KeyRound,
   ImagePlus, Upload, RefreshCcw, Eye, EyeOff, Pencil, Trash2,
   AlertTriangle, Loader2, Calendar, FileText, MapPin, Contact,
+  ShieldCheck, ShieldOff,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard, EmptyState, Spinner, ErrorBanner } from '../components/ui';
@@ -33,6 +34,24 @@ export function HrEmployeesPage() {
   const [viewEmp, setViewEmp] = useState<Employee | null>(null);
   const [editEmp, setEditEmp] = useState<Employee | null>(null);
   const [deleteEmp, setDeleteEmp] = useState<Employee | null>(null);
+  const [adminRoles, setAdminRoles] = useState<Record<string, string>>({});
+  const [granting, setGranting] = useState<string | null>(null);
+
+  const loadAdminRoles = async (empData: Employee[]) => {
+    const userIds = empData.filter(e => e.user_id).map(e => e.user_id!);
+    if (userIds.length === 0) { setAdminRoles({}); return; }
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, role, admin_role_id')
+      .in('id', userIds)
+      .eq('role', 'admin');
+    const map: Record<string, string> = {};
+    (data || []).forEach((p: any) => {
+      const emp = empData.find(e => e.user_id === p.id);
+      if (emp) map[emp.id] = p.admin_role_id || 'super';
+    });
+    setAdminRoles(map);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -46,6 +65,7 @@ export function HrEmployeesPage() {
     else setEmployees(empData as Employee[]);
     setRoles(roleData as HrRole[]);
     setServices(svcData as Service[]);
+    await loadAdminRoles(empData as Employee[]);
     setLoading(false);
   };
 
@@ -116,6 +136,47 @@ export function HrEmployeesPage() {
       description: `Role unassigned: ${prevRoleName}`,
       metadata: { from_name: prevRoleName },
     });
+  };
+
+  const grantAdmin = async (employeeId: string, roleId: string) => {
+    setGranting(employeeId);
+    try {
+      const { error: rpcErr } = await supabase.rpc('grant_admin_access', {
+        target_employee_id: employeeId,
+        role_id: roleId,
+      });
+      if (rpcErr) throw rpcErr;
+      setAdminRoles(prev => ({ ...prev, [employeeId]: roleId || 'super' }));
+      await supabase.from('employee_activity_logs').insert({
+        employee_id: employeeId,
+        action: 'profile_updated',
+        description: `Admin access granted${roleId ? ' with role: ' + (roles.find(r => r.id === roleId)?.name || '') : ''}`,
+        metadata: { admin_access: true, role_id: roleId },
+      });
+    } catch (err: any) {
+      setError(err.message || 'Failed to grant admin access');
+    }
+    setGranting(null);
+  };
+
+  const revokeAdmin = async (employeeId: string) => {
+    setGranting(employeeId);
+    try {
+      const { error: rpcErr } = await supabase.rpc('revoke_admin_access', {
+        target_employee_id: employeeId,
+      });
+      if (rpcErr) throw rpcErr;
+      setAdminRoles(prev => { const n = { ...prev }; delete n[employeeId]; return n; });
+      await supabase.from('employee_activity_logs').insert({
+        employee_id: employeeId,
+        action: 'profile_updated',
+        description: 'Admin access revoked',
+        metadata: { admin_access: false },
+      });
+    } catch (err: any) {
+      setError(err.message || 'Failed to revoke admin access');
+    }
+    setGranting(null);
   };
 
   return (
@@ -220,6 +281,47 @@ export function HrEmployeesPage() {
                     </select>
                   </div>
                 </div>
+                {e.user_id && (
+                  <div className="flex items-center gap-2 mb-2.5">
+                    {adminRoles[e.id] ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <ShieldCheck className="w-3 h-3" />
+                        {adminRoles[e.id] === 'super' ? 'Super Admin' : (roles.find(r => r.id === adminRoles[e.id])?.name || 'Admin')}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-400 border border-slate-200">
+                        <ShieldOff className="w-3 h-3" />
+                        No admin access
+                      </span>
+                    )}
+                    {adminRoles[e.id] && (
+                      <button
+                        onClick={() => revokeAdmin(e.id)}
+                        disabled={granting === e.id}
+                        className="ml-auto text-xs text-red-500 hover:text-red-600 font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                      >
+                        {granting === e.id ? '…' : 'Revoke'}
+                      </button>
+                    )}
+                  </div>
+                )}
+                {e.user_id && !adminRoles[e.id] && (
+                  <div className="flex items-center gap-2 mb-2.5 bg-slate-50 rounded-lg p-2 border border-slate-100">
+                    <span className="text-xs text-slate-500 flex-shrink-0">Grant:</span>
+                    <select
+                      value=""
+                      onChange={ev => ev.target.value && grantAdmin(e.id, ev.target.value === 'super' ? '' : ev.target.value)}
+                      disabled={granting === e.id}
+                      className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white outline-none flex-1 disabled:opacity-50"
+                    >
+                      <option value="">Select access level…</option>
+                      <option value="super">Super Admin (full access)</option>
+                      {roles.filter(r => r.is_active).map(r => (
+                        <option key={r.id} value={r.id}>{r.name}{r.services ? ` (${r.services.name})` : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-xs text-slate-400 border-t border-slate-100 pt-2.5">
                   <span>Hired: {fmtDate(e.hire_date)}</span>
                   <div className="flex items-center gap-1.5">

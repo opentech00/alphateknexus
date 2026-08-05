@@ -131,10 +131,12 @@ function isHrPage(page: string): boolean {
 }
 
 export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, hasAdminPermission, isSuperAdmin } = useAuth();
   const { unreadByType, unreadCount, unreadBySlug, markReadBySlug } = useAdminNotifications();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [hrExpanded, setHrExpanded] = useState(true);
+
+  const canSee = (page: string) => isSuperAdmin || hasAdminPermission(page);
 
   const handleNav = (page: string) => {
     onNavigate(page);
@@ -281,6 +283,15 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
         {/* Nav Sections */}
         <nav className="flex-1 py-5 px-4 space-y-6 overflow-y-auto">
           {navSections.map((section) => {
+            // Filter items by permission
+            const filteredItems = section.items.filter((item) => canSee(item.page));
+            const filteredSubs = section.subcategories?.map((sub) => ({
+              ...sub,
+              items: sub.items.filter((item) => canSee(item.page)),
+            })).filter((sub) => sub.items.length > 0);
+            const hasContent = filteredItems.length > 0 || (filteredSubs && filteredSubs.length > 0);
+            if (!hasContent) return null;
+
             // HR section with collapsible sub-categories
             if (section.subcategories) {
               const isAnyHrActive = isHrPage(currentPage);
@@ -304,10 +315,10 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
                   {hrExpanded && (
                     <div className="mt-1 space-y-3">
                       {/* Top-level items (HR Dashboard) */}
-                      {section.items.map((item) => renderItem(item, section.title))}
+                      {filteredItems.map((item) => renderItem(item, section.title))}
 
                       {/* Sub-categories */}
-                      {section.subcategories.map((sub) => (
+                      {filteredSubs?.map((sub) => (
                         <div key={sub.label} className="ml-3 pl-3 border-l border-slate-800">
                           <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider px-3 mb-1.5">
                             {sub.label}
@@ -330,7 +341,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
                   {section.title}
                 </p>
                 <div className="space-y-0.5">
-                  {section.items.map((item) => renderItem(item, section.title))}
+                  {filteredItems.map((item) => renderItem(item, section.title))}
                 </div>
               </div>
             );

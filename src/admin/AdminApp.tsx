@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, Lock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AdminNotificationsProvider } from './contexts/AdminNotificationsContext';
 import { initPushNotifications } from '../lib/pushNotifications';
@@ -44,7 +44,7 @@ import { TaskDelegationPage } from './pages/TaskDelegationPage';
 
 function AdminContent() {
   const [currentPage, setCurrentPage] = useState('overview');
-  const { user, isAdmin, loading, needs2FA, pending2FAEmail, pending2FAPassword, clear2FA, signOut } = useAuth();
+  const { user, isAdmin, loading, needs2FA, pending2FAEmail, pending2FAPassword, clear2FA, signOut, hasAdminPermission, isSuperAdmin } = useAuth();
 
   useEffect(() => {
     if (user && isAdmin) {
@@ -95,7 +95,20 @@ function AdminContent() {
     );
   }
 
+  const canSee = (page: string) => isSuperAdmin || hasAdminPermission(page);
+
   const renderPage = () => {
+    if (!canSee(currentPage)) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-amber-50 rounded-full mb-4">
+            <Lock className="w-7 h-7 text-amber-400" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900 mb-1">No Access to This Page</h2>
+          <p className="text-slate-500 max-w-sm">Your current role does not include permission for this page. Contact an administrator to request access.</p>
+        </div>
+      );
+    }
     switch (currentPage) {
       case 'overview':
         return <OverviewPage />;

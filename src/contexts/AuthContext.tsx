@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useRef, useCallback, Re
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { initPushNotifications, unregisterDeviceToken } from '../lib/pushNotifications';
+import { useAdminPermissions } from '../hooks/useAdminPermissions';
 import type { Profile } from '../types';
 
 interface AuthContextValue {
@@ -19,6 +20,9 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   clear2FA: () => void;
   refreshVerification: () => Promise<void>;
+  hasAdminPermission: (pageKey: string) => boolean;
+  isSuperAdmin: boolean;
+  refreshAdminPermissions: () => void;
 }
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
@@ -245,8 +249,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPending2FAPassword('');
   };
 
+  const adminRole = profile?.role === 'admin';
+  const { hasPermission: hasAdminPermission, isSuperAdmin, refresh: refreshAdminPermissions } = useAdminPermissions(profile, adminRole);
+
   return (
-    <AuthContext.Provider value={{ session, user, profile, isAdmin: profile?.role === 'admin', loading, needs2FA, needsEmailVerification, pending2FAEmail, pending2FAPassword, signIn, signUp, signOut, clear2FA, refreshVerification }}>
+    <AuthContext.Provider value={{ session, user, profile, isAdmin: adminRole, loading, needs2FA, needsEmailVerification, pending2FAEmail, pending2FAPassword, signIn, signUp, signOut, clear2FA, refreshVerification, hasAdminPermission, isSuperAdmin, refreshAdminPermissions }}>
       {children}
     </AuthContext.Provider>
   );

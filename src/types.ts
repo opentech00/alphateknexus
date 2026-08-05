@@ -19,4 +19,5 @@ export interface Profile {
   referral_code: string | null;
   avatar_url: string | null;
   address: string | null;
+  admin_role_id: string | null;
 }
