@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { initPushNotifications, unregisterDeviceToken } from '../lib/pushNotifications';
+import { initPushNotifications } from '../lib/pushNotifications';
 import { useAdminPermissions } from '../hooks/useAdminPermissions';
 import type { Profile } from '../types';
 
@@ -42,13 +42,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [pending2FAPassword, setPending2FAPassword] = useState('');
   const lastActivityRef = useRef<number>(Date.now());
   const idleWarnedRef = useRef<boolean>(false);
+  // Guard: when true, onAuthStateChange must NOT touch needsEmailVerification
+  const signUpInProgressRef = useRef(false);
 
   const resetIdleTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
     idleWarnedRef.current = false;
   }, []);
 
-  // Track user activity to reset idle timer
   useEffect(() => {
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
     const handler = () => resetIdleTimer();
@@ -56,7 +57,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => events.forEach((e) => window.removeEventListener(e, handler));
   }, [resetIdleTimer]);
 
-  // Check for idle timeout
   useEffect(() => {
     if (!session) return;
     const interval = setInterval(() => {
@@ -84,7 +84,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       if (data.session?.user) {
-        fetchProfile(data.session.user.id).finally(() => setLoading(false));
+        fetchProfile(data.session.user.id).then(async () => {
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('is_verified')
+            .eq('id', data.session!.user.id)
+            .maybeSingle();
+          if (prof) {
+            setNeedsEmailVerification(!prof.is_verified);
+          }
+          setLoading(false);
+        });
       } else {
         setLoading(false);
       }
@@ -97,24 +107,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (newSession?.user) {
           await fetchProfile(newSession.user.id);
           initPushNotifications('client').catch(() => {});
-          // Check our own is_verified flag on profiles, not Supabase's
-          // email_confirmed_at (which is auto-set when email confirmation is off)
-          // Retry up to 3 times with a short delay in case the profile row
-          // hasn't been inserted yet (race condition right after signUp)
-          let profVerified = false;
-          for (let attempt = 0; attempt < 3; attempt++) {
+          // Skip verification check if signUp is currently running — it will
+          // set needsEmailVerification itself after inserting the profile.
+          if (!signUpInProgressRef.current) {
             const { data: prof } = await supabase
               .from('profiles')
               .select('is_verified')
               .eq('id', newSession.user.id)
               .maybeSingle();
             if (prof) {
-              profVerified = !!prof.is_verified;
-              break;
+              setNeedsEmailVerification(!prof.is_verified);
             }
-            await new Promise(resolve => setTimeout(resolve, 300));
           }
-          setNeedsEmailVerification(!profVerified);
         } else {
           setProfile(null);
           setNeedsEmailVerification(false);
@@ -129,7 +133,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Check lockout status before attempting login
     try {
       const { data: lockoutData } = await supabase.functions.invoke('manage-auth-events', {
         body: { action: 'check-lockout', email: normalizedEmail },
@@ -144,7 +147,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
     if (error) {
-      // Record the failed attempt for lockout tracking
       try {
         const { data: failData } = await supabase.functions.invoke('manage-auth-events', {
           body: { action: 'record-failure', email: normalizedEmail },
@@ -160,7 +162,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (!data.user) return { error: 'Authentication failed' };
 
-    // Check our own is_verified flag on profiles
     const { data: profData } = await supabase
       .from('profiles')
       .select('is_verified')
@@ -171,14 +172,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: null };
     }
 
-    // Record successful login
     try {
       await supabase.functions.invoke('manage-auth-events', {
         body: { action: 'record-success' },
       });
     } catch { /* non-critical */ }
 
-    // If this user is an admin, log the session for audit
     try {
       const { data: profileData } = await supabase
         .from('profiles')
@@ -197,9 +196,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           session_token_hash: tokenHash,
         });
       }
-    } catch { /* non-critical — don't block login if audit logging fails */ }
+    } catch { /* non-critical */ }
 
-    // Check if 2FA is enabled for this user
     try {
       const { data: checkData } = await supabase.functions.invoke('manage-2fa', {
         body: { action: 'verify-login', code: '__check__', userId: data.user.id },
@@ -212,7 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: null, needs2FA: true };
       }
     } catch {
-      // 2FA not configured for this user — proceed normally
+      // 2FA not configured — proceed normally
     }
     return { error: null };
   };
@@ -237,54 +235,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName },
-        emailRedirectTo: undefined,
-      },
-    });
+    // Set guard so onAuthStateChange doesn't overwrite our state
+    signUpInProgressRef.current = true;
 
-    // Supabase may return "email rate limit exceeded" when its built-in
-    // confirmation email hits the rate limit. The account is still created
-    // in this case — we use our own 6-digit code system instead, so we
-    // treat this as non-fatal and proceed to the verification screen.
-    if (error) {
-      const msg = error.message.toLowerCase();
-      if (msg.includes('rate limit') || msg.includes('email rate')) {
-        // Account may still have been created — try to insert profile
-        const userId = (data as any)?.user?.id;
-        if (userId) {
-          await supabase.from('profiles').insert({
-            id: userId,
-            email,
-            full_name: fullName,
-            role: 'user',
-          });
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName },
+          emailRedirectTo: undefined,
+        },
+      });
+
+      if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('rate limit') || msg.includes('email rate')) {
+          setNeedsEmailVerification(true);
+          return { error: null };
         }
-        setNeedsEmailVerification(true);
-        return { error: null };
+        return { error: error.message };
       }
-      return { error: error.message };
-    }
 
-    if (data.user) {
-      await supabase.from('profiles').insert({
+      if (!data.user) {
+        return { error: 'Account creation failed. Please try again.' };
+      }
+
+      // Wait briefly for session to be established so the profile insert
+      // passes RLS (auth.uid() must equal the profile id)
+      await new Promise(r => setTimeout(r, 200));
+
+      const { error: profileError } = await supabase.from('profiles').insert({
         id: data.user.id,
         email,
         full_name: fullName,
         role: 'user',
       });
-      // Send the 6-digit verification code email
-      const { error: fnError } = await supabase.functions.invoke('send-verification-code');
-      if (fnError) {
-        console.error('signUp: send-verification-code error:', fnError.message);
+
+      if (profileError) {
+        console.error('signUp: profile insert failed:', profileError.message);
+        // If profile already exists (duplicate key), that's fine — continue
+        if (!profileError.message.includes('duplicate')) {
+          return { error: 'Account was created but profile setup failed. Please try signing in.' };
+        }
       }
-      // Set the flag immediately so the verification screen shows up
+
+      // Send the 6-digit verification code email
+      try {
+        const res = await supabase.functions.invoke('send-verification-code');
+        if (res.error) {
+          console.error('signUp: send-verification-code error:', res.error);
+        }
+      } catch (e) {
+        console.error('signUp: send-verification-code exception:', e);
+      }
+
       setNeedsEmailVerification(true);
+      return { error: null };
+    } finally {
+      signUpInProgressRef.current = false;
     }
-    return { error: null };
   };
 
   const signOut = async () => {

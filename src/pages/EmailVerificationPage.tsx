@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, FormEvent } from 'react';
-import { MailCheck, Loader2, AlertCircle, CheckCircle2, ArrowLeft, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle2, ArrowLeft, RefreshCw, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { AuthLayout } from '../components/auth/AuthLayout';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,6 +8,16 @@ interface EmailVerificationPageProps {
   email: string;
   onBack: () => void;
   onVerified: () => void;
+}
+
+async function extractFnError(res: { data: unknown; error: unknown }): Promise<string | null> {
+  if (!res.error) return null;
+  try {
+    const body = res.data as Record<string, string> | null;
+    if (body?.error) return body.error;
+  } catch { /* ignore */ }
+  const err = res.error as { message?: string };
+  return err?.message || 'Something went wrong';
 }
 
 export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerificationPageProps) {
@@ -20,14 +30,16 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
   const [resendCooldown, setResendCooldown] = useState(0);
   const [verified, setVerified] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const hasSentRef = useRef(false);
 
-  // Auto-send code on mount
   useEffect(() => {
-    sendCode();
+    if (!hasSentRef.current) {
+      hasSentRef.current = true;
+      sendCode();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Resend cooldown timer
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const t = setInterval(() => setResendCooldown(c => c - 1), 1000);
@@ -39,12 +51,12 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
     setError('');
     setInfo('');
     try {
-      const { error: fnError } = await supabase.functions.invoke('send-verification-code');
-      if (fnError) {
-        const msg = (fnError as any)?.context?.error || fnError.message || 'Failed to send code';
-        setError(msg);
+      const res = await supabase.functions.invoke('send-verification-code');
+      const errMsg = await extractFnError(res);
+      if (errMsg) {
+        setError(errMsg);
       } else {
-        setInfo(`A 6-digit verification code has been sent to ${email}. Check your inbox and enter the code below.`);
+        setInfo(`A 6-digit verification code has been sent to ${email}. Check your inbox and spam folder.`);
         setResendCooldown(60);
       }
     } catch {
@@ -55,17 +67,12 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
 
   const handleDigitChange = (index: number, value: string) => {
     if (!/^\d?$/.test(value)) return;
-
     const newDigits = [...digits];
     newDigits[index] = value;
     setDigits(newDigits);
-
-    // Auto-advance to next input
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
-
-    // Auto-submit when all 6 digits filled
     if (value && index === 5 && newDigits.every(d => d !== '')) {
       submitCode(newDigits.join(''));
     }
@@ -96,18 +103,17 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
     setError('');
     setInfo('');
     try {
-      const { error: fnError } = await supabase.functions.invoke('verify-email-code', {
+      const res = await supabase.functions.invoke('verify-email-code', {
         body: { code },
       });
-      if (fnError) {
-        const msg = (fnError as any)?.context?.error || fnError.message || 'Verification failed';
-        setError(msg);
+      const errMsg = await extractFnError(res);
+      if (errMsg) {
+        setError(errMsg);
         setDigits(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
       } else {
         setVerified(true);
         setInfo('Email verified successfully! Redirecting...');
-        // Refresh the session to pick up the confirmed email
         await refreshVerification();
         setTimeout(() => onVerified(), 1500);
       }
@@ -179,7 +185,6 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* 6-digit code inputs */}
         <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
           {digits.map((digit, i) => (
             <input
