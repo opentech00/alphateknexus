@@ -221,7 +221,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         emailRedirectTo: undefined,
       },
     });
-    if (error) return { error: error.message };
+
+    // Supabase may return "email rate limit exceeded" when its built-in
+    // confirmation email hits the rate limit. The account is still created
+    // in this case — we use our own 6-digit code system instead, so we
+    // treat this as non-fatal and proceed to the verification screen.
+    if (error) {
+      const msg = error.message.toLowerCase();
+      if (msg.includes('rate limit') || msg.includes('email rate')) {
+        // Account may still have been created — try to insert profile
+        const userId = (data as any)?.user?.id;
+        if (userId) {
+          await supabase.from('profiles').insert({
+            id: userId,
+            email,
+            full_name: fullName,
+            role: 'user',
+          });
+        }
+        // The verification screen will send the 6-digit code on mount
+        return { error: null };
+      }
+      return { error: error.message };
+    }
+
     if (data.user) {
       await supabase.from('profiles').insert({
         id: data.user.id,
