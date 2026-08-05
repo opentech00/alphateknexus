@@ -216,7 +216,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: {
+        data: { full_name: fullName },
+        emailRedirectTo: undefined,
+      },
     });
     if (error) return { error: error.message };
     if (data.user) {
@@ -226,6 +229,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         full_name: fullName,
         role: 'user',
       });
+      // Send the 6-digit verification code email
+      try {
+        await supabase.functions.invoke('send-verification-code');
+      } catch { /* non-critical — user can resend from verification screen */ }
     }
     return { error: null };
   };

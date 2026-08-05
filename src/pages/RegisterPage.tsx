@@ -88,6 +88,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
       setError(error);
       setLoading(false);
     } else {
+      // User is auto-signed-in; the email verification gate will show automatically
       onNavigate('login');
     }
   };
