@@ -67,15 +67,15 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Code is correct — confirm the user's email in auth.users
-    const { error: updateError } = await supabase.auth.admin.updateUserById(
-      authData.user.id,
-      { email_confirm: true },
-    );
+    // Code is correct — mark the profile as verified
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ is_verified: true })
+      .eq("id", authData.user.id);
 
-    if (updateError) {
-      console.error("verify-email-code: failed to confirm email:", updateError.message);
-      return new Response(JSON.stringify({ error: "Failed to confirm email. Please try again." }), {
+    if (profileError) {
+      console.error("verify-email-code: failed to update profile:", profileError.message);
+      return new Response(JSON.stringify({ error: "Failed to complete verification. Please try again." }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

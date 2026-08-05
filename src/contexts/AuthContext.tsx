@@ -97,11 +97,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (newSession?.user) {
           await fetchProfile(newSession.user.id);
           initPushNotifications('client').catch(() => {});
-          if (!newSession.user.email_confirmed_at) {
-            setNeedsEmailVerification(true);
-          } else {
-            setNeedsEmailVerification(false);
-          }
+          // Check our own is_verified flag on profiles, not Supabase's
+          // email_confirmed_at (which is auto-set when email confirmation is off)
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('is_verified')
+            .eq('id', newSession.user.id)
+            .maybeSingle();
+          setNeedsEmailVerification(!prof?.is_verified);
         } else {
           setProfile(null);
           setNeedsEmailVerification(false);
@@ -147,8 +150,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (!data.user) return { error: 'Authentication failed' };
 
-    // Check if email is verified
-    if (!data.user.email_confirmed_at) {
+    // Check our own is_verified flag on profiles
+    const { data: profData } = await supabase
+      .from('profiles')
+      .select('is_verified')
+      .eq('id', data.user.id)
+      .maybeSingle();
+    if (!profData?.is_verified) {
       setNeedsEmailVerification(true);
       return { error: null };
     }
@@ -206,9 +214,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshVerification = async () => {
-    const { data } = await supabase.auth.refreshSession();
-    if (data.session?.user?.email_confirmed_at) {
-      setNeedsEmailVerification(false);
+    const { data: sessionData } = await supabase.auth.refreshSession();
+    if (sessionData.session?.user) {
+      await fetchProfile(sessionData.session.user.id);
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('is_verified')
+        .eq('id', sessionData.session.user.id)
+        .maybeSingle();
+      setNeedsEmailVerification(!prof?.is_verified);
     }
   };
 
