@@ -99,12 +99,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           initPushNotifications('client').catch(() => {});
           // Check our own is_verified flag on profiles, not Supabase's
           // email_confirmed_at (which is auto-set when email confirmation is off)
-          const { data: prof } = await supabase
-            .from('profiles')
-            .select('is_verified')
-            .eq('id', newSession.user.id)
-            .maybeSingle();
-          setNeedsEmailVerification(!prof?.is_verified);
+          // Retry up to 3 times with a short delay in case the profile row
+          // hasn't been inserted yet (race condition right after signUp)
+          let profVerified = false;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const { data: prof } = await supabase
+              .from('profiles')
+              .select('is_verified')
+              .eq('id', newSession.user.id)
+              .maybeSingle();
+            if (prof) {
+              profVerified = !!prof.is_verified;
+              break;
+            }
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+          setNeedsEmailVerification(!profVerified);
         } else {
           setProfile(null);
           setNeedsEmailVerification(false);
@@ -253,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: 'user',
           });
         }
-        // The verification screen will send the 6-digit code on mount
+        setNeedsEmailVerification(true);
         return { error: null };
       }
       return { error: error.message };
@@ -267,9 +277,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: 'user',
       });
       // Send the 6-digit verification code email
-      try {
-        await supabase.functions.invoke('send-verification-code');
-      } catch { /* non-critical — user can resend from verification screen */ }
+      const { error: fnError } = await supabase.functions.invoke('send-verification-code');
+      if (fnError) {
+        console.error('signUp: send-verification-code error:', fnError.message);
+      }
+      // Set the flag immediately so the verification screen shows up
+      setNeedsEmailVerification(true);
     }
     return { error: null };
   };
