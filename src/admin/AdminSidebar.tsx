@@ -92,6 +92,7 @@ const navSections: NavSection[] = [
         items: [
           { label: 'Employees', page: 'hr-employees', icon: Users },
           { label: 'Roles', page: 'hr-roles', icon: Briefcase },
+          { label: 'Documents', page: 'hr-documents', icon: FolderOpen },
         ],
       },
       {
@@ -182,6 +183,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
     'hr-id-cards': 0,
     'hr-activity': 0,
     'hr-permissions': 0,
+    'hr-documents': 0,
     'hr-directory': 0,
   };
 

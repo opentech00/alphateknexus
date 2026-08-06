@@ -31,6 +31,7 @@ import { HrIdCardsPage } from './pages/HrIdCardsPage';
 import { HrActivityPage } from './pages/HrActivityPage';
 import { HrDirectoryPage } from './pages/HrDirectoryPage';
 import { HrPermissionsPage } from './pages/HrPermissionsPage';
+import { HrDocumentsPage } from './pages/HrDocumentsPage';
 import { BackupPage } from './pages/BackupPage';
 import { UsersManagementPage } from './pages/UsersManagementPage';
 import { BundlesManagementPage } from './pages/BundlesManagementPage';
@@ -166,6 +167,8 @@ function AdminContent() {
         return <HrDirectoryPage />;
       case 'hr-permissions':
         return <HrPermissionsPage />;
+      case 'hr-documents':
+        return <HrDocumentsPage />;
       case 'backup':
         return <BackupPage />;
       case 'users':
