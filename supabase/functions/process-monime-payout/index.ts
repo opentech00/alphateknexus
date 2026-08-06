@@ -143,7 +143,8 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const idempotencyKey = `payout-${withdrawal_id}`;
+    // Unique per attempt — the monime_payout_id check above is the real duplicate guard
+    const idempotencyKey = crypto.randomUUID();
 
     // Mark payout as sent BEFORE calling Monime (so a timeout doesn't cause a retry)
     await supabase.from("withdrawal_requests").update({
