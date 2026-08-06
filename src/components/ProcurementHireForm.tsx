@@ -79,9 +79,14 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
 
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Please sign in to submit your request.');
+      setLoading(false);
+      return;
+    }
     const { data: bookingRow, error: err } = await supabase.from('bookings').insert({
       service_id: service.id,
-      user_id: user?.id,
+      user_id: user.id,
       contact_name: contactName.trim(),
       contact_phone: phone.trim(),
       contact_email: email.trim() || null,
@@ -95,7 +100,7 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
     }).select('id').single();
 
     if (err) {
-      setError('We could not submit your request. Please try again.');
+      setError(err.message);
       setLoading(false);
     } else {
       setBookingId(bookingRow.id);

@@ -105,6 +105,12 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
     setLoading(true);
     setError('');
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Please sign in to submit a booking.');
+      setLoading(false);
+      setStep('form');
+      return;
+    }
     const details = {
       full_name: fullName, phone, email: email || null,
       preferred_time: preferredTime || null, address: address || null,
@@ -126,7 +132,7 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
       status: 'pending_review',
     }).select('id').single();
     setLoading(false);
-    if (err) { setError('We could not submit your booking. Please try again.'); setStep('form'); return; }
+    if (err) { setError(err.message); setStep('form'); return; }
     setBookingId(bookingRow.id);
     setStep('review_submitted');
   };

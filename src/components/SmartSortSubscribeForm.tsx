@@ -318,8 +318,13 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
     setSubError('');
     setSubLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setSubError('Please sign in to create a subscription.');
+      setSubLoading(false);
+      return;
+    }
     const { error: err } = await supabase.from('smart_sort_subscriptions').insert({
-      user_id: user?.id,
+      user_id: user.id,
       waste_type: subWasteType,
       bin_size_liters: parseInt(subBinSize),
       frequency: subFrequency,

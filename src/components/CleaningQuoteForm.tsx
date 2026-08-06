@@ -116,6 +116,13 @@ export function CleaningQuoteForm({ service, onCancel, onSuccess }: Props) {
     setError('');
     setLoading(true);
 
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Please sign in to submit a quote request.');
+      setLoading(false);
+      return;
+    }
+
     const details = {
       quote_request: true,
       company_name: companyName, position, whatsapp: whatsapp || null,
@@ -130,6 +137,7 @@ export function CleaningQuoteForm({ service, onCancel, onSuccess }: Props) {
     const arrivalDate = startDate || new Date().toISOString().split('T')[0];
     const { error: err } = await supabase.from('bookings').insert({
       service_id: service.id,
+      user_id: user.id,
       contact_name: contactPerson, contact_phone: phone,
       contact_email: email,
       scheduled_date: arrivalDate,
@@ -139,7 +147,7 @@ export function CleaningQuoteForm({ service, onCancel, onSuccess }: Props) {
       status: 'pending_review',
     });
     setLoading(false);
-    if (err) setError('We could not submit your quote request. Please try again.');
+    if (err) setError(err.message);
     else setSubmitted(true);
   };
 

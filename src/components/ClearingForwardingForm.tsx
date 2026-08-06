@@ -196,6 +196,12 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
     setError('');
 
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Please sign in to submit your booking.');
+      setLoading(false);
+      setStep('form');
+      return;
+    }
 
     const details = {
       company,
@@ -220,7 +226,7 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
 
     const { data: bookingRow, error: insertError } = await supabase.from('bookings').insert({
       service_id: service.id,
-      user_id: user?.id,
+      user_id: user.id,
       contact_name: contactPerson,
       contact_phone: phone,
       contact_email: email,

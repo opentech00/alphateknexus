@@ -85,8 +85,15 @@ export function ProcurementQuoteForm({ service, onCancel, onSuccess }: Props) {
     };
 
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Please sign in to submit a quote request.');
+      setLoading(false);
+      return;
+    }
     const { error: err } = await supabase.from('bookings').insert({
       service_id: service.id,
+      user_id: user.id,
       contact_name: contactName.trim(),
       contact_phone: phone.trim(),
       contact_email: email.trim() || null,
@@ -99,7 +106,7 @@ export function ProcurementQuoteForm({ service, onCancel, onSuccess }: Props) {
     });
 
     if (err) {
-      setError('We could not submit your quote request. Please try again.');
+      setError(err.message);
       setLoading(false);
     } else {
       setSuccess(true);

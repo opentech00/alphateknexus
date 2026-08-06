@@ -137,6 +137,13 @@ export function PrivateSecurityQuoteForm({ service, onCancel, onSuccess }: Props
     if (!canSubmit) { setError('Please fill all required fields and accept the terms.'); return; }
     setLoading(true); setError('');
 
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Please sign in to submit a quote request.');
+      setLoading(false);
+      return;
+    }
+
     const details = {
       quote_request: true,
       company_name: companyName, position, whatsapp,
@@ -152,6 +159,7 @@ export function PrivateSecurityQuoteForm({ service, onCancel, onSuccess }: Props
 
     const { error: err } = await supabase.from('bookings').insert({
       service_id: service.id,
+      user_id: user.id,
       contact_name: contactPerson, contact_phone: phone, contact_email: email,
       scheduled_date: startDate || new Date().toISOString().split('T')[0],
       location: `${address}, ${city}, ${country}`,
@@ -161,7 +169,7 @@ export function PrivateSecurityQuoteForm({ service, onCancel, onSuccess }: Props
     });
 
     setLoading(false);
-    if (err) setError('We could not submit your quote request. Please try again.');
+    if (err) setError(err.message);
     else setSuccess(true);
   };
 

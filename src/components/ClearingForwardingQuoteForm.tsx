@@ -174,6 +174,13 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
     setError('');
     setLoading(true);
 
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Please sign in to submit a quote request.');
+      setLoading(false);
+      return;
+    }
+
     const details = {
       quote_request: true,
       company_name: companyName,
@@ -201,6 +208,7 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
 
     const { error: insertError } = await supabase.from('bookings').insert({
       service_id: service.id,
+      user_id: user.id,
       contact_name: contactPerson,
       contact_phone: phone,
       contact_email: email,

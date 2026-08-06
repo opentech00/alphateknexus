@@ -221,13 +221,18 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
     setSubmitError('');
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setSubmitError('Please sign in to submit a quote request.');
+      setLoading(false);
+      return;
+    }
     const { error: err } = await supabase.from('bookings').insert({
       service_id: service.id,
-      user_id: user?.id ?? null,
+      user_id: user.id,
       contact_name: contactPerson,
       contact_phone: phone,
       contact_email: email || null,
-      scheduled_date: startDate || null,
+      scheduled_date: startDate || new Date().toISOString().split('T')[0],
       location: [address.trim(), city].filter(Boolean).join(', '),
       notes: additionalNotes || null,
       status: 'pending_review',

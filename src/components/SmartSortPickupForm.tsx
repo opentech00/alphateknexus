@@ -121,13 +121,18 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
     setError('');
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Please sign in to schedule a pickup.');
+      setLoading(false);
+      return;
+    }
     const { data: profile } = await supabase
-      .from('profiles').select('full_name').eq('id', user?.id).maybeSingle();
+      .from('profiles').select('full_name').eq('id', user.id).maybeSingle();
     const contactName = (profile as any)?.full_name || contactPhone;
 
     const { data: bookingRow, error: err } = await supabase.from('bookings').insert({
       service_id: service.id,
-      user_id: user?.id,
+      user_id: user.id,
       contact_name: contactName,
       contact_phone: contactPhone,
       scheduled_date: pickupDate,
@@ -150,7 +155,7 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
     }).select('id').single();
 
     setLoading(false);
-    if (err) { setError('We could not schedule your pickup. Please try again.'); return; }
+    if (err) { setError(err.message); return; }
     setBookingId(bookingRow.id);
     setPaymentStep('payment');
   };

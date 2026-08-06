@@ -151,6 +151,12 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
   const handleSubmit = async () => {
     setLoading(true); setError('');
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Please sign in to submit your request.');
+      setLoading(false);
+      setStep('form');
+      return;
+    }
     const details = {
       full_name: fullName, phone, email: email || null,
       service_types: serviceTypes, service_type_labels: serviceTypes.map(id => SERVICE_TYPES.find(s => s.id === id)?.label).filter(Boolean),
@@ -168,7 +174,7 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
       status: 'pending_review',
     }).select('id').single();
     setLoading(false);
-    if (err) { setError('We could not submit your request. Please try again.'); setStep('form'); return; }
+    if (err) { setError(err.message); setStep('form'); return; }
     setBookingId(bookingRow.id); setStep('review_submitted');
   };
 
