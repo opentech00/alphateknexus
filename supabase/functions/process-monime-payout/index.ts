@@ -52,24 +52,34 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Allow the withdrawal owner or an admin to process
-    const isOwner = withdrawal.user_id === user.id;
-    if (!isOwner) {
-      const { data: adminProfile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
+    // Only admin can process payouts — no owner self-payout
+    const { data: adminProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
 
-      if (!adminProfile || adminProfile.role !== "admin") {
-        return new Response(JSON.stringify({ error: "Only the account owner or an admin can process this payout" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    if (!adminProfile || adminProfile.role !== "admin") {
+      return new Response(JSON.stringify({ error: "Only an admin can process payouts" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    if (withdrawal.status !== "approved" && withdrawal.status !== "pending") {
-      return new Response(JSON.stringify({ error: `Cannot process a ${withdrawal.status} withdrawal` }), {
+    // Idempotency: if already has a payout id, don't send again
+    if (withdrawal.monime_payout_id) {
+      return new Response(JSON.stringify({
+        success: true,
+        message: "Payout already processed",
+        payout_id: withdrawal.monime_payout_id,
+        payout_status: withdrawal.payout_status || "completed",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Must be approved before payout
+    if (withdrawal.status !== "approved") {
+      return new Response(JSON.stringify({ error: "Withdrawal must be approved before processing payout" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -95,6 +105,20 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Pre-flight balance check — compute from completed wallet_transactions
+    const { data: txData } = await supabase
+      .from("wallet_transactions")
+      .select("amount_sle")
+      .eq("user_id", withdrawal.user_id)
+      .eq("status", "completed");
+
+    const walletBalance = (txData || []).reduce((sum: number, r: any) => sum + Number(r.amount_sle), 0);
+    if (walletBalance < Number(withdrawal.amount_sle)) {
+      return new Response(JSON.stringify({ error: "User has insufficient wallet balance for this payout" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const monimeKey = Deno.env.get("MONIME_ACCESS_KEY");
     const spaceId = Deno.env.get("MONIME_SPACE_ID");
 
@@ -105,6 +129,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const idempotencyKey = `payout-${withdrawal_id}`;
+
+    // Mark payout as sent BEFORE calling Monime (so a timeout doesn't cause a retry)
+    await supabase.from("withdrawal_requests").update({
+      payout_status: "sent",
+    }).eq("id", withdrawal_id);
 
     const monimeRes = await fetch("https://api.monime.io/v1/payouts", {
       method: "POST",
@@ -135,6 +164,12 @@ Deno.serve(async (req: Request) => {
     const monimeData = await monimeRes.json();
 
     if (!monimeRes.ok) {
+      // Rollback payout_status to allow retry
+      await supabase.from("withdrawal_requests").update({
+        payout_status: "failed",
+        admin_note: `Monime payout failed: ${monimeData?.error?.message || monimeRes.status}`,
+      }).eq("id", withdrawal_id);
+
       const errMsg = monimeData?.error?.message || monimeData?.message || `Monime API error: ${monimeRes.status}`;
       return new Response(JSON.stringify({ error: "Monime payout failed", details: errMsg }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -145,19 +180,31 @@ Deno.serve(async (req: Request) => {
     const payoutId = payout?.id;
     const payoutStatus = payout?.status || "pending";
 
+    // Debit the wallet FIRST, then record the payout id
     const { error: rpcErr } = await supabase.rpc("process_withdrawal_completion", {
       p_withdrawal_id: withdrawal_id,
+      p_monime_payout_id: payoutId || null,
     });
 
     if (rpcErr) {
-      return new Response(JSON.stringify({ error: "Payout sent but failed to update wallet: " + rpcErr.message, payout_id: payoutId }), {
+      // Payout was sent but wallet debit failed — flag for manual reconciliation
+      await supabase.from("withdrawal_requests").update({
+        payout_status: "sent",
+        admin_note: `URGENT: Payout ${payoutId} sent but wallet debit failed: ${rpcErr.message}. Manual reconciliation needed.`,
+      }).eq("id", withdrawal_id);
+
+      return new Response(JSON.stringify({
+        error: "Payout sent but failed to update wallet: " + rpcErr.message,
+        payout_id: payoutId,
+        needs_reconciliation: true,
+      }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     await supabase.from("withdrawal_requests").update({
       reference: payoutId || null,
-      admin_note: `Automatic Monime payout ${payoutId || ""} - status: ${payoutStatus}`,
+      admin_note: `Monime payout ${payoutId || ""} - status: ${payoutStatus}`,
     }).eq("id", withdrawal_id);
 
     return new Response(JSON.stringify({

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Banknote, Search, Loader2, X, CheckCircle2, XCircle, Clock,
-  Filter, ArrowUpCircle, Smartphone, Landmark, RefreshCw,
+  Filter, ArrowUpCircle, Smartphone, Landmark, RefreshCw, Send, Wallet,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 
@@ -22,7 +22,10 @@ interface Withdrawal {
   reviewed_at: string | null;
   completed_at: string | null;
   created_at: string;
+  monime_payout_id: string | null;
+  payout_status: string | null;
   profile?: { full_name: string | null; email: string | null };
+  wallet_balance?: number | null;
 }
 
 function fmtMoney(n: number) {
@@ -45,12 +48,35 @@ async function loadProfiles(userIds: string[]): Promise<ProfileMap> {
   return map;
 }
 
+async function loadWalletBalances(userIds: string[]): Promise<Record<string, number>> {
+  if (userIds.length === 0) return {};
+  const unique = [...new Set(userIds)];
+  const { data, error } = await supabase
+    .from('wallet_transactions')
+    .select('user_id, amount_sle')
+    .in('user_id', unique)
+    .eq('status', 'completed');
+  if (error || !data) return {};
+  const map: Record<string, number> = {};
+  (data as any[]).forEach((r) => {
+    map[r.user_id] = (map[r.user_id] || 0) + Number(r.amount_sle);
+  });
+  return map;
+}
+
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   pending:    { label: 'Pending',    cls: 'bg-amber-50 text-amber-600' },
   approved:   { label: 'Approved',    cls: 'bg-blue-50 text-blue-600' },
   rejected:   { label: 'Rejected',   cls: 'bg-red-50 text-red-600' },
   completed:  { label: 'Completed',  cls: 'bg-emerald-50 text-emerald-600' },
   cancelled:  { label: 'Cancelled',  cls: 'bg-slate-100 text-slate-400' },
+};
+
+const PAYOUT_STATUS_META: Record<string, { label: string; cls: string }> = {
+  pending:   { label: 'Pending',  cls: 'bg-amber-50 text-amber-600' },
+  sent:      { label: 'Sent',     cls: 'bg-blue-50 text-blue-600' },
+  completed: { label: 'Done',     cls: 'bg-emerald-50 text-emerald-600' },
+  failed:    { label: 'Failed',    cls: 'bg-red-50 text-red-600' },
 };
 
 const METHOD_META: Record<string, { label: string; icon: typeof Smartphone }> = {
@@ -69,6 +95,7 @@ export function PayoutsTab() {
   const [reviewModal, setReviewModal] = useState<Withdrawal | null>(null);
   const [adminNote, setAdminNote] = useState('');
   const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | 'complete' | null>(null);
+  const [payoutResult, setPayoutResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,8 +108,11 @@ export function PayoutsTab() {
     if (error) { setLoadError(error.message); setWithdrawals([]); setLoading(false); return; }
     const rows = (data || []) as any[];
     const profileMap = await loadProfiles(rows.map(r => r.user_id).filter(Boolean));
+    const balanceMap = await loadWalletBalances(rows.map(r => r.user_id).filter(Boolean));
     const enriched: Withdrawal[] = rows.map(r => ({
-      ...r, profile: profileMap[r.user_id] || { full_name: null, email: null },
+      ...r,
+      profile: profileMap[r.user_id] || { full_name: null, email: null },
+      wallet_balance: balanceMap[r.user_id] != null ? balanceMap[r.user_id] : null,
     }));
     setWithdrawals(enriched);
     setLoading(false);
@@ -114,6 +144,7 @@ export function PayoutsTab() {
     setReviewModal(w);
     setReviewAction(action);
     setAdminNote('');
+    setPayoutResult(null);
   };
 
   const handleReview = async () => {
@@ -122,17 +153,18 @@ export function PayoutsTab() {
 
     if (reviewAction === 'complete') {
       if (reviewModal.payout_method === 'mobile_money') {
+        setPayoutResult(null);
         const { data: payoutData, error: payoutErr } = await supabase.functions.invoke('process-monime-payout', {
           body: { withdrawal_id: reviewModal.id },
         });
         if (payoutErr) {
+          setPayoutResult({ success: false, message: 'Failed to send Monime payout: ' + payoutErr.message });
           setActionLoading(null);
-          alert('Failed to send Monime payout: ' + payoutErr.message);
           return;
         }
         if (payoutData?.error) {
+          setPayoutResult({ success: false, message: payoutData.error });
           setActionLoading(null);
-          alert(payoutData.error);
           return;
         }
         if (adminNote.trim()) {
@@ -140,6 +172,7 @@ export function PayoutsTab() {
             admin_note: adminNote.trim(),
           }).eq('id', reviewModal.id);
         }
+        setPayoutResult({ success: true, message: 'Payout sent successfully!' });
         setReviewModal(null);
         load();
         setActionLoading(null);
@@ -242,6 +275,7 @@ export function PayoutsTab() {
                 <tr className="border-b border-slate-100 bg-slate-50/50">
                   <th className="px-5 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider text-left">Client</th>
                   <th className="px-5 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider text-right">Amount</th>
+                  <th className="px-5 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider text-right hidden lg:table-cell">Wallet Balance</th>
                   <th className="px-5 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider text-left hidden sm:table-cell">Method</th>
                   <th className="px-5 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider text-left hidden md:table-cell">Date</th>
                   <th className="px-5 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider text-center">Status</th>
@@ -253,6 +287,7 @@ export function PayoutsTab() {
                   const meta = STATUS_META[w.status] ?? STATUS_META.pending;
                   const methodMeta = METHOD_META[w.payout_method] ?? { label: w.payout_method, icon: Banknote };
                   const MethodIcon = methodMeta.icon;
+                  const hasSufficientBalance = w.wallet_balance != null && w.wallet_balance >= Number(w.amount_sle);
                   return (
                     <tr key={w.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-5 py-3">
@@ -263,8 +298,21 @@ export function PayoutsTab() {
                             {Object.entries(w.payout_details).map(([k, v]) => `${k}: ${v}`).join(' · ')}
                           </p>
                         )}
+                        {w.monime_payout_id && (
+                          <p className="text-[10px] text-slate-400 mt-0.5">Payout ID: {w.monime_payout_id}</p>
+                        )}
                       </td>
                       <td className="px-5 py-3 text-right font-bold text-slate-800">{fmtMoney(Number(w.amount_sle))}</td>
+                      <td className="px-5 py-3 text-right hidden lg:table-cell">
+                        {w.wallet_balance != null ? (
+                          <span className={`font-medium ${hasSufficientBalance ? 'text-slate-600' : 'text-red-600'}`}>
+                            {fmtMoney(w.wallet_balance)}
+                            {!hasSufficientBalance && <span className="block text-[10px] text-red-500">Insufficient</span>}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
+                      </td>
                       <td className="px-5 py-3 hidden sm:table-cell">
                         <div className="flex items-center gap-1.5 text-slate-500 text-xs">
                           <MethodIcon className="w-3.5 h-3.5" /> {methodMeta.label}
@@ -272,7 +320,14 @@ export function PayoutsTab() {
                       </td>
                       <td className="px-5 py-3 hidden md:table-cell text-slate-500 text-xs">{formatDate(w.created_at)}</td>
                       <td className="px-5 py-3 text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${meta.cls}`}>{meta.label}</span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${meta.cls}`}>{meta.label}</span>
+                          {w.payout_status && w.payout_status !== 'completed' && (
+                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium ${PAYOUT_STATUS_META[w.payout_status]?.cls || ''}`}>
+                              {PAYOUT_STATUS_META[w.payout_status]?.label || w.payout_status}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center justify-center gap-1.5">
@@ -289,9 +344,11 @@ export function PayoutsTab() {
                             </>
                           )}
                           {w.status === 'approved' && (
-                            <button onClick={() => openReview(w, 'complete')} disabled={actionLoading === w.id} title="Mark completed"
-                              className="px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50">
-                              Complete
+                            <button onClick={() => openReview(w, 'complete')} disabled={actionLoading === w.id}
+                              title={w.payout_method === 'mobile_money' ? 'Send Monime payout' : 'Mark completed'}
+                              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50">
+                              {w.payout_method === 'mobile_money' ? <Send className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                              {w.payout_method === 'mobile_money' ? 'Send Payout' : 'Complete'}
                             </button>
                           )}
                           {(w.status === 'rejected' || w.status === 'completed' || w.status === 'cancelled') && (
@@ -329,6 +386,14 @@ export function PayoutsTab() {
                 <div className="flex justify-between text-sm"><span className="text-slate-500">Client</span><span className="font-semibold text-slate-800">{reviewModal.profile?.full_name || 'Unknown'}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-slate-500">Amount</span><span className="font-semibold text-slate-800">{fmtMoney(Number(reviewModal.amount_sle))}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-slate-500">Method</span><span className="font-semibold text-slate-800 capitalize">{reviewModal.payout_method.replace('_', ' ')}</span></div>
+                {reviewModal.wallet_balance != null && (
+                  <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
+                    <span className="text-slate-500 flex items-center gap-1"><Wallet className="w-3.5 h-3.5" /> Wallet Balance</span>
+                    <span className={`font-semibold ${reviewModal.wallet_balance >= Number(reviewModal.amount_sle) ? 'text-slate-800' : 'text-red-600'}`}>
+                      {fmtMoney(reviewModal.wallet_balance)}
+                    </span>
+                  </div>
+                )}
                 {reviewModal.payout_details && Object.keys(reviewModal.payout_details).length > 0 && (
                   <div className="pt-2 border-t border-slate-200">
                     {Object.entries(reviewModal.payout_details).map(([k, v]) => (
@@ -337,6 +402,21 @@ export function PayoutsTab() {
                   </div>
                 )}
               </div>
+
+              {reviewAction === 'complete' && reviewModal.payout_method === 'mobile_money' && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3.5 mb-4 flex items-start gap-3">
+                  <Send className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-600 leading-relaxed">
+                    Clicking "Send Payout" will transfer {fmtMoney(Number(reviewModal.amount_sle))} to the client's mobile money account via Monime. The wallet will be debited automatically. This action cannot be undone.
+                  </p>
+                </div>
+              )}
+
+              {payoutResult && (
+                <div className={`mb-4 p-3 rounded-xl text-sm ${payoutResult.success ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                  {payoutResult.message}
+                </div>
+              )}
 
               <label className="block text-sm font-semibold text-slate-800 mb-1.5">Admin Note (optional)</label>
               <textarea value={adminNote} onChange={e => setAdminNote(e.target.value)} rows={3}
@@ -350,7 +430,7 @@ export function PayoutsTab() {
                 {actionLoading === reviewModal.id ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
                 {reviewAction === 'approve' && 'Approve Request'}
                 {reviewAction === 'reject' && 'Reject Request'}
-                {reviewAction === 'complete' && 'Mark as Completed'}
+                {reviewAction === 'complete' && (reviewModal.payout_method === 'mobile_money' ? 'Send Payout' : 'Mark as Completed')}
               </button>
             </div>
           </div>

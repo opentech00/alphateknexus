@@ -3,7 +3,7 @@ import {
   Wallet, Plus, ArrowDownCircle, ArrowUpCircle, Loader2, X,
   CreditCard, Receipt, History, TrendingUp, Smartphone,
   Trash2, AlertTriangle, XCircle, CheckCircle2, ExternalLink,
-  ShoppingBag, RefreshCw, Banknote, Landmark, Clock, Zap,
+  ShoppingBag, RefreshCw, Banknote, Landmark, Clock,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
@@ -978,7 +978,6 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
   const [accountNumber, setAccountNumber] = useState('');
   const [accountName, setAccountName] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [processingPayout, setProcessingPayout] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
@@ -1008,37 +1007,17 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
       payoutDetails.account_name = accountName.trim();
     }
 
-    const { data: withdrawalRow, error: err } = await supabase.from('withdrawal_requests').insert({
+    const { error: err } = await supabase.from('withdrawal_requests').insert({
       amount_sle: amt,
       payout_method: method,
       payout_details: payoutDetails,
       status: 'pending',
-    }).select('id').single();
-
-    if (err) { setSubmitting(false); setError('We could not process your withdrawal. Please try again.'); return; }
-
-    // For mobile money, automatically process the Monime payout — no admin approval needed
-    if (method === 'mobile_money') {
-      setProcessingPayout(true);
-      const { data: payoutData, error: payoutErr } = await supabase.functions.invoke('process-monime-payout', {
-        body: { withdrawal_id: withdrawalRow.id },
-      });
-      setProcessingPayout(false);
-      setSubmitting(false);
-
-      if (payoutErr || payoutData?.error) {
-        const msg = payoutData?.error || payoutErr?.message || 'Payout failed';
-        setError(`Withdrawal created but payout failed: ${msg}. Admin will review manually.`);
-        return;
-      }
-      setSuccess(true);
-      setTimeout(onSubmitted, 1800);
-      return;
-    }
+    });
 
     setSubmitting(false);
+    if (err) { setError('We could not process your withdrawal. Please try again.'); return; }
     setSuccess(true);
-    setTimeout(onSubmitted, 1800);
+    setTimeout(onSubmitted, 2000);
   };
 
   if (success) {
@@ -1048,13 +1027,13 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
           <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-5">
             <CheckCircle2 className="w-8 h-8 text-emerald-500" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">
-            {method === 'mobile_money' ? 'Payout Sent' : 'Request Submitted'}
-          </h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Request Submitted</h2>
           <p className="text-sm text-slate-500">
-            {method === 'mobile_money'
-              ? `SLE ${parseFloat(amount).toFixed(2)} has been sent to ${phoneNumber} via ${momoProvider === 'm17' ? 'Orange Money' : 'Africell Money'}. You'll receive a mobile money notification shortly.`
-              : 'Your withdrawal request is pending admin review. You\'ll be notified once it\'s processed.'}
+            Your withdrawal request for SLE {parseFloat(amount).toFixed(2)} is pending admin review.
+            {method === 'mobile_money' && ' Once approved, the money will be sent to your phone via Monime mobile money.'}
+            {method === 'bank_transfer' && ' Once approved, the funds will be transferred to your bank account.'}
+            {method === 'cash' && ' You\'ll be contacted to arrange a cash pickup once approved.'}
+            You\'ll be notified when the status changes.
           </p>
         </div>
       </div>
@@ -1117,9 +1096,9 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
 
             {method === 'mobile_money' && (
               <>
-                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5 flex items-start gap-3">
-                  <Zap className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-emerald-700 leading-relaxed">Mobile money withdrawals are processed instantly via Monime — no admin approval needed. The money is sent directly to your phone number.</p>
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3.5 flex items-start gap-3">
+                  <Smartphone className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-600 leading-relaxed">Mobile money withdrawals are sent via Monime after admin approval — usually within minutes. The money goes directly to your phone number.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-800 mb-2">Mobile Money Provider</label>
@@ -1171,17 +1150,15 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
               </div>
             )}
 
-            {method !== 'mobile_money' && (
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3.5 flex items-start gap-3">
-                <Clock className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-blue-600 leading-relaxed">Withdrawal requests are reviewed by our finance team. Processing typically takes 1-2 business days.</p>
-              </div>
-            )}
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3.5 flex items-start gap-3">
+              <Clock className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-600 leading-relaxed">All withdrawal requests are reviewed by our finance team. Mobile money payouts are typically processed within minutes after approval.</p>
+            </div>
 
-            <button type="submit" disabled={submitting || processingPayout}
+            <button type="submit" disabled={submitting}
               className="w-full py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-              {submitting || processingPayout ? <Loader2 className="w-5 h-5 animate-spin" /> : <Banknote className="w-5 h-5" />}
-              {processingPayout ? 'Sending payout…' : submitting ? 'Submitting…' : method === 'mobile_money' ? 'Withdraw Instantly' : 'Submit Request'}
+              {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Banknote className="w-5 h-5" />}
+              {submitting ? 'Submitting…' : 'Submit Request'}
             </button>
           </form>
         </div>
