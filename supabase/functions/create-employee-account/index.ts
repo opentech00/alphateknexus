@@ -6,8 +6,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-function generateEmployeeNumber(count: number): string {
-  return "ATN-" + String(count + 1).padStart(4, "0");
+function generateEmployeeNumber(maxSuffix: number): string {
+  return "ATN-" + String(maxSuffix + 1).padStart(4, "0");
+}
+
+// Extract the numeric suffix from an employee number like "ATN-0002".
+// Returns 0 for non-matching values so they don't affect the max.
+function parseSuffix(empNum: string): number {
+  const match = empNum.match(/ATN-(\d+)/i);
+  return match ? parseInt(match[1], 10) : 0;
 }
 
 async function sendWelcomeEmail(
@@ -149,11 +156,18 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { count } = await adminClient
+    // Use the max numeric suffix across existing employee numbers instead of
+    // the row count — row count collides after rows are deleted.
+    const { data: existing } = await adminClient
       .from("employees")
-      .select("*", { count: "exact", head: true });
+      .select("employee_number");
 
-    const employee_number = generateEmployeeNumber(count ?? 0);
+    const maxSuffix = (existing ?? []).reduce(
+      (max, row) => Math.max(max, parseSuffix(row.employee_number)),
+      0,
+    );
+
+    const employee_number = generateEmployeeNumber(maxSuffix);
 
     // Create auth account with the admin-supplied temporary password
     const { data: authData, error: authErr } = await adminClient.auth.admin.createUser({
@@ -207,7 +221,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const year = new Date().getFullYear();
-    const card_number = `ATN-${year}-${String(count ? count + 1 : 1).padStart(4, "0")}`;
+    const card_number = `ATN-${year}-${String(maxSuffix + 1).padStart(4, "0")}`;
     const qr_payload = JSON.stringify({ employee_id: employee.id, card_number });
 
     await adminClient.from("id_cards").insert({
