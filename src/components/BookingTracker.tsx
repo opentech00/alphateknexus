@@ -35,8 +35,9 @@ interface JobEvent {
 }
 
 const stages = [
-  { key: 'pending', label: 'Submitted', description: 'Booking request received', icon: Clock, color: 'amber' },
-  { key: 'confirmed', label: 'Confirmed', description: 'Admin confirmed your booking', icon: CheckCircle2, color: 'blue' },
+  { key: 'pending_review', label: 'In Review', description: 'Booking request submitted', icon: Clock, color: 'amber' },
+  { key: 'approved', label: 'Approved', description: 'Admin approved your booking', icon: CheckCircle2, color: 'blue' },
+  { key: 'confirmed', label: 'Confirmed', description: 'Booking confirmed and scheduled', icon: CheckCircle2, color: 'blue' },
   { key: 'in_progress', label: 'In Progress', description: 'Team is on the job', icon: PlayCircle, color: 'emerald' },
   { key: 'completed', label: 'Completed', description: 'Service delivered successfully', icon: Package, color: 'slate' },
 ];
@@ -196,15 +197,16 @@ export function BookingTracker({ bookingId, currentStatus }: BookingTrackerProps
   }
 
   const isCancelled = currentStatus === 'cancelled';
+  const effectiveStatus = currentStatus === 'pending' ? 'pending_review' : currentStatus;
+  const currentStageIndex = stages.findIndex((s) => s.key === effectiveStatus);
 
   // Build the timeline
   const timeline = stages.map((stage, index) => {
     const entry = history.find((h) => h.status === stage.key);
-    const isCurrent = currentStatus === stage.key;
+    const isCurrent = effectiveStatus === stage.key;
     const isPast = history.some((h) => h.status === stage.key);
-    const currentStageIndex = stages.findIndex((s) => s.key === currentStatus);
     const isUpcoming = !isPast && index > currentStageIndex && !isCancelled;
-    const isActive = isCurrent && currentStatus !== 'completed' && !isCancelled;
+    const isActive = isCurrent && effectiveStatus !== 'completed' && !isCancelled;
 
     return {
       ...stage,

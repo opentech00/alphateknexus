@@ -43,8 +43,9 @@ interface JobEvent {
 }
 
 const stages = [
-  { key: 'pending', label: 'Submitted', description: 'Booking request received', icon: Clock, color: 'amber' },
-  { key: 'confirmed', label: 'Confirmed', description: 'Admin confirmed your booking', icon: CheckCircle2, color: 'blue' },
+  { key: 'pending_review', label: 'In Review', description: 'Booking request submitted', icon: Clock, color: 'amber' },
+  { key: 'approved', label: 'Approved', description: 'Admin approved your booking', icon: CheckCircle2, color: 'blue' },
+  { key: 'confirmed', label: 'Confirmed', description: 'Booking confirmed and scheduled', icon: CheckCircle2, color: 'blue' },
   { key: 'in_progress', label: 'In Progress', description: 'Team is on the job', icon: PlayCircle, color: 'emerald' },
   { key: 'completed', label: 'Completed', description: 'Service delivered successfully', icon: Package, color: 'slate' },
 ];
@@ -58,7 +59,8 @@ const colorMap: Record<string, { dot: string; line: string; icon: string; text: 
 };
 
 const statusLabels: Record<string, string> = {
-  pending: 'Pending', confirmed: 'Confirmed', in_progress: 'In Progress',
+  pending: 'Pending', pending_review: 'In Review', approved: 'Approved',
+  confirmed: 'Confirmed', in_progress: 'In Progress',
   completed: 'Completed', cancelled: 'Cancelled',
 };
 
@@ -196,6 +198,7 @@ export function BookingTrackingPage({ bookingId, onBack }: BookingTrackingPagePr
   }
 
   const isCancelled = booking.status === 'cancelled';
+  const effectiveStatus = booking.status === 'pending' ? 'pending_review' : booking.status;
   const completedCount = history.filter((h) => stages.some((s) => s.key === h.status)).length;
   const progressPct = isCancelled ? 0 : (completedCount / stages.length) * 100;
 
@@ -216,12 +219,16 @@ export function BookingTrackingPage({ bookingId, onBack }: BookingTrackingPagePr
             booking.status === 'completed' ? 'bg-slate-100 text-slate-600' :
             booking.status === 'in_progress' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
             booking.status === 'confirmed' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+            booking.status === 'approved' ? 'bg-teal-50 text-teal-700 border border-teal-200' :
+            booking.status === 'pending_review' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
             'bg-amber-50 text-amber-700 border border-amber-200'
           }`}>
             <span className={`w-2 h-2 rounded-full ${
               booking.status === 'in_progress' ? 'bg-emerald-500 animate-pulse' :
               isCancelled ? 'bg-red-500' :
-              booking.status === 'completed' ? 'bg-slate-400' : 'bg-amber-500'
+              booking.status === 'completed' ? 'bg-slate-400' :
+              booking.status === 'approved' ? 'bg-teal-500' :
+              booking.status === 'pending_review' ? 'bg-orange-500' : 'bg-amber-500'
             }`} />
             {statusLabels[booking.status] || booking.status}
           </span>
@@ -273,8 +280,8 @@ export function BookingTrackingPage({ bookingId, onBack }: BookingTrackingPagePr
                 const Icon = stage.icon;
                 const color = colorMap[stage.color];
                 const isPast = history.some((h) => h.status === stage.key);
-                const isCurrent = booking.status === stage.key;
-                const isActive = isCurrent && booking.status !== 'completed' && !isCancelled;
+                const isCurrent = effectiveStatus === stage.key;
+                const isActive = isCurrent && effectiveStatus !== 'completed' && !isCancelled;
                 const cancelledColor = isCancelled && isCurrent ? colorMap.red : color;
                 return (
                   <div key={stage.key} className="flex flex-col items-center text-center" style={{ width: '24%' }}>
@@ -311,8 +318,8 @@ export function BookingTrackingPage({ bookingId, onBack }: BookingTrackingPagePr
                 const Icon = stage.icon;
                 const color = colorMap[stage.color];
                 const isPast = history.some((h) => h.status === stage.key);
-                const isCurrent = booking.status === stage.key;
-                const isActive = isCurrent && booking.status !== 'completed' && !isCancelled;
+                const isCurrent = effectiveStatus === stage.key;
+                const isActive = isCurrent && effectiveStatus !== 'completed' && !isCancelled;
                 const cancelledColor = isCancelled && isCurrent ? colorMap.red : color;
                 return (
                   <div key={stage.key} className="relative">

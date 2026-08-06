@@ -516,6 +516,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
       scheduled_time: formData.scheduled_time || null,
       location: formData.location || null,
       notes: formData.notes || null,
+      status: 'pending_review',
       payment_method: isCash ? 'cash' : 'monime',
       payment_status: isCash ? 'pending_cash' : 'pending',
     }).select('id').single();
