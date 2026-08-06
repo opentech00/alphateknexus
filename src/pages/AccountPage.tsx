@@ -20,6 +20,7 @@ import { LoginActivityPanel } from '../components/LoginActivityPanel';
 import { AddressPage } from '../components/AddressPage';
 import { PremiumBenefitsPage } from './PremiumBenefitsPage';
 import { SpendingDashboard } from '../components/SpendingDashboard';
+import { ReceiptsPanel } from '../components/ReceiptsPanel';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 interface AccountPageProps {
@@ -974,7 +975,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
         iconColor="text-orange-600"
         iconBg="bg-orange-50"
       >
-        <ComingSoon label="Receipts" />
+        <ReceiptsPanel />
       </Modal>
 
       {/* Service History */}
