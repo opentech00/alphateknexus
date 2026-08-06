@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   Wallet, Plus, ArrowDownCircle, ArrowUpCircle, Loader2, X,
   CreditCard, Receipt, History, TrendingUp, Smartphone,
   Trash2, AlertTriangle, XCircle, CheckCircle2, ExternalLink,
   ShoppingBag, RefreshCw, Banknote, Landmark, Clock, ShieldCheck, KeyRound,
+  Search, Download, Filter, Calendar,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
@@ -134,6 +135,11 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
   const [balancePulse, setBalancePulse] = useState(false);
   const prevBalanceRef = useRef(0);
   const popupRef = useRef<Window | null>(null);
+  const [txSearch, setTxSearch] = useState('');
+  const [txTypeFilter, setTxTypeFilter] = useState<string>('all');
+  const [txDateFrom, setTxDateFrom] = useState('');
+  const [txDateTo, setTxDateTo] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const pollCancelledRef = useRef(false);
 
   const loadTransactions = useCallback(async () => {
@@ -216,6 +222,53 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
     .reduce((sum, t) => sum + Number(t.amount_sle), 0);
 
   const availableBalance = Math.max(0, balance - pendingWithdrawalTotal);
+
+  const filteredTransactions = useMemo(() => {
+    let result = transactions;
+    if (txSearch.trim()) {
+      const q = txSearch.toLowerCase();
+      result = result.filter(t =>
+        (t.description || '').toLowerCase().includes(q) ||
+        (t.reference || '').toLowerCase().includes(q) ||
+        (t.type || '').toLowerCase().includes(q) ||
+        (t.method || '').toLowerCase().includes(q)
+      );
+    }
+    if (txTypeFilter !== 'all') {
+      result = result.filter(t => t.type === txTypeFilter);
+    }
+    if (txDateFrom) {
+      const from = new Date(txDateFrom); from.setHours(0, 0, 0, 0);
+      result = result.filter(t => new Date(t.created_at) >= from);
+    }
+    if (txDateTo) {
+      const to = new Date(txDateTo); to.setHours(23, 59, 59, 999);
+      result = result.filter(t => new Date(t.created_at) <= to);
+    }
+    return result;
+  }, [transactions, txSearch, txTypeFilter, txDateFrom, txDateTo]);
+
+  const exportCSV = () => {
+    const headers = ['Date', 'Type', 'Description', 'Amount (SLE)', 'Status', 'Method', 'Reference', 'Balance After'];
+    const rows = filteredTransactions.map(t => [
+      new Date(t.created_at).toISOString(),
+      t.type || '',
+      (t.description || '').replace(/,/g, ';'),
+      Number(t.amount_sle).toFixed(2),
+      t.status || '',
+      t.method || '',
+      t.reference || '',
+      t.balance_after != null ? Number(t.balance_after).toFixed(2) : '',
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `wallet-transactions-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     if (prevBalanceRef.current !== 0 && prevBalanceRef.current !== availableBalance) {
@@ -476,31 +529,91 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
           <div className="flex items-center gap-2">
             <History className="w-4 h-4 text-slate-400" />
             <h3 className="font-semibold text-slate-800 text-sm">Transaction History</h3>
-            {transactions.length > 0 && (
+            {filteredTransactions.length > 0 && (
               <span className="text-[10px] bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded-full">
-                {transactions.length}
+                {filteredTransactions.length}
               </span>
             )}
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setShowFilters(f => !f)}
+              className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors ${showFilters || txTypeFilter !== 'all' || txDateFrom || txDateTo ? 'text-emerald-600 bg-emerald-50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              Filter
+            </button>
+            <button
+              onClick={exportCSV}
+              disabled={filteredTransactions.length === 0}
+              className="flex items-center gap-1.5 text-xs text-slate-500 font-medium hover:text-slate-700 hover:bg-slate-50 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+            </button>
+            <button
               onClick={() => loadTransactions()}
               className="flex items-center gap-1.5 text-xs text-slate-500 font-medium hover:text-slate-700 hover:bg-slate-50 px-2.5 py-1.5 rounded-lg transition-colors"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              Refresh
             </button>
-            {transactions.length > 0 && (
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="flex items-center gap-1.5 text-xs text-red-500 font-medium hover:text-red-600 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Clear
-              </button>
-            )}
           </div>
         </div>
+
+        {/* Search & Filter Bar */}
+        {showFilters && (
+          <div className="px-5 py-3 bg-slate-50/50 border-b border-slate-100 space-y-3">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={txSearch}
+                onChange={e => setTxSearch(e.target.value)}
+                placeholder="Search by description, reference, type..."
+                className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={txTypeFilter}
+                onChange={e => setTxTypeFilter(e.target.value)}
+                className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+              >
+                <option value="all">All Types</option>
+                <option value="topup">Top-Ups</option>
+                <option value="payment">Payments</option>
+                <option value="withdrawal">Withdrawals</option>
+                <option value="refund">Refunds</option>
+                <option value="adjustment">Adjustments</option>
+              </select>
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                <input
+                  type="date"
+                  value={txDateFrom}
+                  onChange={e => setTxDateFrom(e.target.value)}
+                  className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                />
+                <span className="text-xs text-slate-400">to</span>
+                <input
+                  type="date"
+                  value={txDateTo}
+                  onChange={e => setTxDateTo(e.target.value)}
+                  className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                />
+              </div>
+              {(txSearch || txTypeFilter !== 'all' || txDateFrom || txDateTo) && (
+                <button
+                  onClick={() => { setTxSearch(''); setTxTypeFilter('all'); setTxDateFrom(''); setTxDateTo(''); }}
+                  className="text-xs text-slate-500 hover:text-red-500 font-medium px-2 py-2"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-14">
             <div className="flex flex-col items-center gap-3">
@@ -522,17 +635,17 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
               <RefreshCw className="w-4 h-4" /> Try Again
             </button>
           </div>
-        ) : transactions.length === 0 ? (
+        ) : filteredTransactions.length === 0 ? (
           <div className="text-center py-12 px-5">
             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
               <Receipt className="w-8 h-8 text-slate-300" />
             </div>
-            <p className="text-sm text-slate-600 font-semibold">No transactions yet</p>
-            <p className="text-xs text-slate-400 mt-1">Top up your wallet to see your transaction history here.</p>
+            <p className="text-sm text-slate-600 font-semibold">{transactions.length === 0 ? 'No transactions yet' : 'No matching transactions'}</p>
+            <p className="text-xs text-slate-400 mt-1">{transactions.length === 0 ? 'Top up your wallet to see your transaction history here.' : 'Try adjusting your search or filters.'}</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-50 max-h-[400px] overflow-y-auto">
-            {transactions.map(t => (
+            {filteredTransactions.map(t => (
               <TransactionRow key={t.id} t={t} onReceipt={(tx) => { setReceiptRef(tx.reference || `wt-${tx.id}`); setShowReceipt(true); }} />
             ))}
           </div>
@@ -1011,10 +1124,11 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [step, setStep] = useState<'form' | 'verify'>('form');
+  const [step, setStep] = useState<'form' | 'verify' | 'enable2fa'>('form');
   const [otpCode, setOtpCode] = useState('');
   const [otpError, setOtpError] = useState('');
   const [verifying, setVerifying] = useState(false);
+  const [checking2fa, setChecking2fa] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1028,7 +1142,21 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
     if (method === 'bank_transfer' && (!bankName.trim() || !accountNumber.trim() || !accountName.trim())) {
       setError('Fill in all bank details'); return;
     }
-    setStep('verify');
+
+    setChecking2fa(true);
+    try {
+      const { data: checkData } = await supabase.functions.invoke('manage-2fa', {
+        body: { action: 'verify-login', code: '__check__' },
+      });
+      if (checkData?.error === '2FA not enabled for this account') {
+        setStep('enable2fa');
+      } else {
+        setStep('verify');
+      }
+    } catch {
+      setStep('verify');
+    }
+    setChecking2fa(false);
   };
 
   const handleVerifyAndSubmit = async (e: React.FormEvent) => {
@@ -1092,6 +1220,52 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
             {method === 'cash' && ' You\'ll be contacted to arrange a cash pickup once approved.'}
             You\'ll be notified when the status changes.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'enable2fa') {
+    return (
+      <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn">
+        <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] flex flex-col animate-slideUp">
+          <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-amber-500" />
+              <h2 className="text-lg font-bold text-slate-900">2FA Required</h2>
+            </div>
+            <button onClick={() => { setStep('form'); setOtpCode(''); setOtpError(''); }} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"><X className="w-5 h-5 text-slate-500" /></button>
+          </div>
+          <div className="overflow-y-auto flex-1 px-5 py-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-5">
+                <ShieldCheck className="w-8 h-8 text-amber-500" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">Enable 2FA to withdraw</h3>
+              <p className="text-sm text-slate-500 leading-relaxed mb-5">
+                Two-factor authentication is required for withdrawals to protect your funds. Please enable it in your account settings first.
+              </p>
+              <div className="bg-slate-50 rounded-xl p-4 text-left mb-5">
+                <ol className="space-y-2 text-xs text-slate-600">
+                  <li className="flex gap-2"><span className="font-bold text-slate-800">1.</span> Go to Account Settings</li>
+                  <li className="flex gap-2"><span className="font-bold text-slate-800">2.</span> Open the Security tab</li>
+                  <li className="flex gap-2"><span className="font-bold text-slate-800">3.</span> Enable Two-Factor Authentication</li>
+                  <li className="flex gap-2"><span className="font-bold text-slate-800">4.</span> Return here to complete your withdrawal</li>
+                </ol>
+              </div>
+              <button
+                onClick={() => { window.location.hash = 'account'; window.location.href = '/?page=account'; }}
+                className="w-full py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <ShieldCheck className="w-5 h-5" />
+                Go to Account Settings
+              </button>
+              <button type="button" onClick={() => { setStep('form'); setOtpCode(''); setOtpError(''); }}
+                className="w-full py-2.5 text-sm text-slate-500 font-medium hover:text-slate-700 transition-colors mt-2">
+                Back to form
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1265,10 +1439,10 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
               <p className="text-xs text-blue-600 leading-relaxed">All withdrawal requests are reviewed by our finance team. Mobile money payouts are typically processed within minutes after approval.</p>
             </div>
 
-            <button type="submit" disabled={submitting}
+            <button type="submit" disabled={submitting || checking2fa}
               className="w-full py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-              {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
-              {submitting ? 'Submitting…' : 'Continue to Verification'}
+              {submitting || checking2fa ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
+              {checking2fa ? 'Checking…' : submitting ? 'Submitting…' : 'Continue to Verification'}
             </button>
           </form>
         </div>

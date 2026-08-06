@@ -1,11 +1,12 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Wallet, ArrowDownCircle, ArrowUpCircle, Search, Loader2, X,
   Plus, TrendingUp, Users, DollarSign, Filter, CheckCircle2,
-  CreditCard, RefreshCw,
+  CreditCard, RefreshCw, Receipt as ReceiptIcon, Download, Calendar,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard } from '../components/ui';
+import { ReceiptModal } from '../../components/ReceiptModal';
 
 interface Transaction {
   id: string;
@@ -69,6 +70,10 @@ export function WalletManagementPage() {
   const [userResults, setUserResults] = useState<{ id: string; full_name: string | null; email: string | null }[]>([]);
   const [monimePayments, setMonimePayments] = useState<MonimePayment[]>([]);
   const [monimeLoading, setMonimeLoading] = useState(false);
+  const [receiptRef, setReceiptRef] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [showDateFilter, setShowDateFilter] = useState(false);
 
 interface MonimePayment {
   id: string;
@@ -152,8 +157,16 @@ interface MonimePayment {
     loadTransactions();
   };
 
-  const filtered = transactions.filter(t => {
+  const filtered = useMemo(() => transactions.filter(t => {
     if (typeFilter !== 'all' && t.type !== typeFilter) return false;
+    if (dateFrom) {
+      const from = new Date(dateFrom); from.setHours(0, 0, 0, 0);
+      if (new Date(t.created_at) < from) return false;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo); to.setHours(23, 59, 59, 999);
+      if (new Date(t.created_at) > to) return false;
+    }
     if (search) {
       const q = search.toLowerCase();
       const name = t.profiles?.full_name || '';
@@ -161,7 +174,29 @@ interface MonimePayment {
       return name.toLowerCase().includes(q) || email.toLowerCase().includes(q) || (t.reference || '').toLowerCase().includes(q);
     }
     return true;
-  });
+  }), [transactions, typeFilter, dateFrom, dateTo, search]);
+
+  const exportCSV = () => {
+    const headers = ['Client', 'Email', 'Type', 'Amount (SLE)', 'Method', 'Reference', 'Status', 'Date'];
+    const rows = filtered.map(t => [
+      (t.profiles?.full_name || 'Unknown').replace(/,/g, ';'),
+      (t.profiles?.email || '').replace(/,/g, ';'),
+      t.type || '',
+      Number(t.amount_sle).toFixed(2),
+      (t.method || '').replace(/_/g, ' '),
+      t.reference || '',
+      t.status || '',
+      new Date(t.created_at).toISOString(),
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `admin-wallet-transactions-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -201,20 +236,64 @@ interface MonimePayment {
           />
         </div>
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-slate-400" />
-          <select
-            value={typeFilter}
-            onChange={e => setTypeFilter(e.target.value)}
-            className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+          <button
+            onClick={() => setShowDateFilter(f => !f)}
+            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${showDateFilter || dateFrom || dateTo ? 'text-emerald-600 bg-emerald-50' : 'text-slate-500 bg-white border border-slate-200 hover:bg-slate-50'}`}
           >
-            <option value="all">All Types</option>
-            <option value="topup">Top-Ups</option>
-            <option value="payment">Payments</option>
-            <option value="refund">Refunds</option>
-            <option value="adjustment">Adjustments</option>
-          </select>
+            <Calendar className="w-4 h-4" />
+            Date
+          </button>
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-slate-400" />
+            <select
+              value={typeFilter}
+              onChange={e => setTypeFilter(e.target.value)}
+              className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+            >
+              <option value="all">All Types</option>
+              <option value="topup">Top-Ups</option>
+              <option value="payment">Payments</option>
+              <option value="refund">Refunds</option>
+              <option value="adjustment">Adjustments</option>
+            </select>
+          </div>
+          <button
+            onClick={exportCSV}
+            disabled={filtered.length === 0}
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-40"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
         </div>
       </div>
+
+      {showDateFilter && (
+        <div className="bg-slate-50/50 rounded-xl p-4 flex flex-wrap items-center gap-2">
+          <Calendar className="w-4 h-4 text-slate-400" />
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+          />
+          <span className="text-xs text-slate-400">to</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={e => setDateTo(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+          />
+          {(dateFrom || dateTo) && (
+            <button
+              onClick={() => { setDateFrom(''); setDateTo(''); }}
+              className="text-xs text-slate-500 hover:text-red-500 font-medium px-2 py-2"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Transactions Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -239,6 +318,7 @@ interface MonimePayment {
                   <th className="text-left px-5 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider hidden md:table-cell">Reference</th>
                   <th className="text-left px-5 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider hidden lg:table-cell">Date</th>
                   <th className="text-center px-5 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider">Status</th>
+                  <th className="text-center px-5 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider">Receipt</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -281,6 +361,17 @@ interface MonimePayment {
                         }`}>
                           {t.status}
                         </span>
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        {t.status === 'completed' && (
+                          <button
+                            onClick={() => setReceiptRef(t.reference || `wt-${t.id}`)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors inline-flex"
+                            title="View receipt"
+                          >
+                            <ReceiptIcon className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -478,6 +569,14 @@ interface MonimePayment {
             </div>
           </div>
         </div>
+      )}
+
+      {receiptRef && (
+        <ReceiptModal
+          paymentReference={receiptRef}
+          onClose={() => setReceiptRef(null)}
+          onViewBookings={() => setReceiptRef(null)}
+        />
       )}
     </div>
   );

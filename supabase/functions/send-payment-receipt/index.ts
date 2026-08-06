@@ -23,6 +23,9 @@ interface ReceiptData {
 function formatPurpose(purpose: string): string {
   switch (purpose) {
     case "wallet_topup": return "Wallet Top-Up";
+    case "wallet_payment": return "Wallet Payment";
+    case "wallet_refund": return "Wallet Refund";
+    case "wallet_adjustment": return "Wallet Adjustment";
     case "invoice": return "Invoice Payment";
     case "subscription": return "Subscription Payment";
     default: return "Payment";

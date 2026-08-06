@@ -58,15 +58,29 @@ export function ReceiptModal({ paymentReference, onClose, onViewBookings }: Rece
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // Poll for the receipt — the edge function creates it asynchronously after payment confirmation
+      // Try looking up by wallet_transaction_id first (fast path for wallet txns)
+      const wtId = paymentReference.startsWith('wt-') ? paymentReference.slice(3) : null;
       for (let i = 0; i < 15; i++) {
-        const { data } = await supabase
+        if (wtId) {
+          const { data } = await supabase
+            .from('payment_receipts')
+            .select('*')
+            .eq('wallet_transaction_id', wtId)
+            .maybeSingle();
+          if (!cancelled && data) {
+            setReceipt(data as Receipt);
+            setLoading(false);
+            return;
+          }
+        }
+        // Fall back to reference lookup
+        const { data: refData } = await supabase
           .from('payment_receipts')
           .select('*')
           .eq('reference', paymentReference)
           .maybeSingle();
-        if (!cancelled && data) {
-          setReceipt(data as Receipt);
+        if (!cancelled && refData) {
+          setReceipt(refData as Receipt);
           setLoading(false);
           return;
         }
