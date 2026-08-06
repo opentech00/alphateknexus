@@ -28,6 +28,9 @@ interface ReceiptModalProps {
 
 const PURPOSE_LABELS: Record<string, string> = {
   wallet_topup: 'Wallet Top-Up',
+  wallet_payment: 'Wallet Payment',
+  wallet_refund: 'Wallet Refund',
+  wallet_adjustment: 'Wallet Adjustment',
   invoice: 'Invoice Payment',
   subscription: 'Subscription Payment',
 };

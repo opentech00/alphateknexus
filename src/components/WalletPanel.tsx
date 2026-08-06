@@ -3,7 +3,7 @@ import {
   Wallet, Plus, ArrowDownCircle, ArrowUpCircle, Loader2, X,
   CreditCard, Receipt, History, TrendingUp, Smartphone,
   Trash2, AlertTriangle, XCircle, CheckCircle2, ExternalLink,
-  ShoppingBag, RefreshCw, Banknote, Landmark, Clock,
+  ShoppingBag, RefreshCw, Banknote, Landmark, Clock, ShieldCheck, KeyRound,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
@@ -45,7 +45,7 @@ function formatTime(d: string) {
   return new Date(d).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
-function TransactionRow({ t }: { t: Transaction }) {
+function TransactionRow({ t, onReceipt }: { t: Transaction; onReceipt?: (t: Transaction) => void }) {
   const meta = TYPE_META[t.type] ?? TYPE_META.adjustment;
   const Icon = meta.icon;
   const isCredit = Number(t.amount_sle) > 0;
@@ -81,13 +81,24 @@ function TransactionRow({ t }: { t: Transaction }) {
           )}
         </p>
       </div>
-      <div className="text-right flex-shrink-0">
-        <p className={`text-sm font-bold ${amountColor}`}>
-          {isCredit ? '+' : ''}{fmtMoney(Number(t.amount_sle))}
-        </p>
-        {t.balance_after != null && (
-          <p className="text-[10px] text-slate-400 mt-0.5">Bal: {fmtMoney(Number(t.balance_after))}</p>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {t.status === 'completed' && onReceipt && (
+          <button
+            onClick={() => onReceipt(t)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+            title="View receipt"
+          >
+            <Receipt className="w-4 h-4" />
+          </button>
         )}
+        <div className="text-right">
+          <p className={`text-sm font-bold ${amountColor}`}>
+            {isCredit ? '+' : ''}{fmtMoney(Number(t.amount_sle))}
+          </p>
+          {t.balance_after != null && (
+            <p className="text-[10px] text-slate-400 mt-0.5">Bal: {fmtMoney(Number(t.balance_after))}</p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -117,8 +128,11 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
   const [successProgress, setSuccessProgress] = useState(0);
   const [animDone, setAnimDone] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [receiptRef, setReceiptRef] = useState('');
   const [retriesLeft, setRetriesLeft] = useState(3);
   const [retrying, setRetrying] = useState(false);
+  const [balancePulse, setBalancePulse] = useState(false);
+  const prevBalanceRef = useRef(0);
   const popupRef = useRef<Window | null>(null);
   const pollCancelledRef = useRef(false);
 
@@ -148,12 +162,17 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
   useEffect(() => {
     loadTransactions();
 
-    // Realtime: auto-refresh when a new wallet transaction is inserted
+    // Realtime: auto-refresh when wallet transactions are inserted or updated
     const channel = supabase
       .channel('wallet-transactions-realtime')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'wallet_transactions' },
+        () => loadTransactions(),
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'wallet_transactions' },
         () => loadTransactions(),
       )
       .subscribe();
@@ -197,6 +216,15 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
     .reduce((sum, t) => sum + Number(t.amount_sle), 0);
 
   const availableBalance = Math.max(0, balance - pendingWithdrawalTotal);
+
+  useEffect(() => {
+    if (prevBalanceRef.current !== 0 && prevBalanceRef.current !== availableBalance) {
+      setBalancePulse(true);
+      const t = setTimeout(() => setBalancePulse(false), 800);
+      return () => clearTimeout(t);
+    }
+    prevBalanceRef.current = availableBalance;
+  }, [availableBalance]);
 
   const totalTopUps = transactions
     .filter(t => t.type === 'topup' && t.status === 'completed')
@@ -346,6 +374,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
     setSuccessProgress(0);
     setAnimDone(false);
     setShowReceipt(false);
+    setReceiptRef('');
     setRetriesLeft(3);
   };
 
@@ -381,7 +410,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
           <div className="flex items-start justify-between mb-6">
             <div>
               <p className="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-1">Available Balance</p>
-              <p className="text-4xl font-bold tracking-tight">{fmtMoney(availableBalance)}</p>
+              <p className={`text-4xl font-bold tracking-tight transition-all duration-500 ${balancePulse ? 'scale-110 text-emerald-300' : 'scale-100'}`}>{fmtMoney(availableBalance)}</p>
               {pendingWithdrawalTotal > 0 && (
                 <p className="text-xs text-amber-400 mt-1">
                   {fmtMoney(pendingWithdrawalTotal)} in pending withdrawals
@@ -503,7 +532,9 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
           </div>
         ) : (
           <div className="divide-y divide-slate-50 max-h-[400px] overflow-y-auto">
-            {transactions.map(t => <TransactionRow key={t.id} t={t} />)}
+            {transactions.map(t => (
+              <TransactionRow key={t.id} t={t} onReceipt={(tx) => { setReceiptRef(tx.reference || `wt-${tx.id}`); setShowReceipt(true); }} />
+            ))}
           </div>
         )}
       </div>
@@ -894,11 +925,11 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
         </div>
       )}
 
-      {showReceipt && payReference && (
+      {showReceipt && (receiptRef || payReference) && (
         <ReceiptModal
-          paymentReference={payReference}
-          onClose={() => setShowReceipt(false)}
-          onViewBookings={() => { handleClosePayment(); setShowReceipt(false); }}
+          paymentReference={receiptRef || payReference}
+          onClose={() => { setShowReceipt(false); setReceiptRef(''); }}
+          onViewBookings={() => { handleClosePayment(); setShowReceipt(false); setReceiptRef(''); }}
         />
       )}
 
@@ -980,6 +1011,10 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [step, setStep] = useState<'form' | 'verify'>('form');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [verifying, setVerifying] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -993,31 +1028,53 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
     if (method === 'bank_transfer' && (!bankName.trim() || !accountNumber.trim() || !accountName.trim())) {
       setError('Fill in all bank details'); return;
     }
+    setStep('verify');
+  };
 
-    setSubmitting(true);
-    const payoutDetails: Record<string, string> = {};
-    if (method === 'mobile_money') {
-      payoutDetails.phone = phoneNumber.trim();
-      payoutDetails.provider_id = momoProvider;
-      payoutDetails.provider_name = momoProvider === 'm17' ? 'Orange Money' : 'Africell Money';
+  const handleVerifyAndSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOtpError('');
+    if (otpCode.length !== 6) { setOtpError('Enter the 6-digit code'); return; }
+
+    setVerifying(true);
+    try {
+      const { data: verifyData, error: verifyErr } = await supabase.functions.invoke('manage-2fa', {
+        body: { action: 'verify-login', code: otpCode },
+      });
+      if (verifyErr || !verifyData?.success) {
+        setOtpError(verifyData?.error || 'Invalid code. Please try again.');
+        setVerifying(false);
+        return;
+      }
+
+      const amt = parseFloat(amount);
+      const payoutDetails: Record<string, string> = {};
+      if (method === 'mobile_money') {
+        payoutDetails.phone = phoneNumber.trim();
+        payoutDetails.provider_id = momoProvider;
+        payoutDetails.provider_name = momoProvider === 'm17' ? 'Orange Money' : 'Africell Money';
+      }
+      if (method === 'bank_transfer') {
+        payoutDetails.bank_name = bankName.trim();
+        payoutDetails.account_number = accountNumber.trim();
+        payoutDetails.account_name = accountName.trim();
+      }
+
+      const { error: err } = await supabase.from('withdrawal_requests').insert({
+        amount_sle: amt,
+        payout_method: method,
+        payout_details: payoutDetails,
+        status: 'pending',
+      });
+
+      setVerifying(false);
+      if (err) { setOtpError('We could not process your withdrawal. Please try again.'); return; }
+      setSuccess(true);
+      setTimeout(onSubmitted, 2000);
+    } catch {
+      setOtpError('Something went wrong. Please try again.');
+      setVerifying(false);
     }
-    if (method === 'bank_transfer') {
-      payoutDetails.bank_name = bankName.trim();
-      payoutDetails.account_number = accountNumber.trim();
-      payoutDetails.account_name = accountName.trim();
-    }
-
-    const { error: err } = await supabase.from('withdrawal_requests').insert({
-      amount_sle: amt,
-      payout_method: method,
-      payout_details: payoutDetails,
-      status: 'pending',
-    });
-
-    setSubmitting(false);
-    if (err) { setError('We could not process your withdrawal. Please try again.'); return; }
-    setSuccess(true);
-    setTimeout(onSubmitted, 2000);
   };
 
   if (success) {
@@ -1035,6 +1092,59 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
             {method === 'cash' && ' You\'ll be contacted to arrange a cash pickup once approved.'}
             You\'ll be notified when the status changes.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'verify') {
+    return (
+      <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn">
+        <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] flex flex-col animate-slideUp">
+          <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-600" />
+              <h2 className="text-lg font-bold text-slate-900">Verify Withdrawal</h2>
+            </div>
+            <button onClick={() => { setStep('form'); setOtpCode(''); setOtpError(''); }} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"><X className="w-5 h-5 text-slate-500" /></button>
+          </div>
+          <div className="overflow-y-auto flex-1 px-5 py-5">
+            <div className="bg-slate-50 rounded-xl p-4 mb-5 flex items-center justify-between">
+              <span className="text-xs text-slate-500 font-medium">Amount</span>
+              <span className="text-lg font-bold text-slate-800">{fmtMoney(parseFloat(amount) || 0)}</span>
+            </div>
+            <form onSubmit={handleVerifyAndSubmit} className="space-y-4">
+              {otpError && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-center gap-2"><XCircle className="w-4 h-4 flex-shrink-0" />{otpError}</div>}
+              <div className="text-center">
+                <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <KeyRound className="w-7 h-7 text-emerald-600" />
+                </div>
+                <h3 className="text-base font-bold text-slate-800 mb-1.5">Enter your 2FA code</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">Enter the 6-digit code from your authenticator app to confirm this withdrawal of <span className="font-semibold text-slate-700">{fmtMoney(parseFloat(amount) || 0)}</span>.</p>
+              </div>
+              <div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="000000"
+                  className="w-full text-center text-2xl font-bold tracking-[0.5em] px-4 py-3.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                  autoFocus
+                />
+              </div>
+              <button type="submit" disabled={verifying || otpCode.length !== 6}
+                className="w-full py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                {verifying ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
+                {verifying ? 'Verifying…' : 'Confirm & Submit'}
+              </button>
+              <button type="button" onClick={() => { setStep('form'); setOtpCode(''); setOtpError(''); }}
+                className="w-full py-2.5 text-sm text-slate-500 font-medium hover:text-slate-700 transition-colors">
+                Back to form
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     );
@@ -1157,8 +1267,8 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
 
             <button type="submit" disabled={submitting}
               className="w-full py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-              {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Banknote className="w-5 h-5" />}
-              {submitting ? 'Submitting…' : 'Submit Request'}
+              {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
+              {submitting ? 'Submitting…' : 'Continue to Verification'}
             </button>
           </form>
         </div>
