@@ -78,33 +78,36 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
     };
 
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setError('Please sign in to submit your request.');
-      setLoading(false);
-      return;
-    }
-    const { data: bookingRow, error: err } = await supabase.from('bookings').insert({
-      service_id: service.id,
-      user_id: user.id,
-      contact_name: contactName.trim(),
-      contact_phone: phone.trim(),
-      contact_email: email.trim() || null,
-      scheduled_date: neededBy || new Date().toISOString().split('T')[0],
-      scheduled_time: null,
-      location: deliveryAddress.trim() || null,
-      notes: description.trim() || null,
-      details,
-      payment_status: 'pending',
-      status: 'pending_review',
-    }).select('id').single();
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setError('Please sign in to submit your request.');
+        return;
+      }
+      const { data: bookingRow, error: err } = await supabase.from('bookings').insert({
+        service_id: service.id,
+        user_id: user.id,
+        contact_name: contactName.trim(),
+        contact_phone: phone.trim(),
+        contact_email: email.trim() || null,
+        scheduled_date: neededBy || new Date().toISOString().split('T')[0],
+        scheduled_time: null,
+        location: deliveryAddress.trim() || null,
+        notes: description.trim() || null,
+        details,
+        payment_status: 'pending',
+        status: 'pending_review',
+      }).select('id').single();
 
-    if (err) {
-      setError(err.message);
-      setLoading(false);
-    } else {
-      setBookingId(bookingRow.id);
-      setStep('review_submitted');
+      if (err) {
+        setError(err.message);
+      } else {
+        setBookingId(bookingRow.id);
+        setStep('review_submitted');
+      }
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
@@ -374,8 +377,8 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
             Cancel
           </button>
           <button
-            type="submit"
-            form="proc-hire-form"
+            type="button"
+            onClick={(e) => handleSubmit(e as unknown as React.FormEvent)}
             disabled={loading}
             className="px-6 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >

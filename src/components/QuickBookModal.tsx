@@ -170,6 +170,7 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
       contact_phone: contactPhone,
       contact_email: null,
     });
+    setSubmitting(false);
   };
 
   const stepIndex = step === 'service' ? 0 : step === 'details' ? 1 : 2;

@@ -489,88 +489,82 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
     setError('');
     setPaymentError('');
 
-    // Validate required fields before insert
-    if (!formData.scheduled_date) {
-      setError('Please select a date before proceeding.');
-      setStep('form');
-      setLoading(false);
-      return;
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setError('You must be signed in to book a service.');
-      setLoading(false);
-      return;
-    }
-
-    const isCash = methodId === 'cash';
-
-    const { data: bookingData, error: insertError } = await supabase.from('bookings').insert({
-      service_id: service.id,
-      user_id: user.id,
-      contact_name: formData.contact_name,
-      contact_phone: formData.contact_phone,
-      contact_email: formData.contact_email || null,
-      scheduled_date: formData.scheduled_date,
-      scheduled_time: formData.scheduled_time || null,
-      location: formData.location || null,
-      notes: formData.notes || null,
-      status: 'pending_review',
-      payment_method: isCash ? 'cash' : 'monime',
-      payment_status: isCash ? 'pending_cash' : 'pending',
-    }).select('id').single();
-
-    if (insertError) {
-      setError(insertError.message);
-      setLoading(false);
-      return;
-    }
-
-    // Send booking confirmation email (fire-and-forget)
-    supabase.functions.invoke('send-booking-email', {
-      body: {
-        eventType: 'booking_confirmation',
-        bookingId: bookingData.id,
-        userId: user.id,
-        serviceName: service.name,
-        scheduledDate: formData.scheduled_date,
-        scheduledTime: formData.scheduled_time || null,
-        location: formData.location || null,
-      },
-    }).catch(() => {});
-
-    // Cash on Delivery: create a pending cash payment record, skip online checkout
-    if (isCash) {
-      const { error: payErr } = await supabase.from('payments').insert({
-        user_id: user.id,
-        payable_type: 'booking',
-        payable_id: bookingData.id,
-        amount_sle: SERVICE_FEE,
-        method: 'cash',
-        status: 'pending',
-      });
-      if (payErr) {
-        setPaymentError('Your booking was created but we could not record the cash payment request. Please contact support.');
-        setStep('payment_failed');
-        setLoading(false);
+    try {
+      // Validate required fields before insert
+      if (!formData.scheduled_date) {
+        setError('Please select a date before proceeding.');
+        setStep('form');
         return;
       }
-      setPayReference('');
-      setStep('success');
-      setLoading(false);
-      return;
-    }
 
-    // Online payment methods route through Monime checkout
-    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setError('You must be signed in to book a service.');
+        return;
+      }
+
+      const isCash = methodId === 'cash';
+
+      const { data: bookingData, error: insertError } = await supabase.from('bookings').insert({
+        service_id: service.id,
+        user_id: user.id,
+        contact_name: formData.contact_name,
+        contact_phone: formData.contact_phone,
+        contact_email: formData.contact_email || null,
+        scheduled_date: formData.scheduled_date,
+        scheduled_time: formData.scheduled_time || null,
+        location: formData.location || null,
+        notes: formData.notes || null,
+        status: 'pending_review',
+        payment_method: isCash ? 'cash' : 'monime',
+        payment_status: isCash ? 'pending_cash' : 'pending',
+      }).select('id').single();
+
+      if (insertError) {
+        setError(insertError.message);
+        return;
+      }
+
+      // Send booking confirmation email (fire-and-forget)
+      supabase.functions.invoke('send-booking-email', {
+        body: {
+          eventType: 'booking_confirmation',
+          bookingId: bookingData.id,
+          userId: user.id,
+          serviceName: service.name,
+          scheduledDate: formData.scheduled_date,
+          scheduledTime: formData.scheduled_time || null,
+          location: formData.location || null,
+        },
+      }).catch(() => {});
+
+      // Cash on Delivery: create a pending cash payment record, skip online checkout
+      if (isCash) {
+        const { error: payErr } = await supabase.from('payments').insert({
+          user_id: user.id,
+          payable_type: 'booking',
+          payable_id: bookingData.id,
+          amount_sle: SERVICE_FEE,
+          method: 'cash',
+          status: 'pending',
+        });
+        if (payErr) {
+          setPaymentError('Your booking was created but we could not record the cash payment request. Please contact support.');
+          setStep('payment_failed');
+          return;
+        }
+        setPayReference('');
+        setStep('success');
+        return;
+      }
+
+      // Online payment methods route through Monime checkout
       const result = await createMonimeCheckout(SERVICE_FEE, 'booking', bookingData.id, `BK-${bookingData.id.slice(0, 8)}`);
       setPayReference(result.reference);
       const popup = window.open(result.checkoutUrl, '_blank', 'width=500,height=700,scrollbars=yes');
       if (!popup) {
         setPaymentError('Popup was blocked. Please allow popups and try again. Your booking was created — you can complete payment from your bookings page.');
         setStep('payment_failed');
-        setLoading(false);
         return;
       }
       const pollResult = await pollPaymentStatus(result.reference);
@@ -582,19 +576,16 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
           'Payment could not be confirmed in time. You can retry from your bookings page.'
         );
         setStep('payment_failed');
-        setLoading(false);
         return;
       }
       await supabase.from('bookings').update({ payment_status: 'paid' }).eq('id', bookingData.id);
+      setStep('success');
     } catch (err: any) {
       setPaymentError(err.message || 'Payment failed. Your booking was created — you can retry from your bookings page.');
       setStep('payment_failed');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setStep('success');
-    setLoading(false);
   };
 
   // Success screen

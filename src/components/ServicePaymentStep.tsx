@@ -72,15 +72,18 @@ export function ServicePaymentStep({
     if (isBank) {
       if (!bankFile) {
         onFail('Please upload your bank payment slip, cheque, or deposit slip.');
+        setPaying(false);
         return;
       }
       const ext = bankFile.name.split('.').pop()?.toLowerCase() || '';
       if (!ALLOWED_BANK_EXTS.has(ext)) {
         onFail('Only PDF, PNG, and JPG files are accepted for bank payment proofs.');
+        setPaying(false);
         return;
       }
       if (bankFile.size > MAX_BANK_FILE_SIZE) {
         onFail('File exceeds 10MB limit.');
+        setPaying(false);
         return;
       }
 
