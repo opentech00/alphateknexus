@@ -90,11 +90,26 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const phone = withdrawal.payout_details?.phone;
+    const rawPhone = withdrawal.payout_details?.phone;
     const providerId = withdrawal.payout_details?.provider_id;
 
-    if (!phone) {
+    if (!rawPhone) {
       return new Response(JSON.stringify({ error: "No phone number on withdrawal request" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Normalise the phone to Sierra Leone international format without a plus (e.g. 23276123456)
+    let phone = String(rawPhone).replace(/[^0-9]/g, "");
+    if (phone.startsWith("232")) {
+      // already international
+    } else if (phone.startsWith("0")) {
+      phone = "232" + phone.slice(1);
+    } else if (phone.length === 8) {
+      phone = "232" + phone;
+    }
+    if (phone.length !== 11 || !phone.startsWith("232")) {
+      return new Response(JSON.stringify({ error: `Invalid phone number "${rawPhone}". Enter a valid Sierra Leone mobile number.` }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -142,7 +157,6 @@ Deno.serve(async (req: Request) => {
         "Content-Type": "application/json",
         "Idempotency-Key": idempotencyKey,
         "Monime-Space-Id": spaceId,
-        "Monime-Version": "caph.2025-08-23",
       },
       body: JSON.stringify({
         amount: {
@@ -161,17 +175,23 @@ Deno.serve(async (req: Request) => {
       }),
     });
 
-    const monimeData = await monimeRes.json();
+    const monimeText = await monimeRes.text();
+    let monimeData: any = {};
+    try { monimeData = JSON.parse(monimeText); } catch { monimeData = { raw: monimeText }; }
 
     if (!monimeRes.ok) {
-      // Rollback payout_status to allow retry
+      const errMsg = monimeData?.error?.message
+        || monimeData?.messages?.[0]?.text
+        || monimeData?.message
+        || monimeText
+        || `Monime API error ${monimeRes.status}`;
+      // Roll back so the payout can be retried
       await supabase.from("withdrawal_requests").update({
         payout_status: "failed",
-        admin_note: `Monime payout failed: ${monimeData?.error?.message || monimeRes.status}`,
+        admin_note: `Monime payout failed (${monimeRes.status}): ${String(errMsg).slice(0, 400)}`,
       }).eq("id", withdrawal_id);
 
-      const errMsg = monimeData?.error?.message || monimeData?.message || `Monime API error: ${monimeRes.status}`;
-      return new Response(JSON.stringify({ error: "Monime payout failed", details: errMsg }), {
+      return new Response(JSON.stringify({ error: `Monime payout failed: ${errMsg}` }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

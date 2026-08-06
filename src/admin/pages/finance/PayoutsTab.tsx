@@ -158,12 +158,22 @@ export function PayoutsTab() {
           body: { withdrawal_id: reviewModal.id },
         });
         if (payoutErr) {
-          setPayoutResult({ success: false, message: 'Failed to send Monime payout: ' + payoutErr.message });
+          let detail = payoutErr.message;
+          const ctx = (payoutErr as any).context;
+          if (ctx && typeof ctx.json === 'function') {
+            try {
+              const body = await ctx.json();
+              if (body?.error) detail = body.error;
+            } catch { /* keep generic message */ }
+          }
+          setPayoutResult({ success: false, message: detail });
+          load();
           setActionLoading(null);
           return;
         }
         if (payoutData?.error) {
           setPayoutResult({ success: false, message: payoutData.error });
+          load();
           setActionLoading(null);
           return;
         }
