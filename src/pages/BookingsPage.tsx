@@ -16,6 +16,7 @@ import { UnifiedCalendar } from '../components/UnifiedCalendar';
 import { BookingTrackingPage } from '../components/BookingTrackingPage';
 import { CancelDeleteBookingModal } from '../components/CancelDeleteBookingModal';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
+import { useServiceBrandingImages, fallbackServiceImage } from '../lib/media';
 
 interface Booking {
   id: string;
@@ -81,6 +82,7 @@ const ACTIVE_STATUSES = ['pending', 'pending_review', 'approved', 'confirmed', '
 
 export function BookingsPage({ onNavigate, onRebook, initialExpandId }: BookingsPageProps) {
   const { wallet_enabled } = useFeatureFlags();
+  const { images: serviceImages } = useServiceBrandingImages();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('all');
@@ -393,7 +395,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
                     const sc = statusConfig[booking.status] || statusConfig.pending;
                     const isSelected = selectedBookingId === booking.id;
                     const hasReview = reviewedBookings.has(booking.id);
-                    const serviceImage = SERVICE_IMAGES[booking.services?.slug] || '/service-smart-sort.webp';
+                    const serviceImage = serviceImages[booking.services?.slug] || fallbackServiceImage(booking.services?.slug || 'smart-sort');
                     return (
                       <button
                         key={booking.id}
@@ -507,7 +509,8 @@ function BookingDetailPanel({
   const sc = statusConfig[booking.status] || statusConfig.pending;
   const isCompleted = booking.status === 'completed';
   const isCancelled = booking.status === 'cancelled';
-  const serviceImage = SERVICE_IMAGES[booking.services?.slug] || '/service-smart-sort.webp';
+  const { images: svcImages } = useServiceBrandingImages();
+  const serviceImage = svcImages[booking.services?.slug] || fallbackServiceImage(booking.services?.slug || 'smart-sort');
 
   const detailTabs = [
     { id: 'overview' as const, label: 'Overview', icon: FileText },

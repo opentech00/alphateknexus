@@ -42,6 +42,7 @@ import { FieldJobReviewPage } from './pages/FieldJobReviewPage';
 import { FieldIncidentsPage } from './pages/FieldIncidentsPage';
 import { AdminSessionsPage } from './pages/AdminSessionsPage';
 import { TaskDelegationPage } from './pages/TaskDelegationPage';
+import { MediaLibraryPage } from './pages/MediaLibraryPage';
 
 function AdminContent() {
   const [currentPage, setCurrentPage] = useState('overview');
@@ -179,6 +180,8 @@ function AdminContent() {
         return <AdminSessionsPage />;
       case 'task-delegation':
         return <TaskDelegationPage />;
+      case 'media-library':
+        return <MediaLibraryPage />;
       case 'settings':
         return <SettingsPage />;
       case 'notification-log':

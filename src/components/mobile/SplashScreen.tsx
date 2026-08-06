@@ -3,6 +3,7 @@ import {
   Sparkles, Truck, Shield, ShoppingCart, Recycle, ArrowRight,
   CheckCircle2, Star,
 } from 'lucide-react';
+import { useAppLogo, useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
 
 interface SplashScreenProps {
   onGetStarted: () => void;
@@ -45,7 +46,8 @@ const SLIDES = [
     iconColor: 'text-emerald-600',
     accent: 'from-emerald-50 via-white to-white',
     bubbleColor: 'bg-emerald-100',
-    image: '/service-cleaning-janitorial.webp',
+    image: fallbackServiceImage('cleaning-janitorial'),
+    imageKey: 'cleaning-janitorial',
     features: ['Residential & Commercial', 'Certified cleaners', 'Flexible scheduling'],
   },
   {
@@ -64,7 +66,8 @@ const SLIDES = [
     iconColor: 'text-sky-600',
     accent: 'from-sky-50 via-white to-white',
     bubbleColor: 'bg-sky-100',
-    image: '/service-clearing-forwarding.webp',
+    image: fallbackServiceImage('clearing-forwarding'),
+    imageKey: 'clearing-forwarding',
     features: ['Import & Export', 'Customs documentation', 'Door-to-door delivery'],
   },
   {
@@ -83,7 +86,8 @@ const SLIDES = [
     iconColor: 'text-slate-700',
     accent: 'from-slate-50 via-white to-white',
     bubbleColor: 'bg-slate-200',
-    image: '/service-private-security.webp',
+    image: fallbackServiceImage('private-security'),
+    imageKey: 'private-security',
     features: ['Armed & unarmed guards', 'Event security', '24/7 availability'],
   },
   {
@@ -102,7 +106,8 @@ const SLIDES = [
     iconColor: 'text-green-600',
     accent: 'from-green-50 via-white to-white',
     bubbleColor: 'bg-green-100',
-    image: '/service-smart-sort.webp',
+    image: fallbackServiceImage('waste-management'),
+    imageKey: 'waste-management',
     features: ['Weekly pickups', 'Impact dashboard', 'Subscription plans'],
   },
   {
@@ -121,7 +126,8 @@ const SLIDES = [
     iconColor: 'text-amber-600',
     accent: 'from-amber-50 via-white to-white',
     bubbleColor: 'bg-amber-100',
-    image: '/service-procurement.webp',
+    image: fallbackServiceImage('procurement'),
+    imageKey: 'procurement',
     features: ['Request management', 'Vendor vetting', 'Transparent pricing'],
   },
 ] as const;
@@ -130,6 +136,8 @@ const TOTAL = SLIDES.length;
 const AUTO_INTERVAL = 4500;
 
 export function SplashScreen({ onGetStarted, onLogin }: SplashScreenProps) {
+  const { url: logoUrl } = useAppLogo();
+  const { images: serviceImages } = useServiceBrandingImages();
   const [current, setCurrent] = useState(0);
   const [animDir, setAnimDir] = useState<'next' | 'prev' | null>(null);
   const [transitioning, setTransitioning] = useState(false);
@@ -177,6 +185,7 @@ export function SplashScreen({ onGetStarted, onLogin }: SplashScreenProps) {
 
   const slide = SLIDES[current];
   const Icon = slide.icon;
+  const slideImage = ('imageKey' in slide && slide.imageKey && serviceImages[slide.imageKey]) || slide.image;
 
   const exitClass = animDir === 'next'
     ? 'animate-splash-exit-left'
@@ -208,7 +217,7 @@ export function SplashScreen({ onGetStarted, onLogin }: SplashScreenProps) {
           {/* Logo & badge row */}
           <div className="flex items-center justify-between px-6 pt-10 pb-2">
             <img
-              src="/alphateknexus_logo_transparent.webp"
+              src={logoUrl}
               alt="AlphaTek Nexus"
               className="h-8 object-contain"
             />
@@ -221,7 +230,7 @@ export function SplashScreen({ onGetStarted, onLogin }: SplashScreenProps) {
           <div className="relative flex-1 flex items-end justify-center overflow-hidden px-0">
             <img
               key={slide.id}
-              src={slide.image}
+              src={slideImage}
               alt={slide.badge}
               className={`w-full max-h-[52vh] object-cover object-top transition-opacity duration-300 ${imageLoaded[slide.id] ? 'opacity-100' : 'opacity-0'}`}
               onLoad={() => setImageLoaded(prev => ({ ...prev, [slide.id]: true }))}

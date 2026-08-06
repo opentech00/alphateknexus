@@ -7,6 +7,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { BottomSheet } from './BottomSheet';
 import { ReviewModal } from '../ReviewModal';
+import { useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
 
 interface Booking {
   id: string;
@@ -47,6 +48,7 @@ interface Props {
 }
 
 export function MobileServiceHistoryModal({ open, onClose, onRebook }: Props) {
+  const { images: serviceImages } = useServiceBrandingImages();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -163,7 +165,7 @@ export function MobileServiceHistoryModal({ open, onClose, onRebook }: Props) {
             ) : (
               filtered.map((booking, i) => {
                 const sc = statusConfig[booking.status] || statusConfig.pending;
-                const serviceImage = SERVICE_IMAGES[booking.services?.slug] || '/service-smart-sort.webp';
+                const serviceImage = serviceImages[booking.services?.slug] || fallbackServiceImage(booking.services?.slug || 'smart-sort');
                 const hasReview = reviewedBookings.has(booking.id);
                 return (
                   <div
@@ -307,7 +309,8 @@ function BookingDetailModal({
   onRebook: () => void;
 }) {
   const sc = statusConfig[booking.status] || statusConfig.pending;
-  const serviceImage = SERVICE_IMAGES[booking.services?.slug] || '/service-smart-sort.webp';
+  const { images: svcImages } = useServiceBrandingImages();
+  const serviceImage = svcImages[booking.services?.slug] || fallbackServiceImage(booking.services?.slug || 'smart-sort');
   const bookedOn = new Date(booking.created_at).toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric',
   });

@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import type { Service } from '../../types';
 import { ServiceDetailModal } from '../ServiceDetailModal';
+import { useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -29,11 +30,11 @@ interface ServiceMeta {
 }
 
 const SERVICE_META: ServiceMeta[] = [
-  { slug: 'clearing-forwarding', label: 'Clearing & Forwarding', icon: <Ship className="w-5 h-5" />,        image: '/service-clearing-forwarding.webp', defaultMode: 'hire',  hasQuote: true, hasHire: true },
-  { slug: 'procurement',         label: 'Procurement',            icon: <ShoppingCart className="w-5 h-5" />, image: '/service-procurement.webp',         defaultMode: 'quote', hasQuote: true, hasHire: true },
-  { slug: 'private-security',    label: 'Private Security',      icon: <Shield className="w-5 h-5" />,       image: '/service-private-security.webp',    defaultMode: 'hire',  hasQuote: true, hasHire: true },
-  { slug: 'cleaning-janitorial', label: 'Cleaning & Janitorial', icon: <Sparkles className="w-5 h-5" />,      image: '/service-cleaning-janitorial.webp', defaultMode: 'hire',  hasQuote: true, hasHire: true },
-  { slug: 'waste-management',    label: 'Smart Sort (Waste)',    icon: <Trash2 className="w-5 h-5" />,        image: '/service-smart-sort.webp',          defaultMode: 'pickup', hasQuote: true, hasHire: true, special: 'waste' },
+  { slug: 'clearing-forwarding', label: 'Clearing & Forwarding', icon: <Ship className="w-5 h-5" />,        image: fallbackServiceImage('clearing-forwarding'), defaultMode: 'hire',  hasQuote: true, hasHire: true },
+  { slug: 'procurement',         label: 'Procurement',            icon: <ShoppingCart className="w-5 h-5" />, image: fallbackServiceImage('procurement'),         defaultMode: 'quote', hasQuote: true, hasHire: true },
+  { slug: 'private-security',    label: 'Private Security',      icon: <Shield className="w-5 h-5" />,       image: fallbackServiceImage('private-security'),    defaultMode: 'hire',  hasQuote: true, hasHire: true },
+  { slug: 'cleaning-janitorial', label: 'Cleaning & Janitorial', icon: <Sparkles className="w-5 h-5" />,      image: fallbackServiceImage('cleaning-janitorial'), defaultMode: 'hire',  hasQuote: true, hasHire: true },
+  { slug: 'waste-management',    label: 'Smart Sort (Waste)',    icon: <Trash2 className="w-5 h-5" />,        image: fallbackServiceImage('waste-management'),    defaultMode: 'pickup', hasQuote: true, hasHire: true, special: 'waste' },
 ];
 
 const SERVICE_COLORS: Record<string, { bg: string; text: string; gradient: string }> = {
@@ -267,6 +268,7 @@ function BookingMiniCard({
 }
 
 export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props) {
+  const { images: serviceImages } = useServiceBrandingImages();
   const { profile } = useAuth();
   const [services, setServices] = useState<Service[]>([]);
   const [bookings, setBookings] = useState<HomeBooking[]>([]);

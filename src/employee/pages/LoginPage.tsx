@@ -1,9 +1,11 @@
 import { useState, FormEvent } from 'react';
 import { LogIn, Eye, EyeOff, AlertCircle, Loader2, User } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
+import { useAppLogo } from '../../lib/media';
 
 export function LoginPage() {
   const { signIn } = useAuth();
+  const { url: logoUrl } = useAppLogo();
   const [employeeId, setEmployeeId] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
@@ -42,7 +44,7 @@ export function LoginPage() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4 bg-white shadow-lg shadow-emerald-500/10 overflow-hidden">
             <img
-              src="/alphateknexus_logo_transparent.webp"
+              src={logoUrl}
               alt="Alphatek Nexus"
               className="w-full h-full object-contain p-1"
             />

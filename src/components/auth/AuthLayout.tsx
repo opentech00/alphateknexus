@@ -1,8 +1,10 @@
 import { useState, useEffect, ReactNode } from 'react';
 import { Sparkles } from 'lucide-react';
+import { useAppLogo, useLoginCarouselImages, fallbackLoginImage } from '../../lib/media';
 
 export interface AuthSlide {
   src: string;
+  key?: string;
   title: string;
   desc: string;
   badge?: string;
@@ -10,31 +12,36 @@ export interface AuthSlide {
 
 const DEFAULT_SLIDES: AuthSlide[] = [
   {
-    src: '/login-smart-sort.webp',
+    src: fallbackLoginImage('smart-sort'),
+    key: 'smart-sort',
     title: 'Smart Sort — Waste Management',
     desc: 'Recycling, bin subscriptions and scheduled pickups for a cleaner city.',
     badge: 'SMART SORT',
   },
   {
-    src: '/login-clearing-forwarding.webp',
+    src: fallbackLoginImage('clearing-forwarding'),
+    key: 'clearing-forwarding',
     title: 'Clearing & Forwarding',
     desc: 'Import and export logistics, customs clearance and cargo handling at the port.',
     badge: 'LOGISTICS',
   },
   {
-    src: '/login-private-security.webp',
+    src: fallbackLoginImage('private-security'),
+    key: 'private-security',
     title: 'Private Security',
     desc: 'Trained guards and surveillance for homes, offices and industrial sites.',
     badge: 'SECURITY',
   },
   {
-    src: '/login-cleaning-janitorial.webp',
+    src: fallbackLoginImage('cleaning-janitorial'),
+    key: 'cleaning-janitorial',
     title: 'Cleaning & Janitorial',
     desc: 'Professional cleaning crews for offices, estates and commercial spaces.',
     badge: 'CLEANING',
   },
   {
-    src: '/login-procurement.webp',
+    src: fallbackLoginImage('procurement'),
+    key: 'procurement',
     title: 'Procurement',
     desc: 'Sourcing, supply chain management and inventory for businesses.',
     badge: 'PROCUREMENT',
@@ -50,15 +57,23 @@ interface AuthLayoutProps {
 }
 
 export function AuthLayout({ children, slides = DEFAULT_SLIDES, heroTitle, heroDesc }: AuthLayoutProps) {
+  const { url: logoUrl } = useAppLogo();
+  const { images: loginImages } = useLoginCarouselImages();
   const [slideIdx, setSlideIdx] = useState(0);
+
+  // Merge dynamic login carousel images from media library with defaults
+  const resolvedSlides = slides.map((s) => ({
+    ...s,
+    src: (s.key && loginImages[s.key]) ? loginImages[s.key] : s.src,
+  }));
 
   useEffect(() => {
     if (heroTitle) return; // static hero, no rotation
-    const t = setInterval(() => setSlideIdx((i) => (i + 1) % slides.length), 5000);
+    const t = setInterval(() => setSlideIdx((i) => (i + 1) % resolvedSlides.length), 5000);
     return () => clearInterval(t);
-  }, [slides.length, heroTitle]);
+  }, [resolvedSlides.length, heroTitle]);
 
-  const current = slides[slideIdx];
+  const current = resolvedSlides[slideIdx];
   const showCarousel = !heroTitle;
 
   return (
@@ -80,7 +95,7 @@ export function AuthLayout({ children, slides = DEFAULT_SLIDES, heroTitle, heroD
           ))
         ) : (
           <img
-            src={slides[0].src}
+            src={resolvedSlides[0].src}
             alt={heroTitle}
             width={800}
             height={1200}
@@ -92,7 +107,7 @@ export function AuthLayout({ children, slides = DEFAULT_SLIDES, heroTitle, heroD
         {/* Logo watermark */}
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center">
           <img
-            src="/alphateknexus_logo_transparent.webp"
+            src={logoUrl}
             alt="Alphatek Nexus"
             width={48}
             height={48}
@@ -133,7 +148,7 @@ export function AuthLayout({ children, slides = DEFAULT_SLIDES, heroTitle, heroD
           {/* Slide indicators */}
           {showCarousel && (
             <div className="flex gap-1.5 lg:gap-2 mt-2 lg:mt-0">
-              {slides.map((_, i) => (
+              {resolvedSlides.map((_, i) => (
                 <button
                   key={i}
                   type="button"

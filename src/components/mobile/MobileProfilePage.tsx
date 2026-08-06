@@ -16,6 +16,7 @@ import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { AddressPage } from '../AddressPage';
 import { PremiumBenefitsPage } from '../../pages/PremiumBenefitsPage';
 import { BottomSheet } from './BottomSheet';
+import { useAppLogo } from '../../lib/media';
 import { MobilePaymentMethodModal } from './MobilePaymentMethodModal';
 import { MobileServiceHistoryModal } from './MobileServiceHistoryModal';
 
@@ -38,6 +39,7 @@ interface Stats {
 
 export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebook }: Props) {
   const { profile, user, isAdmin, signOut } = useAuth();
+  const { url: logoUrl } = useAppLogo();
   const { referral_enabled, wallet_enabled } = useFeatureFlags();
   const [stats, setStats] = useState<Stats>({
     total: 0, completed: 0,
@@ -144,7 +146,7 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
       {/* ── Hero Card ── */}
       <div className="relative overflow-hidden bg-blue-700 mx-4 mt-4 rounded-3xl shadow-xl shadow-blue-900/20">
         <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-[0.07] pointer-events-none select-none">
-          <img src="/alphateknexus_logo_transparent.webp" alt="" className="w-32 opacity-80" />
+          <img src={logoUrl} alt="" className="w-32 opacity-80" />
         </div>
         <div className="relative px-5 pt-6 pb-0">
           <div className="flex items-center gap-4 mb-4">

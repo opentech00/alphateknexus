@@ -9,6 +9,7 @@ import { supabase } from '../../lib/supabase';
 import type { Service } from '../../types';
 import { ServiceDetailModal } from '../ServiceDetailModal';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
+import { useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
 
 interface Props {
   onSelectService: (svc: Service, mode?: 'hire' | 'quote' | 'pickup' | 'subscribe') => void;
@@ -37,7 +38,7 @@ interface ServiceMeta {
 const SERVICE_META: ServiceMeta[] = [
   {
     slug: 'clearing-forwarding', label: 'Clearing & Forwarding', shortLabel: 'Clearing',
-    icon: Ship, image: '/service-clearing-forwarding.webp', category: 'C&F',
+    icon: Ship, image: fallbackServiceImage('clearing-forwarding'), category: 'C&F',
     responseTime: '48h response', duration: '2–5 business days',
     features: ['Customs Documentation', 'Port Clearance', 'Cargo Tracking', 'Insurance'],
     defaultMode: 'hire', hasQuote: true, hasHire: true,
@@ -45,7 +46,7 @@ const SERVICE_META: ServiceMeta[] = [
   },
   {
     slug: 'procurement', label: 'Procurement', shortLabel: 'Procurement',
-    icon: ShoppingCart, image: '/service-procurement.webp', category: 'Procurement',
+    icon: ShoppingCart, image: fallbackServiceImage('procurement'), category: 'Procurement',
     responseTime: '48h response', duration: 'Project-based',
     features: ['Strategic Sourcing', 'Vendor Management', 'Cost Analysis', 'Supply Chain'],
     defaultMode: 'quote', hasQuote: true, hasHire: true,
@@ -53,7 +54,7 @@ const SERVICE_META: ServiceMeta[] = [
   },
   {
     slug: 'private-security', label: 'Private Security', shortLabel: 'Security',
-    icon: Shield, image: '/service-private-security.webp', category: 'Security',
+    icon: Shield, image: fallbackServiceImage('private-security'), category: 'Security',
     responseTime: '24h deploy', duration: 'Contract-based',
     features: ['Armed & Unarmed Guards', 'CCTV Monitoring', 'Access Control', 'Event Security'],
     defaultMode: 'hire', hasQuote: true, hasHire: true,
@@ -61,7 +62,7 @@ const SERVICE_META: ServiceMeta[] = [
   },
   {
     slug: 'cleaning-janitorial', label: 'Cleaning & Janitorial', shortLabel: 'Cleaning',
-    icon: Sparkles, image: '/service-cleaning-janitorial.webp', category: 'Cleaning',
+    icon: Sparkles, image: fallbackServiceImage('cleaning-janitorial'), category: 'Cleaning',
     responseTime: 'Same-day', duration: 'Per session / Monthly',
     features: ['Deep Cleaning', 'Office Maintenance', 'Carpet & Upholstery', 'Sanitization'],
     defaultMode: 'hire', hasQuote: true, hasHire: true,
@@ -69,7 +70,7 @@ const SERVICE_META: ServiceMeta[] = [
   },
   {
     slug: 'waste-management', label: 'Smart Sort (Waste)', shortLabel: 'Smart Sort',
-    icon: Trash2, image: '/service-smart-sort.webp', category: 'Smart Sort',
+    icon: Trash2, image: fallbackServiceImage('waste-management'), category: 'Smart Sort',
     responseTime: 'Same-day', duration: 'Ongoing service',
     features: ['Scheduled Collection', 'Recycling', 'Disposal Certs', 'Route Tracking'],
     defaultMode: 'pickup', hasQuote: true, hasHire: true, special: 'waste',
@@ -85,6 +86,7 @@ const CATEGORY_ICONS: Record<string, typeof Ship> = {
 interface ServiceRating { avg: number; count: number }
 
 export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
+  const { images: serviceImages } = useServiceBrandingImages();
   const { wallet_enabled } = useFeatureFlags();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);

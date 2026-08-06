@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Home, CalendarDays, Wallet, UserCircle, ChevronLeft,
 } from 'lucide-react';
+import { useAppLogo } from '../../lib/media';
 import { NotificationsPanel } from '../NotificationsPanel';
 import { MobileHome } from './MobileHome';
 import { MobileBookingsPage } from './MobileBookingsPage';
@@ -37,6 +38,7 @@ const PAGE_TITLE: Record<MobilePage, string> = {
 
 export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook }: Props) {
   const { wallet_enabled } = useFeatureFlags();
+  const { url: logoUrl } = useAppLogo();
   const [mobilePage, setMobilePage] = useState<MobilePage>('home');
   const [pageKey, setPageKey] = useState(0);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
           ) : (
             <button onClick={() => handleSetPage('home')} className="active:scale-95 transition-transform no-select">
               <img
-                src="/alphateknexus_logo_transparent.webp"
+                src={logoUrl}
                 alt="Alphatek Nexus"
                 className="h-7 object-contain"
               />

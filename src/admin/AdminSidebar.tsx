@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, CalendarDays, Users, Building2, Settings,
   LogOut, Menu, X, ChevronRight, ChevronDown,
@@ -6,11 +6,12 @@ import {
   Briefcase, CreditCard, UserCog, History, Contact, Database,
   Receipt as ReceiptIcon, Star, Gift, Landmark,
   Navigation, ClipboardCheck, MessageSquare,
-  AlertTriangle, CheckSquare, Bell, GitBranch,
+  AlertTriangle, CheckSquare, Bell, GitBranch, Image as ImageIcon,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAdminNotifications } from './contexts/AdminNotificationsContext';
 import { AdminNotificationsBell } from '../components/AdminNotificationsBell';
+import { useAppLogo } from '../lib/media';
 
 interface AdminSidebarProps {
   currentPage: string;
@@ -75,6 +76,7 @@ const navSections: NavSection[] = [
     items: [
       { label: 'Finance Module', page: 'finance', icon: Landmark },
       { label: 'Task Delegation', page: 'task-delegation', icon: GitBranch },
+      { label: 'Media Library', page: 'media-library', icon: ImageIcon },
       { label: 'Data Backup', page: 'backup', icon: Database },
       { label: 'Admin Sessions', page: 'admin-sessions', icon: ShieldCheck },
       { label: 'Settings', page: 'settings', icon: Settings },
@@ -134,6 +136,7 @@ function isHrPage(page: string): boolean {
 export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
   const { profile, signOut, hasAdminPermission, isSuperAdmin } = useAuth();
   const { unreadByType, unreadCount, unreadBySlug, markReadBySlug } = useAdminNotifications();
+  const { url: logoUrl } = useAppLogo();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [hrExpanded, setHrExpanded] = useState(true);
 
@@ -176,6 +179,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
     settings: 0,
     'notification-log': 0,
     'task-delegation': 0,
+    'media-library': 0,
     backup: 0,
     'hr-dashboard': 0,
     'hr-employees': 0,
@@ -222,7 +226,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
       {/* Mobile Top Bar */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-slate-900 h-16 flex items-center justify-between px-4">
         <div className="flex items-center gap-2.5">
-          <img src="/alphateknexus_logo_transparent.webp" alt="Alphatek Nexus" className="w-8 h-8 rounded-lg object-contain p-0.5" />
+          <img src={logoUrl} alt="Alphatek Nexus" className="w-8 h-8 rounded-lg object-contain p-0.5" />
           <span className="font-bold text-white text-sm">Admin Panel</span>
         </div>
         <button
@@ -274,7 +278,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
         {/* Logo Area */}
         <div className="h-16 lg:h-16 flex items-center justify-between px-6 border-b border-slate-800 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <img src="/alphateknexus_logo_transparent.webp" alt="Alphatek Nexus" className="w-9 h-9 rounded-lg object-contain p-0.5" />
+            <img src={logoUrl} alt="Alphatek Nexus" className="w-9 h-9 rounded-lg object-contain p-0.5" />
             <div>
               <p className="font-bold text-white text-sm leading-tight">Alphatek Nexus</p>
               <p className="text-[10px] text-slate-400 uppercase tracking-widest">Admin Panel</p>

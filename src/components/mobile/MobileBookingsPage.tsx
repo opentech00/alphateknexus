@@ -12,6 +12,7 @@ import { BookingTracker } from '../BookingTracker';
 import { SubscriptionLifecycle } from '../SubscriptionLifecycle';
 import { CancelDeleteBookingModal } from '../CancelDeleteBookingModal';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
+import { useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
 
 interface Booking {
   id: string;
@@ -76,6 +77,7 @@ const ACTIVE_STATUSES = ['pending', 'pending_review', 'approved', 'confirmed', '
 
 export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Props) {
   const { wallet_enabled } = useFeatureFlags();
+  const { images: serviceImages } = useServiceBrandingImages();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('all');
@@ -362,7 +364,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                 const isCompleted = booking.status === 'completed';
                 const hasReview = reviewedBookings.has(booking.id);
                 const isExpanded = expandedBooking === booking.id;
-                const serviceImage = SERVICE_IMAGES[booking.services?.slug] || '/service-smart-sort.webp';
+                const serviceImage = serviceImages[booking.services?.slug] || fallbackServiceImage(booking.services?.slug || 'smart-sort');
 
                 return (
                   <div
