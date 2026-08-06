@@ -304,7 +304,7 @@ function RoleModal({ role, services, onClose, onSaved }: {
   const handleSave = async () => {
     setError('');
     if (!name.trim()) { setError('Role name is required.'); return; }
-    if (!serviceId) { setError('Please select a division. Roles must belong to a division.'); return; }
+    // General roles (no division) are allowed for cross-division positions like Finance Manager
     setLoading(true);
 
     const payload = {
@@ -362,12 +362,12 @@ function RoleModal({ role, services, onClose, onSaved }: {
             <input value={name} onChange={e => setName(e.target.value)} className={inputCls} placeholder="e.g. Driver, Guard, Sorter" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Division <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Division</label>
             <select value={serviceId} onChange={e => setServiceId(e.target.value)} className={inputCls}>
-              <option value="">Select division</option>
+              <option value="">General (All Divisions)</option>
               {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            <p className="text-xs text-slate-400 mt-1">Each role must belong to a division so it only appears for employees in that division.</p>
+            <p className="text-xs text-slate-400 mt-1">Select a division for division-specific roles, or choose General for cross-division positions like Finance Manager.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
