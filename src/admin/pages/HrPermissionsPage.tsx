@@ -234,12 +234,12 @@ const PERMISSION_MATRIX: {
   assign: boolean;
   manage: boolean;
 }[] = [
-  { role: 'Super Admin',     view: true,  approve: true,  assign: true,  manage: true  },
-  { role: 'HR Admin',        view: true,  approve: true,  assign: true,  manage: false },
-  { role: 'Finance Admin',   view: true,  approve: true,  assign: false, manage: false },
-  { role: 'Operations Mgr',  view: true,  approve: false, assign: true,  manage: false },
-  { role: 'Division Head',   view: true,  approve: false, assign: true,  manage: false },
-  { role: 'Field Staff',     view: false, approve: false, assign: false, manage: false },
+  { role: 'Super Admin',      view: true,  approve: true,  assign: true,  manage: true  },
+  { role: 'HR Admin',         view: true,  approve: true,  assign: true,  manage: false },
+  { role: 'Finance Manager',  view: true,  approve: true,  assign: false, manage: false },
+  { role: 'Operations Mgr',   view: true,  approve: false, assign: true,  manage: false },
+  { role: 'Division Head',    view: true,  approve: false, assign: true,  manage: false },
+  { role: 'Field Staff',      view: false, approve: false, assign: false, manage: false },
 ];
 
 function SuggestedPermissionsMatrix() {
