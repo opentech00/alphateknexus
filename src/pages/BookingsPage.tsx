@@ -4,7 +4,7 @@ import {
   MessageSquare, Paperclip, ChevronDown, ChevronUp, Star, RotateCcw,
   Truck, Wallet, Search, CalendarDays, Recycle, ChevronRight, Ban, Trash2,
   CheckCircle2, X, FileText, Receipt, CreditCard, TrendingUp, Package,
-  Filter, ArrowUpDown, Inbox, Bell, Phone, Mail, User, Zap,
+  Filter, ArrowUpDown, Inbox, Bell, Phone, Mail, User, Zap, RefreshCw,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { MessageThread } from '../components/MessageThread';
@@ -17,6 +17,7 @@ import { BookingTrackingPage } from '../components/BookingTrackingPage';
 import { CancelDeleteBookingModal } from '../components/CancelDeleteBookingModal';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useServiceBrandingImages, fallbackServiceImage } from '../lib/media';
+import { BookingCardSkeleton } from '../components/mobile/Skeleton';
 
 interface Booking {
   id: string;
@@ -97,15 +98,19 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   const [trackingBookingId, setTrackingBookingId] = useState<string | null>(null);
   const [cancelDeleteModal, setCancelDeleteModal] = useState<{ bookingId: string; status: string; serviceName: string } | null>(null);
   const [animateIn, setAnimateIn] = useState(false);
+  const [fetchError, setFetchError] = useState('');
 
   const fetchBookings = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('bookings')
-      .select('*, services(name, icon, slug)')
+      .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, notes, created_at, service_id, details, deleted_at, cancellation_reason, services(name, icon, slug)')
       .is('deleted_at', null)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) { setFetchError('Failed to load bookings. Please try again.'); setLoading(false); return; }
     setBookings((data as unknown as Booking[]) || []);
     setLoading(false);
+    setFetchError('');
     setTimeout(() => setAnimateIn(true), 50);
   }, []);
 
@@ -129,8 +134,9 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   const fetchSubscriptions = useCallback(async () => {
     const { data } = await supabase
       .from('smart_sort_subscriptions')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('id, waste_type, bin_size_liters, frequency, time_slot, address, landmark, contact_phone, plan_name, plan_price_sle, status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(20);
     setSubscriptions((data as Subscription[]) || []);
   }, []);
 
@@ -185,8 +191,39 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-7 h-7 text-emerald-500 animate-spin" />
+      <div className="max-w-6xl mx-auto space-y-5">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">My Bookings</h1>
+          <p className="text-sm text-slate-400 mt-0.5">Loading...</p>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-2.5">
+              <div className="skeleton w-8 h-8 rounded-lg" />
+              <div className="flex-1 space-y-1.5">
+                <div className="skeleton h-2.5 w-12" />
+                <div className="skeleton h-3.5 w-16" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="space-y-2.5">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <BookingCardSkeleton key={i} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (fetchError && bookings.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <AlertCircle className="w-8 h-8 text-red-400 mb-3" />
+        <p className="text-sm text-slate-600">{fetchError}</p>
+        <button onClick={() => { setFetchError(''); setLoading(true); fetchBookings(); }} className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
+          <RefreshCw className="w-3.5 h-3.5" /> Retry
+        </button>
       </div>
     );
   }

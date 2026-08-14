@@ -99,9 +99,10 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
   const fetchBookings = useCallback(async () => {
     const { data, error } = await supabase
       .from('bookings')
-      .select('*, services(name, icon, slug)')
+      .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, notes, created_at, service_id, details, deleted_at, cancellation_reason, services(name, icon, slug)')
       .is('deleted_at', null)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
     if (error) { setFetchError('Failed to load bookings. Pull down to retry.'); setLoading(false); return; }
     setBookings((data as unknown as Booking[]) || []);
     setLoading(false);
@@ -127,8 +128,9 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
   const fetchSubscriptions = useCallback(async () => {
     const { data } = await supabase
       .from('smart_sort_subscriptions')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('id, waste_type, bin_size_liters, frequency, time_slot, address, landmark, contact_phone, plan_name, plan_price_sle, status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(20);
     setSubscriptions((data as Subscription[]) || []);
   }, []);
 
