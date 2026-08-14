@@ -17,7 +17,6 @@ import { BookingTrackingPage } from '../components/BookingTrackingPage';
 import { CancelDeleteBookingModal } from '../components/CancelDeleteBookingModal';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useServiceBrandingImages, fallbackServiceImage } from '../lib/media';
-import { BookingCardSkeleton } from '../components/mobile/Skeleton';
 
 interface Booking {
   id: string;
@@ -191,26 +190,37 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto space-y-5">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">My Bookings</h1>
-          <p className="text-sm text-slate-400 mt-0.5">Loading...</p>
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-2.5">
-              <div className="skeleton w-8 h-8 rounded-lg" />
-              <div className="flex-1 space-y-1.5">
-                <div className="skeleton h-2.5 w-12" />
-                <div className="skeleton h-3.5 w-16" />
+      <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center px-4 py-8" aria-live="polite" aria-busy="true">
+        <div className="relative w-full max-w-[760px] overflow-hidden rounded-[22px] border border-slate-100 bg-white px-6 py-12 text-center shadow-sm sm:px-12 sm:py-16">
+          <span className="absolute left-[44%] top-16 h-2 w-2 rounded-full bg-indigo-300" />
+          <span className="absolute right-[43%] top-24 h-2.5 w-2.5 rounded-full bg-amber-200" />
+          <span className="absolute right-[34%] top-32 h-2.5 w-2.5 rounded-full bg-blue-400" />
+          <span className="absolute left-[32%] top-36 h-1.5 w-1.5 rounded-full bg-indigo-300" />
+          <span className="absolute right-[29%] top-48 h-2 w-2 rounded-full bg-emerald-300" />
+          <div className="relative mx-auto mb-8 h-32 w-40">
+            <div className="absolute left-5 top-5 h-24 w-32 rotate-3 rounded-xl bg-indigo-200 shadow-[0_14px_24px_rgba(99,102,241,0.18)]" />
+            <div className="absolute left-8 top-8 h-24 w-32 -rotate-2 rounded-xl bg-indigo-300 shadow-[0_14px_24px_rgba(99,102,241,0.2)]" />
+            <div className="absolute bottom-0 left-2 h-24 w-36 rounded-xl border border-indigo-200 bg-indigo-300 shadow-[0_18px_30px_rgba(99,102,241,0.2)]">
+              <div className="absolute -top-7 left-12 h-20 w-16 rotate-6 rounded-md border border-slate-100 bg-white p-2 shadow-sm">
+                <div className="space-y-1.5">
+                  <span className="block h-1 w-10 rounded bg-slate-200" />
+                  <span className="block h-1 w-8 rounded bg-slate-200" />
+                  <span className="block h-1 w-11 rounded bg-slate-200" />
+                  <span className="block h-1 w-6 rounded bg-slate-200" />
+                </div>
               </div>
+              <div className="absolute left-12 top-9 h-9 w-9 rounded-full border-[3px] border-indigo-100 border-t-blue-600 animate-spin" />
             </div>
-          ))}
-        </div>
-        <div className="space-y-2.5">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <BookingCardSkeleton key={i} />
-          ))}
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">Loading <span className="text-blue-600">your data</span></h1>
+          <p className="mt-3 text-sm text-slate-400 sm:text-base">Please wait while we fetch the latest information for you.</p>
+          <div className="mx-auto mt-8 flex max-w-[410px] items-center gap-4">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full w-[62%] rounded-full bg-gradient-to-r from-blue-600 to-sky-400 animate-pulse" />
+            </div>
+            <span className="text-sm font-medium text-slate-400">62%</span>
+          </div>
+          <p className="mt-7 text-sm text-slate-400"><span className="mr-1">&#128161;</span> Tip: This usually takes a few seconds</p>
         </div>
       </div>
     );
