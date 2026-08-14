@@ -4,6 +4,7 @@ import {
   PieChart as PieIcon, ArrowUpRight, Download, Filter, Receipt,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { BudgetCard } from './BudgetCard';
 
 interface SpendingData {
   totalSpent: number;
@@ -228,6 +229,9 @@ export function SpendingDashboard() {
           />
         </div>
       )}
+
+      {/* Budget Goals */}
+      <BudgetCard />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

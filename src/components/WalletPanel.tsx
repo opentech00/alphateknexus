@@ -4,11 +4,13 @@ import {
   CreditCard, Receipt, History, TrendingUp, Smartphone,
   Trash2, AlertTriangle, XCircle, CheckCircle2, ExternalLink,
   ShoppingBag, RefreshCw, Banknote, Landmark, Clock, ShieldCheck, KeyRound,
-  Search, Download, Filter, Calendar,
+  Search, Download, Filter, Calendar, Settings, Bell, MessageSquare, Zap,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
 import { ReceiptModal } from './ReceiptModal';
+import { WalletSettings } from './WalletSettings';
+import { DisputeModal } from './DisputeModal';
 
 interface Transaction {
   id: string;
@@ -46,7 +48,7 @@ function formatTime(d: string) {
   return new Date(d).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
-function TransactionRow({ t, onReceipt }: { t: Transaction; onReceipt?: (t: Transaction) => void }) {
+function TransactionRow({ t, onReceipt, onDispute }: { t: Transaction; onReceipt?: (t: Transaction) => void; onDispute?: (t: Transaction) => void }) {
   const meta = TYPE_META[t.type] ?? TYPE_META.adjustment;
   const Icon = meta.icon;
   const isCredit = Number(t.amount_sle) > 0;
@@ -83,6 +85,15 @@ function TransactionRow({ t, onReceipt }: { t: Transaction; onReceipt?: (t: Tran
         </p>
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
+        {t.status === 'completed' && t.type === 'payment' && onDispute && (
+          <button
+            onClick={() => onDispute(t)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+            title="Report issue"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+          </button>
+        )}
         {t.status === 'completed' && onReceipt && (
           <button
             onClick={() => onReceipt(t)}
@@ -141,6 +152,10 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
   const [txDateTo, setTxDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const pollCancelledRef = useRef(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [disputeTransaction, setDisputeTransaction] = useState<Transaction | null>(null);
+  const [walletPrefs, setWalletPrefs] = useState<{ low_balance_threshold: number; auto_topup_enabled: boolean; auto_topup_amount: number; monthly_budget: number } | null>(null);
+  const [savedMethods, setSavedMethods] = useState<{ id: string; type: string; provider: string; label: string; detail: string; is_default: boolean }[]>([]);
 
   const loadTransactions = useCallback(async () => {
     setLoading(true);
@@ -185,6 +200,19 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
 
     return () => { supabase.removeChannel(channel); };
   }, [loadTransactions]);
+
+  const loadWalletPrefs = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const [prefRes, methodRes] = await Promise.all([
+      supabase.from('user_preferences').select('low_balance_threshold, auto_topup_enabled, auto_topup_amount, monthly_budget').eq('user_id', user.id).maybeSingle(),
+      supabase.from('payment_methods').select('id, type, provider, label, detail, is_default').eq('user_id', user.id).order('is_default', { ascending: false }),
+    ]);
+    if (prefRes.data) setWalletPrefs(prefRes.data as any);
+    setSavedMethods(methodRes.data || []);
+  }, []);
+
+  useEffect(() => { loadWalletPrefs(); }, [loadWalletPrefs]);
 
   const loadWithdrawals = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -479,8 +507,17 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
                 </div>
               )}
             </div>
-            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/10">
-              <Wallet className="w-6 h-6 text-emerald-400" />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowSettings(true)}
+                className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-colors"
+                title="Wallet Settings"
+              >
+                <Settings className="w-4 h-4 text-slate-300" />
+              </button>
+              <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/10">
+                <Wallet className="w-6 h-6 text-emerald-400" />
+              </div>
             </div>
           </div>
           <div className="flex gap-3">
@@ -500,6 +537,31 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
           </div>
         </div>
       </div>
+
+      {/* Low Balance Alert */}
+      {walletPrefs && walletPrefs.low_balance_threshold > 0 && availableBalance < walletPrefs.low_balance_threshold && availableBalance >= 0 && (
+        <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl animate-in fade-in duration-500">
+          <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Bell className="w-5 h-5 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">Low Balance</p>
+            <p className="text-xs text-amber-600">Your balance is below {fmtMoney(walletPrefs.low_balance_threshold)}</p>
+          </div>
+          {walletPrefs.auto_topup_enabled ? (
+            <div className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 px-2.5 py-1.5 rounded-lg font-medium flex-shrink-0">
+              <Zap className="w-3 h-3" /> Auto top-up on
+            </div>
+          ) : (
+            <button
+              onClick={() => { setPayState('form'); setError(''); }}
+              className="text-xs font-semibold text-amber-700 hover:text-amber-900 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+            >
+              Top Up Now
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Mini Stats */}
       <div className="grid grid-cols-2 gap-3">
@@ -646,7 +708,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
         ) : (
           <div className="divide-y divide-slate-50 max-h-[400px] overflow-y-auto">
             {filteredTransactions.map(t => (
-              <TransactionRow key={t.id} t={t} onReceipt={(tx) => { setReceiptRef(tx.reference || `wt-${tx.id}`); setShowReceipt(true); }} />
+              <TransactionRow key={t.id} t={t} onReceipt={(tx) => { setReceiptRef(tx.reference || `wt-${tx.id}`); setShowReceipt(true); }} onDispute={(tx) => setDisputeTransaction(tx)} />
             ))}
           </div>
         )}
@@ -1106,6 +1168,18 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
             })}
           </div>
         </div>
+      )}
+
+      {showSettings && (
+        <WalletSettings onClose={() => { setShowSettings(false); loadWalletPrefs(); }} />
+      )}
+
+      {disputeTransaction && (
+        <DisputeModal
+          transaction={disputeTransaction}
+          onClose={() => setDisputeTransaction(null)}
+          onSubmitted={() => { setDisputeTransaction(null); }}
+        />
       )}
     </div>
   );

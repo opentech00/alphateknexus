@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Smartphone, CreditCard, Wallet, Banknote, Lock,
   CheckCircle2, Loader2, ShieldCheck, ArrowLeft,
   XCircle, Building2, Upload, FileText, X,
+  AlertTriangle, Plus, ArrowUpRight,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
@@ -48,6 +49,27 @@ export function ServicePaymentStep({
   const [bankFile, setBankFile] = useState<File | null>(null);
   const [bankFileError, setBankFileError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [walletLoading, setWalletLoading] = useState(false);
+
+  const loadWalletBalance = useCallback(async () => {
+    setWalletLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setWalletLoading(false); return; }
+    const { data } = await supabase
+      .from('wallet_transactions')
+      .select('amount_sle')
+      .eq('user_id', user.id)
+      .eq('status', 'completed');
+    const bal = (data || []).reduce((s: number, t: any) => s + Number(t.amount_sle), 0);
+    setWalletBalance(bal);
+    setWalletLoading(false);
+  }, []);
+
+  useEffect(() => { if (wallet_enabled) loadWalletBalance(); }, [wallet_enabled, loadWalletBalance]);
+
+  const insufficientWallet = walletBalance !== null && walletBalance < amount;
+  const walletDifference = insufficientWallet ? amount - walletBalance : 0;
 
   const mobileMethods = PAYMENT_METHODS.filter(m => m.category === 'mobile');
   const cardMethods = PAYMENT_METHODS.filter(m => m.category === 'card');
@@ -278,6 +300,42 @@ export function ServicePaymentStep({
                 <Wallet className="w-3.5 h-3.5" /> Wallet
               </p>
               <div className="space-y-2.5">{walletMethods.map(renderMethod)}</div>
+              {selected === 'wallet' && walletBalance !== null && (
+                <div className={`mt-2.5 p-3.5 rounded-xl border text-xs leading-relaxed ${
+                  insufficientWallet
+                    ? 'bg-red-50 border-red-200 text-red-800'
+                    : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                }`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium">Wallet Balance</span>
+                    <span className="font-bold text-sm">
+                      {walletLoading ? '...' : `SLE ${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    </span>
+                  </div>
+                  {insufficientWallet ? (
+                    <div className="mt-2">
+                      <div className="flex items-center gap-1.5 text-red-700 mb-2">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>You need SLE {walletDifference.toLocaleString(undefined, { minimumFractionDigits: 2 })} more</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('open-wallet-topup', { detail: { amount: Math.ceil(walletDifference) } }));
+                        }}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Top Up SLE {Math.ceil(walletDifference).toLocaleString()}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-emerald-700">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Sufficient balance. Remaining after payment: SLE {(walletBalance - amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             )}
 

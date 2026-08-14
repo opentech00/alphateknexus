@@ -3,10 +3,12 @@ import {
   Wallet, ArrowDownCircle, ArrowUpCircle, Search, Loader2, X,
   Plus, TrendingUp, Users, DollarSign, Filter, CheckCircle2,
   CreditCard, RefreshCw, Receipt as ReceiptIcon, Download, Calendar,
+  MessageSquare,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard } from '../components/ui';
 import { ReceiptModal } from '../../components/ReceiptModal';
+import { DisputesTab } from '../components/DisputesTab';
 
 interface Transaction {
   id: string;
@@ -74,6 +76,7 @@ export function WalletManagementPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [showDateFilter, setShowDateFilter] = useState(false);
+  const [activeTab, setActiveTab] = useState<'transactions' | 'disputes'>('transactions');
 
 interface MonimePayment {
   id: string;
@@ -215,6 +218,34 @@ interface MonimePayment {
         }
       />
 
+      {/* Tabs */}
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+        <button
+          onClick={() => setActiveTab('transactions')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all ${
+            activeTab === 'transactions'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Wallet className="w-4 h-4" /> Transactions
+        </button>
+        <button
+          onClick={() => setActiveTab('disputes')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all ${
+            activeTab === 'disputes'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <MessageSquare className="w-4 h-4" /> Disputes
+        </button>
+      </div>
+
+      {activeTab === 'disputes' ? (
+        <DisputesTab />
+      ) : (
+      <>
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="TOTAL WALLET BALANCE" value={fmtMoney(stats.totalBalance)} icon={Wallet} color="text-emerald-500" accent="bg-emerald-50" />
@@ -577,6 +608,8 @@ interface MonimePayment {
           onClose={() => setReceiptRef(null)}
           onViewBookings={() => setReceiptRef(null)}
         />
+      )}
+      </>
       )}
     </div>
   );
