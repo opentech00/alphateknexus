@@ -314,9 +314,9 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
   return (
     <div className="flex flex-col min-h-full bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight">
       {/* Greeting */}
-      <div className="px-5 pt-4 pb-3 safe-area-pt" style={{ animation: 'fadeInUp 0.4s ease-out both' }}>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Hello, {firstName}</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">What service do you need today?</p>
+      <div className="px-5 pt-5 pb-3 safe-area-pt" style={{ animation: 'fadeInUp 0.4s ease-out both' }}>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Hello, {firstName}</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">What service do you need today?</p>
       </div>
 
       {/* Search */}
@@ -337,7 +337,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
       {/* Hero Banner */}
       {search === '' && (
         <div className="mx-5 mb-5" style={{ animation: 'fadeInUp 0.5s ease-out 0.15s both' }}>
-          <div className="relative bg-gradient-to-r from-blue-600 via-blue-600 to-blue-700 rounded-2xl overflow-hidden shadow-lg transition-transform active:scale-[0.99]">
+          <div className="relative bg-gradient-to-br from-blue-600 via-blue-600 to-blue-800 rounded-2xl overflow-hidden shadow-lg shadow-blue-600/20 transition-transform active:scale-[0.99]">
             <div className="absolute -top-8 -right-8 w-32 h-32 bg-blue-500/30 rounded-full animate-pulse" style={{ animationDuration: '3s' }} />
             <div className="absolute -bottom-6 right-16 w-20 h-20 bg-blue-800/20 rounded-full" />
             <div className="relative flex items-end min-h-[130px]">

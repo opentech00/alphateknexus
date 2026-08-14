@@ -58,15 +58,15 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
   return (
     <div className="flex flex-col h-[100dvh] overflow-hidden bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight safe-area-all">
       {/* Top Bar — fixed height, safe-area top padding */}
-      <header className="flex-shrink-0 bg-white dark:bg-slate-900 black:bg-black border-b border-slate-100 dark:border-slate-800 shadow-sm no-select">
-        <div className="relative flex items-center justify-between px-4 py-3 safe-area-pt">
+      <header className="flex-shrink-0 bg-white/95 dark:bg-slate-900/95 black:bg-black backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-sm no-select z-10">
+        <div className="relative flex items-center justify-between px-4 py-2.5 safe-area-pt">
           {/* Left: back button or logo */}
           {isSubPage ? (
             <button
               onClick={() => handleSetPage('home')}
-              className="flex items-center gap-1 text-sm font-medium text-blue-600 active:scale-95 transition-transform no-select"
+              className="flex items-center gap-1 text-sm font-semibold text-blue-600 dark:text-blue-400 active:scale-95 transition-transform no-select"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />
               Back
             </button>
           ) : (
@@ -74,13 +74,13 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
               <img
                 src={logoUrl}
                 alt="Alphatek Nexus"
-                className="h-7 object-contain"
+                className="h-7 w-auto object-contain"
               />
             </button>
           )}
 
           {/* Center: page title */}
-          <h1 className="absolute left-1/2 -translate-x-1/2 text-sm font-bold text-slate-900 dark:text-slate-100 pointer-events-none truncate max-w-[50%]">
+          <h1 className="absolute left-1/2 -translate-x-1/2 text-[15px] font-bold text-slate-900 dark:text-slate-100 pointer-events-none truncate max-w-[50%]">
             {PAGE_TITLE[mobilePage]}
           </h1>
 
@@ -142,8 +142,8 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
       </main>
 
       {/* Bottom Navigation — static, always visible, safe-area bottom padding */}
-      <nav className="flex-shrink-0 bg-white dark:bg-slate-900 black:bg-black border-t border-slate-100 dark:border-slate-800 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] no-select">
-        <div className="flex items-center justify-around px-2 py-1 safe-area-pb">
+      <nav className="flex-shrink-0 bg-white/95 dark:bg-slate-900/95 black:bg-black backdrop-blur-md border-t border-slate-100 dark:border-slate-800 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] no-select">
+        <div className="flex items-center justify-around px-1.5 py-1 safe-area-pb">
           {ALL_NAV_ITEMS.filter(item => item.id !== 'wallet' || wallet_enabled).map(item => {
             const Icon = item.icon;
             const active = mobilePage === item.id;
@@ -151,20 +151,17 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
               <button
                 key={item.id}
                 onClick={() => handleSetPage(item.id)}
-                className={`flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl transition-all active:scale-90 no-select min-w-[60px] ${
-                  active ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'
+                className={`relative flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-2xl transition-all duration-200 active:scale-90 no-select min-w-[58px] ${
+                  active
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                    : 'text-slate-400 dark:text-slate-500'
                 }`}
               >
-                <div className="relative">
-                  <Icon
-                    className="w-5 h-5 transition-colors"
-                    strokeWidth={active ? 2.5 : 1.75}
-                  />
-                  {active && (
-                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-600 rounded-full" />
-                  )}
-                </div>
-                <span className={`text-[10px] font-medium mt-0.5 ${active ? 'text-blue-600' : ''}`}>
+                <Icon
+                  className="w-5 h-5 transition-colors duration-200"
+                  strokeWidth={active ? 2.5 : 1.75}
+                />
+                <span className={`text-[10px] font-medium transition-colors duration-200 ${active ? 'font-semibold' : ''}`}>
                   {item.label}
                 </span>
               </button>
