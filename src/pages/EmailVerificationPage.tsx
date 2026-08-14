@@ -12,11 +12,23 @@ interface EmailVerificationPageProps {
 
 async function extractFnError(res: { data: unknown; error: unknown }): Promise<string | null> {
   if (!res.error) return null;
+
+  // The supabase client wraps non-2xx responses in a FunctionsHttpError.
+  // The actual JSON body from the edge function is in error.context (a Response).
+  const err = res.error as { message?: string; context?: Response };
+  if (err.context) {
+    try {
+      const body = await err.context.json();
+      if (body?.error) return body.error;
+    } catch { /* response body already consumed or not JSON */ }
+  }
+
+  // Some supabase-js versions return the parsed body in data even on error
   try {
     const body = res.data as Record<string, string> | null;
     if (body?.error) return body.error;
   } catch { /* ignore */ }
-  const err = res.error as { message?: string };
+
   return err?.message || 'Something went wrong';
 }
 
@@ -51,6 +63,20 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
     setError('');
     setInfo('');
     try {
+      // Ensure the session token is valid before calling the edge function.
+      // The gateway rejects requests with expired/missing tokens before the
+      // function code runs, producing a generic non-2xx error.
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        // Try refreshing the session
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        if (!refreshed.session) {
+          setError('Your session has expired. Please sign in again.');
+          setSending(false);
+          return;
+        }
+      }
+
       const res = await supabase.functions.invoke('send-verification-code');
       const errMsg = await extractFnError(res);
       if (errMsg) {
@@ -103,6 +129,17 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
     setError('');
     setInfo('');
     try {
+      // Ensure the session token is valid before calling the edge function.
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        if (!refreshed.session) {
+          setError('Your session has expired. Please sign in again.');
+          setVerifying(false);
+          return;
+        }
+      }
+
       const res = await supabase.functions.invoke('verify-email-code', {
         body: { code },
       });

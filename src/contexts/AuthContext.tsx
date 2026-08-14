@@ -264,11 +264,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: 'Account created but auto sign-in failed. Please sign in manually.' };
       }
 
-      // Send the 6-digit verification code email
+      // Send the 6-digit verification code email.
+      // The session was just created by signInWithPassword above, but the
+      // token may not be fully propagated yet — refresh to ensure validity.
       try {
+        await supabase.auth.refreshSession();
         const res = await supabase.functions.invoke('send-verification-code');
         if (res.error) {
-          console.error('signUp: send-verification-code error:', res.error);
+          const fnErr = res.error as { message?: string; context?: Response };
+          let detail = fnErr.message;
+          if (fnErr.context) {
+            try {
+              const body = await fnErr.context.json();
+              if (body?.error) detail = body.error;
+            } catch { /* not JSON */ }
+          }
+          console.error('signUp: send-verification-code error:', detail);
         }
       } catch (e) {
         console.error('signUp: send-verification-code exception:', e);

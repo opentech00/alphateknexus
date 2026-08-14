@@ -77,8 +77,11 @@ Deno.serve(async (req: Request) => {
     });
 
     if (genError) {
+      // Rate-limit errors carry the "Too many" prefix; other errors are server faults.
+      const isRateLimit = genError.message.toLowerCase().includes("too many");
       return new Response(JSON.stringify({ error: genError.message }), {
-        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: isRateLimit ? 429 : 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
