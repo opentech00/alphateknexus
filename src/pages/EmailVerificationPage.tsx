@@ -32,6 +32,47 @@ async function extractFnError(res: { data: unknown; error: unknown }): Promise<s
   return err?.message || 'Something went wrong';
 }
 
+const UPSTREAM_ERROR_PATTERNS = [
+  'upstream connect error',
+  'disconnect',
+  'reset',
+  'transport failure',
+  'connection failure',
+  'delayed connect error',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'fetch failed',
+];
+
+function isTransientError(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return UPSTREAM_ERROR_PATTERNS.some(p => lower.includes(p.toLowerCase()));
+}
+
+async function invokeWithRetry(
+  fn: 'send-verification-code' | 'verify-email-code',
+  body?: Record<string, unknown>,
+  maxRetries = 3,
+  onRetry?: () => void,
+): Promise<{ data: unknown; error: unknown }> {
+  let lastRes = { data: null, error: { message: 'Unknown error' } };
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = body
+      ? await supabase.functions.invoke(fn, { body })
+      : await supabase.functions.invoke(fn);
+    lastRes = res as any;
+    const errMsg = await extractFnError(res);
+    if (!errMsg) return res;
+    if (attempt < maxRetries && isTransientError(errMsg)) {
+      onRetry?.();
+      await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+      continue;
+    }
+    return res;
+  }
+  return lastRes;
+}
+
 export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerificationPageProps) {
   const { refreshVerification } = useAuth();
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
@@ -39,6 +80,7 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
   const [info, setInfo] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [sending, setSending] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [verified, setVerified] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -77,7 +119,8 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
         }
       }
 
-      const res = await supabase.functions.invoke('send-verification-code');
+      const res = await invokeWithRetry('send-verification-code', undefined, 3, () => setRetrying(true));
+      setRetrying(false);
       const errMsg = await extractFnError(res);
       if (errMsg) {
         setError(errMsg);
@@ -140,9 +183,8 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
         }
       }
 
-      const res = await supabase.functions.invoke('verify-email-code', {
-        body: { code },
-      });
+      const res = await invokeWithRetry('verify-email-code', { code }, 3, () => setRetrying(true));
+      setRetrying(false);
       const errMsg = await extractFnError(res);
       if (errMsg) {
         setError(errMsg);
@@ -217,7 +259,7 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
       {sending && (
         <div className="flex items-center justify-center gap-2.5 px-4 py-3 mb-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600">
           <Loader2 className="w-4 h-4 animate-spin" />
-          Sending verification code...
+          {retrying ? 'Connection issue — retrying...' : 'Sending verification code...'}
         </div>
       )}
 
@@ -251,7 +293,7 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
           className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 active:scale-[0.98]"
         >
           {verifying ? (
-            <><Loader2 className="w-5 h-5 animate-spin" /> Verifying...</>
+            <><Loader2 className="w-5 h-5 animate-spin" /> {retrying ? 'Retrying...' : 'Verifying...'}</>
           ) : verified ? (
             <><CheckCircle2 className="w-5 h-5" /> Verified</>
           ) : (

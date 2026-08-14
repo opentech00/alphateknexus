@@ -85,6 +85,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   const { images: serviceImages } = useServiceBrandingImages();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadProgress, setLoadProgress] = useState(0);
   const [tab, setTab] = useState<Tab>('all');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortBy>('date_desc');
@@ -100,15 +101,17 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   const [fetchError, setFetchError] = useState('');
 
   const fetchBookings = useCallback(async () => {
+    setLoadProgress(p => Math.max(p, 10));
     const { data, error } = await supabase
       .from('bookings')
       .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, notes, created_at, service_id, details, deleted_at, cancellation_reason, services(name, icon, slug)')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(50);
+    setLoadProgress(p => Math.max(p, 40));
     if (error) { setFetchError('Failed to load bookings. Please try again.'); setLoading(false); return; }
     setBookings((data as unknown as Booking[]) || []);
-    setLoading(false);
+    setLoadProgress(p => Math.max(p, 70));
     setFetchError('');
     setTimeout(() => setAnimateIn(true), 50);
   }, []);
@@ -116,6 +119,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   const fetchReviews = useCallback(async () => {
     const { data } = await supabase.from('reviews').select('booking_id');
     if (data) setReviewedBookings(new Set(data.map((r) => r.booking_id)));
+    setLoadProgress(p => Math.max(p, 80));
   }, []);
 
   const fetchWallet = useCallback(async () => {
@@ -128,6 +132,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
       .eq('status', 'completed');
     const bal = (data || []).reduce((s, t: any) => s + Number(t.amount_sle), 0);
     setWalletBalance(bal);
+    setLoadProgress(p => Math.max(p, 90));
   }, []);
 
   const fetchSubscriptions = useCallback(async () => {
@@ -137,14 +142,16 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
       .order('created_at', { ascending: false })
       .limit(20);
     setSubscriptions((data as Subscription[]) || []);
+    setLoadProgress(100);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchBookings();
     fetchReviews();
-    if (wallet_enabled) fetchWallet();
+    if (wallet_enabled) fetchWallet(); else setLoadProgress(p => Math.max(p, 90));
     fetchSubscriptions();
-  }, [fetchBookings, fetchReviews, fetchWallet, fetchSubscriptions]);
+  }, [fetchBookings, fetchReviews, fetchWallet, fetchSubscriptions, wallet_enabled]);
 
   const activeCount = bookings.filter(b => ACTIVE_STATUSES.includes(b.status)).length;
   const completedCount = bookings.filter(b => b.status === 'completed').length;
@@ -216,9 +223,9 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
           <p className="mt-3 text-sm text-slate-400 sm:text-base">Please wait while we fetch the latest information for you.</p>
           <div className="mx-auto mt-8 flex max-w-[410px] items-center gap-4">
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full w-[62%] rounded-full bg-gradient-to-r from-blue-600 to-sky-400 animate-pulse" />
+              <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-sky-400 transition-all duration-500 ease-out" style={{ width: `${loadProgress}%` }} />
             </div>
-            <span className="text-sm font-medium text-slate-400">62%</span>
+            <span className="text-sm font-medium text-slate-400 tabular-nums">{loadProgress}%</span>
           </div>
           <p className="mt-7 text-sm text-slate-400"><span className="mr-1">&#128161;</span> Tip: This usually takes a few seconds</p>
         </div>
