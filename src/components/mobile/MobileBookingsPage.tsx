@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Calendar, MapPin, Clock, AlertCircle, Loader2, Plus,
   MessageSquare, Paperclip, ChevronDown, ChevronUp, Star, RotateCcw,
-  Truck, Wallet, Search, Recycle, CheckCircle2, Ban, Trash2,
+  Truck, Wallet, Search, Recycle, CheckCircle2, Ban, Trash2, RefreshCw,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { MessageThread } from '../MessageThread';
@@ -12,7 +12,11 @@ import { BookingTracker } from '../BookingTracker';
 import { SubscriptionLifecycle } from '../SubscriptionLifecycle';
 import { CancelDeleteBookingModal } from '../CancelDeleteBookingModal';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
+import { useHaptics } from '../../hooks/useHaptics';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
+import { BookingCardSkeleton } from './Skeleton';
+import { SwipeableBookingCard } from './SwipeableBookingCard';
 
 interface Booking {
   id: string;
@@ -77,6 +81,7 @@ const ACTIVE_STATUSES = ['pending', 'pending_review', 'approved', 'confirmed', '
 
 export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Props) {
   const { wallet_enabled } = useFeatureFlags();
+  const { vibrate } = useHaptics();
   const { images: serviceImages } = useServiceBrandingImages();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -164,7 +169,17 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
     return true;
   });
 
+  const handleRefresh = useCallback(async () => {
+    vibrate('light');
+    await Promise.all([fetchBookings(), fetchReviews(), fetchSubscriptions(), wallet_enabled ? fetchWallet() : Promise.resolve()]);
+  }, [fetchBookings, fetchReviews, fetchSubscriptions, fetchWallet, wallet_enabled, vibrate]);
+
+  const { ref: scrollRef, pulling, progress, refreshing } = usePullToRefresh({
+    onRefresh: handleRefresh,
+  });
+
   const toggleExpand = (id: string) => {
+    vibrate('light');
     setExpandedBooking(expandedBooking === id ? null : id);
     setActiveSubTab('tracker');
   };
@@ -182,8 +197,16 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-7 h-7 text-blue-500 animate-spin" />
+      <div className="flex flex-col min-h-full">
+        <div className="px-4 pt-4 pb-2">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">My Bookings</h1>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Loading...</p>
+        </div>
+        <div className="px-4 pb-6 space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <BookingCardSkeleton key={i} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -200,8 +223,21 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
     );
   }
 
+  const pullIndicatorHeight = refreshing ? 40 : pulling ? Math.round(progress * 40) : 0;
+
   return (
-    <div className="flex flex-col min-h-full">
+    <div ref={scrollRef} className="flex flex-col min-h-full overflow-y-auto mobile-scroll">
+      {/* Pull-to-refresh indicator */}
+      <div
+        className="flex items-center justify-center overflow-hidden transition-all duration-200"
+        style={{ height: `${pullIndicatorHeight}px` }}
+      >
+        <RefreshCw
+          className={`w-5 h-5 text-blue-500 transition-transform ${refreshing ? 'animate-spin' : ''}`}
+          style={{ transform: `rotate(${progress * 180}deg)`, opacity: refreshing ? 1 : progress }}
+        />
+      </div>
+
       {/* Header */}
       <div className="px-4 pt-4 pb-2">
         <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">My Bookings</h1>
@@ -280,13 +316,13 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
       </div>
       )}
 
-      {/* Filter chips */}
-      <div className="px-4 pb-3">
+      {/* Filter chips — sticky */}
+      <div className="sticky top-0 z-20 bg-gray-50 dark:bg-slate-950 black:bg-black px-4 pb-3 pt-1">
         <div className="flex gap-2 overflow-x-auto mobile-scroll" style={{ scrollbarWidth: 'none' }}>
           {tabs.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => { vibrate('light'); setTab(t.id); }}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all active:scale-95 ${
                 tab === t.id
                   ? 'bg-slate-900 dark:bg-blue-600 text-white'
@@ -365,10 +401,18 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                 const hasReview = reviewedBookings.has(booking.id);
                 const isExpanded = expandedBooking === booking.id;
                 const serviceImage = serviceImages[booking.services?.slug] || fallbackServiceImage(booking.services?.slug || 'smart-sort');
+                const canRebook = isCompleted || booking.status === 'cancelled';
+                const canCancel = !isCompleted && booking.status !== 'cancelled';
 
                 return (
-                  <div
+                  <SwipeableBookingCard
                     key={booking.id}
+                    onRebook={() => onRebook?.(booking)}
+                    onCancel={() => setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name })}
+                    showRebook={canRebook}
+                    showCancel={canCancel}
+                  >
+                  <div
                     className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-all"
                     style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.06}s both` }}
                   >
@@ -479,7 +523,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                           {(['tracker', 'messages', 'documents'] as const).map((t) => (
                             <button
                               key={t}
-                              onClick={() => setActiveSubTab(t)}
+                              onClick={() => { vibrate('light'); setActiveSubTab(t); }}
                               className={`flex-1 py-2.5 text-[11px] font-medium capitalize transition-colors ${
                                 activeSubTab === t
                                   ? 'text-blue-700 border-b-2 border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 dark:text-blue-400'
@@ -505,6 +549,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                       </div>
                     )}
                   </div>
+                  </SwipeableBookingCard>
                 );
               })}
             </div>

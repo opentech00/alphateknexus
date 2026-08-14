@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Search, ChevronRight, Ship, Trash2, Shield, Sparkles, ShoppingCart,
   Loader2, CalendarPlus, MessageSquare, PackageCheck, Repeat2,
-  ChevronDown, Info, MapPin, Calendar, ArrowRight,
+  ChevronDown, Info, MapPin, Calendar, ArrowRight, RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import type { Service } from '../../types';
 import { ServiceDetailModal } from '../ServiceDetailModal';
 import { useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
+import { useHaptics } from '../../hooks/useHaptics';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
+import { ServiceCardSkeleton, BookingMiniSkeleton } from './Skeleton';
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -116,10 +119,12 @@ function ServiceGridCard({
   onSelect: (svc: Service, mode: ServiceMode) => void;
   onViewDetails: (svc: Service) => void;
 }) {
+  const { vibrate } = useHaptics();
   const [expanded, setExpanded] = useState(false);
   const colors = SERVICE_COLORS[meta.slug] || { bg: 'bg-slate-100', text: 'text-slate-600', gradient: 'from-slate-500 to-slate-600' };
 
   const handleAction = (mode: ServiceMode) => {
+    vibrate('medium');
     if (service) onSelect(service, mode);
   };
 
@@ -146,7 +151,7 @@ function ServiceGridCard({
 
       {/* Card body */}
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => { vibrate('light'); setExpanded(!expanded); }}
         className="w-full flex flex-col items-center text-center px-3 pt-2.5 pb-3 no-select"
       >
         <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight line-clamp-2 min-h-[2rem]">{meta.label}</h3>
@@ -270,29 +275,39 @@ function BookingMiniCard({
 export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props) {
   const { images: serviceImages } = useServiceBrandingImages();
   const { profile } = useAuth();
+  const { vibrate } = useHaptics();
   const [services, setServices] = useState<Service[]>([]);
   const [bookings, setBookings] = useState<HomeBooking[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [detailService, setDetailService] = useState<Service | null>(null);
 
-  useEffect(() => {
-    supabase.from('services').select('*').eq('is_active', true).order('created_at').then(({ data }) => {
-      setServices((data as Service[]) || []);
-      setLoading(false);
-    });
+  const fetchServices = useCallback(async () => {
+    const { data } = await supabase.from('services').select('*').eq('is_active', true).order('created_at');
+    setServices((data as Service[]) || []);
+    setLoading(false);
   }, []);
 
-  useEffect(() => {
-    supabase
+  const fetchBookings = useCallback(async () => {
+    const { data } = await supabase
       .from('bookings')
       .select('id, status, scheduled_date, scheduled_time, location, created_at, services(name, icon, slug)')
       .order('created_at', { ascending: false })
-      .limit(10)
-      .then(({ data }) => {
-        setBookings((data as unknown as HomeBooking[]) || []);
-      });
+      .limit(10);
+    setBookings((data as unknown as HomeBooking[]) || []);
   }, []);
+
+  useEffect(() => { fetchServices(); }, [fetchServices]);
+  useEffect(() => { fetchBookings(); }, [fetchBookings]);
+
+  const handleRefresh = useCallback(async () => {
+    vibrate('light');
+    await Promise.all([fetchServices(), fetchBookings()]);
+  }, [fetchServices, fetchBookings, vibrate]);
+
+  const { ref: scrollRef, pulling, progress, refreshing } = usePullToRefresh({
+    onRefresh: handleRefresh,
+  });
 
   const firstName = profile?.full_name?.split(' ')[0] || 'there';
 
@@ -311,8 +326,21 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
   const activeBookings = bookings.filter(b => ['pending', 'confirmed', 'in_progress'].includes(b.status));
   const recentBookings = bookings.slice(0, 5);
 
+  const pullIndicatorHeight = refreshing ? 40 : pulling ? Math.round(progress * 40) : 0;
+
   return (
-    <div className="flex flex-col min-h-full bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight">
+    <div ref={scrollRef} className="flex flex-col min-h-full bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight overflow-y-auto mobile-scroll">
+      {/* Pull-to-refresh indicator */}
+      <div
+        className="flex items-center justify-center overflow-hidden transition-all duration-200"
+        style={{ height: `${pullIndicatorHeight}px` }}
+      >
+        <RefreshCw
+          className={`w-5 h-5 text-blue-500 transition-transform ${refreshing ? 'animate-spin' : ''}`}
+          style={{ transform: `rotate(${progress * 180}deg)`, opacity: refreshing ? 1 : progress }}
+        />
+      </div>
+
       {/* Greeting */}
       <div className="px-5 pt-5 pb-3 safe-area-pt" style={{ animation: 'fadeInUp 0.4s ease-out both' }}>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Hello, {firstName}</h1>
@@ -376,8 +404,10 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+          <div className="grid grid-cols-2 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <ServiceCardSkeleton key={i} />
+            ))}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
@@ -417,9 +447,15 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
           )}
         </div>
 
-        {bookings.length === 0 ? (
+        {loading ? (
+          <div className="flex gap-3 overflow-hidden pb-2 -mx-5 px-5">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <BookingMiniSkeleton key={i} />
+            ))}
+          </div>
+        ) : bookings.length === 0 ? (
           <button
-            onClick={() => onNavigate('services')}
+            onClick={() => { vibrate('light'); onNavigate('services'); }}
             className="w-full bg-white dark:bg-slate-800 dark:border-slate-700 rounded-2xl border border-dashed border-slate-200 p-6 text-center active:scale-[0.99] transition-transform no-select hover:border-blue-300 hover:bg-blue-50/30 dark:hover:border-blue-700 dark:hover:bg-blue-900/20"
             style={{ animation: 'fadeInUp 0.4s ease-out 0.4s both' }}
           >
