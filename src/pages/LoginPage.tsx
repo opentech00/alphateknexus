@@ -13,6 +13,7 @@ export function LoginPage({ onSwitch, onForgot }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -24,7 +25,7 @@ export function LoginPage({ onSwitch, onForgot }: LoginPageProps) {
       return;
     }
     setLoading(true);
-    const { error: signInError } = await signIn(email.trim(), password);
+    const { error: signInError } = await signIn(email.trim(), password, rememberMe);
     setLoading(false);
     if (signInError) {
       setError(
@@ -84,6 +85,27 @@ export function LoginPage({ onSwitch, onForgot }: LoginPageProps) {
               {showPwd ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
             </button>
           </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 cursor-pointer select-none group">
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-4 h-4 border-2 border-slate-300 rounded transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500 group-hover:border-slate-400" />
+              <svg
+                className="absolute inset-0 w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none"
+                viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              >
+                <path d="M4 8l3 3 5-5" />
+              </svg>
+            </div>
+            <span className="text-sm text-slate-600 group-hover:text-slate-800 transition-colors">Remember me for 1 week</span>
+          </label>
         </div>
 
         <button

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle, X } from 'lucide-react';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -19,7 +19,50 @@ import { TopNav } from './components/TopNav';
 import { MobileShell } from './components/mobile/MobileShell';
 import { SplashScreen } from './components/mobile/SplashScreen';
 import { FinanceToastContainer } from './components/FinanceToast';
+import { IdleWarningModal } from './components/IdleWarningModal';
 
+
+function FailedLoginBanner() {
+  const { failedLoginAlert, dismissFailedLoginAlert } = useAuth();
+  if (!failedLoginAlert) return null;
+
+  const dateStr = new Date(failedLoginAlert.date).toLocaleDateString(undefined, {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+
+  return (
+    <div className="fixed top-0 left-0 right-0 z-[9990] bg-amber-50 border-b border-amber-200 px-4 py-3 shadow-sm">
+      <div className="max-w-4xl mx-auto flex items-start gap-3">
+        <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-amber-900">Failed sign-in attempt detected</p>
+          <p className="text-xs text-amber-700 mt-0.5">
+            We blocked a sign-in attempt on {dateStr} from {failedLoginAlert.device}.
+            If this was not you, please change your password immediately.
+          </p>
+        </div>
+        <button
+          onClick={dismissFailedLoginAlert}
+          className="p-1 rounded-lg text-amber-500 hover:text-amber-700 hover:bg-amber-100 transition-colors flex-shrink-0"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function IdleWarningWrapper() {
+  const { idleWarningVisible, idleWarningSecondsLeft, dismissIdleWarning, signOut } = useAuth();
+  return (
+    <IdleWarningModal
+      visible={idleWarningVisible}
+      secondsLeft={idleWarningSecondsLeft}
+      onStaySignedIn={dismissIdleWarning}
+      onSignOut={signOut}
+    />
+  );
+}
 
 function PortalContent() {
   const { user, loading, needs2FA, needsEmailVerification, pending2FAEmail, pending2FAPassword, clear2FA, refreshVerification, signOut } = useAuth();
@@ -75,7 +118,6 @@ function PortalContent() {
   }
 
   if (!user) {
-    // 2FA verification page
     if (needs2FA) {
       return (
         <TwoFactorPage
@@ -87,12 +129,10 @@ function PortalContent() {
       );
     }
 
-    // Password reset page (after clicking reset link in email)
     if (authView === 'reset') {
       return <ResetPasswordPage onBack={() => setAuthView('login')} />;
     }
 
-    // Forgot password page
     if (authView === 'forgot') {
       return <ForgotPasswordPage onBack={() => setAuthView('login')} />;
     }
@@ -104,7 +144,6 @@ function PortalContent() {
     );
   }
 
-  // Email verification gate — user is logged in but email not verified
   if (needsEmailVerification && user) {
     return (
       <EmailVerificationPage
@@ -135,21 +174,20 @@ function PortalContent() {
     setPage('booking');
   };
 
-  // Booking page is shown fullscreen on both mobile and desktop when triggered
   if (page === 'booking') {
     return (
       <>
-        {/* Mobile booking - fullscreen with safe areas */}
         <div className="block md:hidden min-h-screen bg-slate-50 safe-area-pt">
           <BookingPage service={bookingService} onNavigate={handleNavigate} rebookData={rebookData} mode={bookingMode} />
         </div>
-        {/* Desktop booking */}
         <div className="hidden md:block min-h-screen bg-slate-50">
           <TopNav currentPage={page} onNavigate={handleNavigate} devAdmin={devAdmin} onToggleDevAdmin={() => {}} />
           <main className="pt-16 min-h-screen">
             <BookingPage service={bookingService} onNavigate={handleNavigate} rebookData={rebookData} mode={bookingMode} />
           </main>
         </div>
+        <IdleWarningWrapper />
+        <FailedLoginBanner />
       </>
     );
   }
@@ -166,13 +204,14 @@ function PortalContent() {
             <SmartSortSubscriptionsPage onNavigate={handleNavigate} />
           </main>
         </div>
+        <IdleWarningWrapper />
+        <FailedLoginBanner />
       </>
     );
   }
 
   return (
     <>
-      {/* ── Mobile layout (< md) ── */}
       <div className="block md:hidden h-screen overflow-hidden">
         <MobileShell
           onNavigate={handleNavigate}
@@ -182,7 +221,6 @@ function PortalContent() {
         />
       </div>
 
-      {/* ── Desktop layout (≥ md) ── */}
       <div className="hidden md:block min-h-screen bg-slate-50">
         <TopNav
           currentPage={page}
@@ -199,6 +237,8 @@ function PortalContent() {
         </main>
       </div>
       <FinanceToastContainer />
+      <IdleWarningWrapper />
+      <FailedLoginBanner />
     </>
   );
 }

@@ -15,19 +15,27 @@ interface AuthContextValue {
   needsEmailVerification: boolean;
   pending2FAEmail: string;
   pending2FAPassword: string;
-  signIn: (email: string, password: string) => Promise<{ error: string | null; needs2FA?: boolean }>;
+  signIn: (email: string, password: string, rememberMe?: boolean) => Promise<{ error: string | null; needs2FA?: boolean }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  signOutAll: () => Promise<{ error: string | null }>;
   clear2FA: () => void;
   refreshVerification: () => Promise<void>;
   hasAdminPermission: (pageKey: string) => boolean;
   isSuperAdmin: boolean;
   refreshAdminPermissions: () => void;
+  idleWarningVisible: boolean;
+  idleWarningSecondsLeft: number;
+  dismissIdleWarning: () => void;
+  failedLoginAlert: { date: string; device: string } | null;
+  dismissFailedLoginAlert: () => void;
 }
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const ADMIN_IDLE_TIMEOUT_MS = 15 * 60 * 1000;
-const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
+const IDLE_WARNING_MS = 2 * 60 * 1000; // warn 2 min before timeout
+const IDLE_CHECK_INTERVAL_MS = 5 * 1000; // check every 5s for smoother countdown
+const REMEMBER_ME_KEY = 'atn_remember_me';
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
@@ -41,13 +49,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [pending2FAEmail, setPending2FAEmail] = useState('');
   const [pending2FAPassword, setPending2FAPassword] = useState('');
   const lastActivityRef = useRef<number>(Date.now());
-  const idleWarnedRef = useRef<boolean>(false);
-  // Guard: when true, onAuthStateChange must NOT touch needsEmailVerification
+  const [idleWarningVisible, setIdleWarningVisible] = useState(false);
+  const [idleWarningSecondsLeft, setIdleWarningSecondsLeft] = useState(120);
+  const [failedLoginAlert, setFailedLoginAlert] = useState<{ date: string; device: string } | null>(null);
   const signUpInProgressRef = useRef(false);
 
   const resetIdleTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
-    idleWarnedRef.current = false;
+  }, []);
+
+  const dismissIdleWarning = useCallback(() => {
+    setIdleWarningVisible(false);
+    resetIdleTimer();
+  }, [resetIdleTimer]);
+
+  const dismissFailedLoginAlert = useCallback(() => {
+    setFailedLoginAlert(null);
   }, []);
 
   useEffect(() => {
@@ -58,17 +75,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [resetIdleTimer]);
 
   useEffect(() => {
-    if (!session) return;
+    if (!session) {
+      setIdleWarningVisible(false);
+      return;
+    }
+
+    // Skip idle timeout if remember-me is active
+    const rememberMe = localStorage.getItem(REMEMBER_ME_KEY) === 'true';
+    if (rememberMe) return;
+
     const interval = setInterval(() => {
       const timeout = profile?.role === 'admin' ? ADMIN_IDLE_TIMEOUT_MS : IDLE_TIMEOUT_MS;
       const elapsed = Date.now() - lastActivityRef.current;
-      if (elapsed >= timeout && !idleWarnedRef.current) {
-        idleWarnedRef.current = true;
+      const remaining = timeout - elapsed;
+
+      if (remaining <= 0) {
+        setIdleWarningVisible(false);
         supabase.auth.signOut().catch(() => {});
+      } else if (remaining <= IDLE_WARNING_MS && !idleWarningVisible) {
+        setIdleWarningVisible(true);
+        setIdleWarningSecondsLeft(Math.ceil(remaining / 1000));
+      } else if (remaining > IDLE_WARNING_MS && idleWarningVisible) {
+        setIdleWarningVisible(false);
+      } else if (idleWarningVisible) {
+        setIdleWarningSecondsLeft(Math.ceil(remaining / 1000));
       }
     }, IDLE_CHECK_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [session, profile]);
+  }, [session, profile, idleWarningVisible]);
 
   const fetchProfile = async (uid: string) => {
     const { data } = await supabase
@@ -77,6 +111,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('id', uid)
       .maybeSingle();
     setProfile(data as Profile | null);
+  };
+
+  const checkFailedLoginAlert = async (userId: string) => {
+    try {
+      const { data } = await supabase.functions.invoke('manage-auth-events', {
+        body: { action: 'check-failed-since-last-success', userId },
+      });
+      if (data?.hasFailedAttempts) {
+        setFailedLoginAlert({ date: data.lastFailedAt, device: data.lastFailedDevice });
+      }
+    } catch { /* non-critical */ }
   };
 
   useEffect(() => {
@@ -107,8 +152,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (newSession?.user) {
           await fetchProfile(newSession.user.id);
           initPushNotifications('client').catch(() => {});
-          // Skip verification check if signUp is currently running — it will
-          // set needsEmailVerification itself after inserting the profile.
           if (!signUpInProgressRef.current) {
             const { data: prof } = await supabase
               .from('profiles')
@@ -122,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setProfile(null);
           setNeedsEmailVerification(false);
+          setFailedLoginAlert(null);
         }
         setLoading(false);
       })();
@@ -130,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, rememberMe = false) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
@@ -162,6 +206,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (!data.user) return { error: 'Authentication failed' };
 
+    // Store remember-me preference
+    if (rememberMe) {
+      localStorage.setItem(REMEMBER_ME_KEY, 'true');
+    } else {
+      localStorage.removeItem(REMEMBER_ME_KEY);
+    }
+
     const { data: profData } = await supabase
       .from('profiles')
       .select('is_verified')
@@ -177,6 +228,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: { action: 'record-success' },
       });
     } catch { /* non-critical */ }
+
+    // Check for failed login attempts since last success
+    checkFailedLoginAlert(data.user.id);
 
     try {
       const { data: profileData } = await supabase
@@ -238,8 +292,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUpInProgressRef.current = true;
 
     try {
-      // Use server-side edge function to create the account.
-      // This uses the admin API which bypasses Supabase's email rate limits.
       const { data: fnData, error: fnError } = await supabase.functions.invoke('create-account', {
         body: { email: email.trim().toLowerCase(), password, fullName: fullName.trim() },
       });
@@ -254,7 +306,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: fnData?.error || 'Account creation failed. Please try again.' };
       }
 
-      // Account + profile created server-side. Now sign in so we have a session.
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
@@ -264,9 +315,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: 'Account created but auto sign-in failed. Please sign in manually.' };
       }
 
-      // Send the 6-digit verification code email.
-      // The session was just created by signInWithPassword above, but the
-      // token may not be fully propagated yet — refresh to ensure validity.
       try {
         await supabase.auth.refreshSession();
         const res = await supabase.functions.invoke('send-verification-code');
@@ -305,19 +353,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .limit(1);
       } catch { /* non-critical */ }
     }
+    localStorage.removeItem(REMEMBER_ME_KEY);
     await supabase.auth.signOut();
     setProfile(null);
     setNeeds2FA(false);
     setNeedsEmailVerification(false);
     setPending2FAEmail('');
     setPending2FAPassword('');
+    setFailedLoginAlert(null);
+  };
+
+  const signOutAll = async () => {
+    try {
+      const { error: fnError } = await supabase.functions.invoke('manage-auth-events', {
+        body: { action: 'revoke-all-sessions' },
+      });
+      if (fnError) return { error: fnError.message || 'Failed to sign out of all devices' };
+      localStorage.removeItem(REMEMBER_ME_KEY);
+      await supabase.auth.signOut();
+      setProfile(null);
+      setNeeds2FA(false);
+      setNeedsEmailVerification(false);
+      setFailedLoginAlert(null);
+      return { error: null };
+    } catch {
+      return { error: 'Failed to sign out of all devices' };
+    }
   };
 
   const adminRole = profile?.role === 'admin';
   const { hasPermission: hasAdminPermission, isSuperAdmin, refresh: refreshAdminPermissions } = useAdminPermissions(profile, adminRole);
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, isAdmin: adminRole, loading, needs2FA, needsEmailVerification, pending2FAEmail, pending2FAPassword, signIn, signUp, signOut, clear2FA, refreshVerification, hasAdminPermission, isSuperAdmin, refreshAdminPermissions }}>
+    <AuthContext.Provider value={{
+      session, user, profile, isAdmin: adminRole, loading, needs2FA, needsEmailVerification,
+      pending2FAEmail, pending2FAPassword, signIn, signUp, signOut, signOutAll, clear2FA,
+      refreshVerification, hasAdminPermission, isSuperAdmin, refreshAdminPermissions,
+      idleWarningVisible, idleWarningSecondsLeft, dismissIdleWarning,
+      failedLoginAlert, dismissFailedLoginAlert,
+    }}>
       {children}
     </AuthContext.Provider>
   );

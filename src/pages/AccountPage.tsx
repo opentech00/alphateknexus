@@ -619,6 +619,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
   const [editError, setEditError] = useState('');
 
   // Password
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
@@ -646,22 +647,41 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
     setSaving(false);
   };
 
+  const pwChecks = [
+    { label: '10+ characters', met: newPassword.length >= 10 },
+    { label: 'Uppercase letter', met: /[A-Z]/.test(newPassword) },
+    { label: 'Number', met: /[0-9]/.test(newPassword) },
+    { label: 'Special character', met: /[^A-Za-z0-9]/.test(newPassword) },
+  ];
+  const pwStrength = pwChecks.filter(c => c.met).length;
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPwError(''); setPwSaved(false);
+    if (!currentPassword.trim()) { setPwError('Please enter your current password'); return; }
     if (newPassword.length < 10) { setPwError('Password must be at least 10 characters'); return; }
     if (!/[A-Z]/.test(newPassword)) { setPwError('Password must include an uppercase letter'); return; }
     if (!/[0-9]/.test(newPassword)) { setPwError('Password must include a number'); return; }
     if (!/[^A-Za-z0-9]/.test(newPassword)) { setPwError('Password must include a special character'); return; }
     if (newPassword !== confirmPassword) { setPwError('Passwords do not match'); return; }
     setPwSaving(true);
+    // Verify current password first
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: user!.email!,
+      password: currentPassword,
+    });
+    if (verifyError) {
+      setPwError('Current password is incorrect');
+      setPwSaving(false);
+      return;
+    }
     const { data, error: fnError } = await supabase.functions.invoke('manage-password', {
       body: { action: 'change', newPassword },
     });
     if (fnError || (data && !data.success)) {
       setPwError(fnError?.message || data?.error || 'Failed to update password');
     } else {
-      setPwSaved(true); setNewPassword(''); setConfirmPassword(''); setTimeout(() => setPwSaved(false), 3000);
+      setPwSaved(true); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setTimeout(() => setPwSaved(false), 3000);
     }
     setPwSaving(false);
   };
@@ -915,22 +935,52 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
         <form onSubmit={handleChangePassword} className="space-y-4">
           {pwError && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{pwError}</div>}
           {pwSaved && <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Password updated</div>}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Current Password</label>
+            <div className="relative">
+              <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} placeholder="Enter current password" autoComplete="current-password" className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" />
+            </div>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1.5">New Password</label>
               <div className="relative">
                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 10 characters" className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" />
+                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 10 characters" autoComplete="new-password" className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" />
               </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1.5">Confirm Password</label>
               <div className="relative">
                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat new password" className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" />
+                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat new password" autoComplete="new-password" className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" />
               </div>
             </div>
           </div>
+          {newPassword.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex gap-1">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className={`h-1.5 flex-1 rounded-full transition-all ${
+                    i <= pwStrength
+                      ? pwStrength <= 1 ? 'bg-red-400' : pwStrength <= 2 ? 'bg-amber-400' : pwStrength <= 3 ? 'bg-yellow-400' : 'bg-emerald-500'
+                      : 'bg-slate-200'
+                  }`} />
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {pwChecks.map(({ label, met }) => (
+                  <div key={label} className="flex items-center gap-1.5">
+                    <div className={`w-3 h-3 rounded-full flex items-center justify-center ${met ? 'bg-emerald-100' : 'bg-slate-100'}`}>
+                      {met ? <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> : <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />}
+                    </div>
+                    <span className={`text-xs ${met ? 'text-emerald-700 font-medium' : 'text-slate-500'}`}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <button type="submit" disabled={pwSaving} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white font-medium rounded-xl hover:bg-slate-900 transition-colors disabled:opacity-50 text-sm">
             <Shield className="w-4 h-4" />
             {pwSaving ? 'Updating…' : 'Update Password'}

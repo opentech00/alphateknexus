@@ -5,7 +5,20 @@ import { EmployeeDashboardPage } from './pages/EmployeeDashboardPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CashCollectionsPage } from './pages/CashCollectionsPage';
 import { FieldStaffApp } from './field/FieldStaffApp';
+import { IdleWarningModal } from '../components/IdleWarningModal';
 import { Loader2, ShieldAlert } from 'lucide-react';
+
+function IdleWarningWrapper() {
+  const { idleWarningVisible, idleWarningSecondsLeft, dismissIdleWarning, signOut } = useAuth();
+  return (
+    <IdleWarningModal
+      visible={idleWarningVisible}
+      secondsLeft={idleWarningSecondsLeft}
+      onStaySignedIn={dismissIdleWarning}
+      onSignOut={signOut}
+    />
+  );
+}
 
 function EmployeeContent() {
   const { user, employee, appAccess, loading } = useAuth();
@@ -22,17 +35,19 @@ function EmployeeContent() {
 
   if (employee?.must_change_password) return <ChangePasswordPage />;
 
-  // Use structured app_access to determine which app to show.
-  // Falls back to role-name heuristic for backwards compatibility.
   const isFieldStaff = appAccess?.app_type === 'field' && appAccess.is_active ||
     employee?.hr_roles?.name?.toLowerCase().includes('field') ||
     employee?.position?.toLowerCase().includes('field') ||
     employee?.hr_roles?.name?.toLowerCase().includes('staff') ||
     false;
 
-  if (isFieldStaff) return <FieldStaffApp />;
+  if (isFieldStaff) return (
+    <>
+      <FieldStaffApp />
+      <IdleWarningWrapper />
+    </>
+  );
 
-  // If access is explicitly inactive, show access denied
   if (appAccess && !appAccess.is_active) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -50,6 +65,7 @@ function EmployeeContent() {
   return (
     <EmployeeNotificationsProvider>
       <EmployeeDashboardPage />
+      <IdleWarningWrapper />
     </EmployeeNotificationsProvider>
   );
 }

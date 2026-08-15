@@ -6,6 +6,7 @@ import { initPushNotifications } from '../lib/pushNotifications';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { TwoFactorPage } from '../pages/TwoFactorPage';
 import { AdminSidebar } from './AdminSidebar';
+import { IdleWarningModal } from '../components/IdleWarningModal';
 import { OverviewPage } from './pages/OverviewPage';
 import { BookingsManagementPage } from './pages/BookingsManagementPage';
 import { ClientsPage } from './pages/ClientsPage';
@@ -43,6 +44,18 @@ import { FieldIncidentsPage } from './pages/FieldIncidentsPage';
 import { AdminSessionsPage } from './pages/AdminSessionsPage';
 import { TaskDelegationPage } from './pages/TaskDelegationPage';
 import { MediaLibraryPage } from './pages/MediaLibraryPage';
+
+function AdminIdleWarning() {
+  const { idleWarningVisible, idleWarningSecondsLeft, dismissIdleWarning, signOut } = useAuth();
+  return (
+    <IdleWarningModal
+      visible={idleWarningVisible}
+      secondsLeft={idleWarningSecondsLeft}
+      onStaySignedIn={dismissIdleWarning}
+      onSignOut={signOut}
+    />
+  );
+}
 
 function AdminContent() {
   const [currentPage, setCurrentPage] = useState('overview');
@@ -201,6 +214,7 @@ function AdminContent() {
           </div>
         </div>
       </main>
+      <AdminIdleWarning />
     </div>
   );
 }

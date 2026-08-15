@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Monitor, Smartphone, Tablet, Trash2, Loader2, AlertCircle,
-  Clock, MapPin, Shield, RefreshCw, CheckCircle2,
+  Clock, MapPin, Shield, RefreshCw, CheckCircle2, LogOut,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -29,7 +29,7 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-function getDeviceIcon(os: string, browser: string) {
+function getDeviceIcon(os: string, _browser: string) {
   if (/android|ios/i.test(os)) return Smartphone;
   if (/ipad/i.test(os)) return Tablet;
   return Monitor;
@@ -39,6 +39,7 @@ export function SessionManagerPanel() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [revokingAll, setRevokingAll] = useState(false);
   const [error, setError] = useState('');
 
   const loadSessions = useCallback(async () => {
@@ -73,6 +74,24 @@ export function SessionManagerPanel() {
     setRevoking(null);
   };
 
+  const handleRevokeAll = async () => {
+    if (!confirm('Sign out of all other devices? You will stay signed in on this device only.')) return;
+    setRevokingAll(true);
+    setError('');
+    try {
+      const { error: fnError } = await supabase.functions.invoke('manage-auth-events', {
+        body: { action: 'revoke-all-sessions' },
+      });
+      if (fnError) throw fnError;
+      setSessions(prev => prev.filter(s => s.is_current));
+    } catch (err: any) {
+      setError(err.message || 'Failed to sign out of other devices');
+    }
+    setRevokingAll(false);
+  };
+
+  const otherSessionCount = sessions.filter(s => !s.is_current).length;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -88,9 +107,25 @@ export function SessionManagerPanel() {
           <p className="text-sm font-semibold text-slate-800">Active Sessions</p>
           <p className="text-xs text-slate-500 mt-0.5">Devices currently signed into your account</p>
         </div>
-        <button onClick={loadSessions} className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
-          <RefreshCw className="w-4 h-4 text-slate-500" />
-        </button>
+        <div className="flex items-center gap-2">
+          {otherSessionCount > 0 && (
+            <button
+              onClick={handleRevokeAll}
+              disabled={revokingAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+            >
+              {revokingAll ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <LogOut className="w-3.5 h-3.5" />
+              )}
+              Sign out all others
+            </button>
+          )}
+          <button onClick={loadSessions} className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
+            <RefreshCw className="w-4 h-4 text-slate-500" />
+          </button>
+        </div>
       </div>
 
       {error && (

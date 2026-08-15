@@ -9,7 +9,6 @@ const corsHeaders = {
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
 
-// ── User-Agent parser ──
 function parseUserAgent(ua: string): { browser: string; os: string; deviceName: string } {
   let browser = "Unknown";
   let os = "Unknown";
@@ -39,6 +38,13 @@ function getIp(req: Request): string {
     if (val) return val.split(",")[0].trim();
   }
   return "unknown";
+}
+
+function getAuthUser(supabase: any, req: Request) {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) return { user: null, token: "" };
+  const token = authHeader.replace("Bearer ", "");
+  return { token, userPromise: supabase.auth.getUser(token) };
 }
 
 Deno.serve(async (req: Request) => {
@@ -73,7 +79,6 @@ Deno.serve(async (req: Request) => {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      // Look up user by email
       const { data: userData } = await supabase
         .from("profiles")
         .select("id")
@@ -115,32 +120,10 @@ Deno.serve(async (req: Request) => {
 
     // ── Record failed login attempt ──
     if (action === "record-failure") {
-      // Require authentication — only a real sign-in attempt should record a failure
-      const authHeader = req.headers.get("Authorization");
-      if (!authHeader) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const token = authHeader.replace("Bearer ", "");
-      const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
-      if (userErr || !user) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
       const { email } = body;
       if (!email) {
         return new Response(JSON.stringify({ error: "Missing email" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Only record failure for the authenticated user's own email
-      if (user.email?.toLowerCase() !== email.toLowerCase().trim()) {
-        return new Response(JSON.stringify({ error: "Email mismatch" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
@@ -158,7 +141,6 @@ Deno.serve(async (req: Request) => {
 
       const userId = userData.id;
 
-      // Get or create lockout record
       const { data: existing } = await supabase
         .from("auth_lockout")
         .select("*")
@@ -185,7 +167,6 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      // Log the failed attempt
       await supabase.from("login_activity").insert({
         user_id: userId,
         event_type: "login_failed",
@@ -223,17 +204,14 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      // Reset lockout
       await supabase.from("auth_lockout").delete().eq("user_id", user.id);
 
-      // Extract session ID from JWT (jti claim)
       let sessionId = "unknown";
       try {
         const payload = JSON.parse(atob(token.split(".")[1]));
         sessionId = payload.jti || payload.session_id || "unknown";
       } catch { /* ignore */ }
 
-      // Log success
       await supabase.from("login_activity").insert({
         user_id: user.id,
         event_type: "login_success",
@@ -244,7 +222,6 @@ Deno.serve(async (req: Request) => {
         success: true,
       });
 
-      // Mark all other sessions as not current, then insert this one as current
       await supabase.from("active_sessions").update({ is_current: false }).eq("user_id", user.id);
       await supabase.from("active_sessions").upsert({
         user_id: user.id,
@@ -258,13 +235,11 @@ Deno.serve(async (req: Request) => {
       }, { onConflict: "session_token" });
 
       // ── New Device Login Alert ──
-      // Compute a device fingerprint hash from user_agent + IP subnet
       const ipSubnet = ip.split(".").slice(0, 3).join(".");
       const deviceHashInput = `${userAgent}|${ipSubnet}`;
       const deviceHashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(deviceHashInput));
       const deviceHash = Array.from(new Uint8Array(deviceHashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
 
-      // Check if this device is already recognized
       const { data: existingDevice } = await supabase
         .from("recognized_devices")
         .select("id")
@@ -275,7 +250,6 @@ Deno.serve(async (req: Request) => {
       const isNewDevice = !existingDevice;
 
       if (isNewDevice) {
-        // Register the new device
         await supabase.from("recognized_devices").insert({
           user_id: user.id,
           device_hash: deviceHash,
@@ -285,13 +259,11 @@ Deno.serve(async (req: Request) => {
           ip_address: ip,
         });
       } else {
-        // Update last_seen_at
         await supabase.from("recognized_devices").update({
           last_seen_at: new Date().toISOString(),
         }).eq("user_id", user.id).eq("device_hash", deviceHash);
       }
 
-      // Queue a new-device alert notification if this is an unrecognized device
       if (isNewDevice) {
         const alertTitle = `New login from ${deviceName}`;
         const alertBody = `A new sign-in was detected on ${deviceName} at ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC. IP: ${ip}. If this was you, no action is needed. If not, please secure your account immediately.`;
@@ -386,6 +358,103 @@ Deno.serve(async (req: Request) => {
         .eq("session_token", sessionToken);
 
       return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Revoke ALL sessions except current ──
+    if (action === "revoke-all-sessions") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+      if (userErr || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Delete all sessions for this user that are NOT the current one
+      await supabase.from("active_sessions")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("is_current", false);
+
+      // Log the event
+      await supabase.from("login_activity").insert({
+        user_id: user.id,
+        event_type: "revoke_all_sessions",
+        ip_address: ip,
+        user_agent: userAgent,
+        device_name: deviceName,
+        success: true,
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Check for failed login attempts since last success ──
+    if (action === "check-failed-since-last-success") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+      if (userErr || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Find the most recent login_success event (excluding the current one - get 2nd most recent)
+      const { data: successEvents } = await supabase
+        .from("login_activity")
+        .select("created_at")
+        .eq("user_id", user.id)
+        .eq("event_type", "login_success")
+        .order("created_at", { ascending: false })
+        .limit(2);
+
+      // Use the 2nd most recent success (the one before this login) as the baseline
+      const prevSuccessDate = successEvents && successEvents.length > 1
+        ? successEvents[1].created_at
+        : null;
+
+      // Find any failed attempts after that success
+      let failQuery = supabase
+        .from("login_activity")
+        .select("created_at, device_name")
+        .eq("user_id", user.id)
+        .eq("event_type", "login_failed")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (prevSuccessDate) {
+        failQuery = failQuery.gt("created_at", prevSuccessDate);
+      }
+
+      const { data: failedEvents } = await failQuery;
+
+      if (failedEvents && failedEvents.length > 0) {
+        return new Response(JSON.stringify({
+          hasFailedAttempts: true,
+          lastFailedAt: failedEvents[0].created_at,
+          lastFailedDevice: failedEvents[0].device_name || "Unknown device",
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ hasFailedAttempts: false }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
