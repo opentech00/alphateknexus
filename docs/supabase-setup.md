@@ -30,6 +30,27 @@ Replace `your-project-ref` with the project ref shown in the Supabase dashboard.
 # login to supabase CLI (it will open a browser flow or you can use a token)
 supabase login
 
+## CLI personal access token and validation
+
+This project uses the `supabase` CLI for migrations and automation. For non-interactive CI and local automation you need a personal CLI token (not the service role key).
+
+Steps to create and validate a CLI token:
+
+1. In the Supabase dashboard, go to your account settings and create a new Personal Access Token.
+2. Tokens for the CLI start with `sbp_` — do NOT use `sb_secret_` or the anon key for CLI auth.
+3. Copy the token and set it to `SUPABASE_ACCESS_TOKEN` in your local `.env` (do NOT commit the `.env` file).
+
+Use the included validation script to check your token locally without printing it:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\validate-supabase-token.ps1
+```
+
+The script will return a non-zero exit code if the token is missing, malformed, or rejected by the CLI.
+
+If you need CI guidance, add the token to your repository secrets as `SUPABASE_ACCESS_TOKEN` and the GitHub workflow will use it for `supabase login --token "$SUPABASE_ACCESS_TOKEN"`.
+
+
 # link this workspace to the cloud project
 ./scripts/supabase-init.sh your-project-ref
 
