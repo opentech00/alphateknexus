@@ -2,7 +2,7 @@ apply plugin: 'com.android.application'
 
 android {
     namespace = "com.alphateknexus.app"
-    compileSdk = rootProject.ext.compileSdkVersion
+    compileSdk 36
     defaultConfig {
         applicationId "com.alphateknexus.app"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -19,7 +19,7 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

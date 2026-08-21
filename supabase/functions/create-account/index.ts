@@ -13,7 +13,17 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { email, password, fullName } = await req.json();
+    let payload: { email?: string; password?: string; fullName?: string };
+    try {
+      payload = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid account creation request" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const { email, password, fullName } = payload;
 
     if (!email || !password || !fullName) {
       return new Response(
@@ -29,10 +39,18 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error("create-account: missing Supabase environment variables");
+      return new Response(
+        JSON.stringify({ error: "Server misconfiguration: missing Supabase environment variables" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // Create the user via admin API — no confirmation email is sent
     const { data: userData, error: createError } =

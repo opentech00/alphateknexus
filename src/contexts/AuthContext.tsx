@@ -297,8 +297,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (fnError) {
-        const body = fnData as Record<string, string> | null;
-        const msg = body?.error || fnError.message || 'Account creation failed.';
+        const httpErr = fnError as { message?: string; context?: Response };
+        let msg = 'Account creation failed.';
+
+        if (httpErr.context) {
+          try {
+            const body = await httpErr.context.clone().json() as Record<string, unknown> | null;
+            if (body && typeof body.error === 'string') {
+              msg = body.error;
+            } else if (body && typeof body.message === 'string') {
+              msg = body.message;
+            }
+          } catch {
+            // Ignore non-JSON error payloads and fall back below.
+          }
+        }
+
+        if (msg === 'Account creation failed.') {
+          const body = fnData as Record<string, string> | null;
+          msg = body?.error || httpErr.message || 'Account creation failed.';
+        }
+
         return { error: msg };
       }
 

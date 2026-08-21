@@ -41,7 +41,6 @@ function fmtMoney(n: number) {
   const sign = n < 0 ? '-' : '';
   return `${sign}SLE ${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
-
 export function DisputesTab() {
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [loading, setLoading] = useState(true);
