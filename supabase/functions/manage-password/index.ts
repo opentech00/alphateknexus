@@ -157,6 +157,24 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      await adminClient.rpc("enqueue_notification", {
+        p_user_id: user.id,
+        p_recipient_role: "client",
+        p_event_type: "password_changed",
+        p_title: "Password changed successfully",
+        p_body: "Your AlphaTek Nexus password was changed successfully. If you did not make this change, contact support immediately.",
+        p_category: "system",
+        p_metadata: { action: "password_changed" },
+      });
+
+      await adminClient.rpc("enqueue_admin_notification", {
+        p_event_type: "user_password_changed",
+        p_title: "User password changed",
+        p_body: `${user.email || "A user"} changed their account password.`,
+        p_category: "system",
+        p_metadata: { user_id: user.id, action: "password_changed" },
+      });
+
       return new Response(JSON.stringify({ success: true, message: "Password updated successfully" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

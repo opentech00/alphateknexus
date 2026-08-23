@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAdminNotifications } from './contexts/AdminNotificationsContext';
+import { useAdminOperations } from './contexts/AdminOperationsContext';
 import { AdminNotificationsBell } from '../components/AdminNotificationsBell';
 import { useAppLogo } from '../lib/media';
 
@@ -136,6 +137,7 @@ function isHrPage(page: string): boolean {
 export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
   const { profile, signOut, hasAdminPermission, isSuperAdmin } = useAuth();
   const { unreadByType, unreadCount, unreadBySlug, markReadBySlug } = useAdminNotifications();
+  const { newJobCount, jobReviewCount, newTaskCount } = useAdminOperations();
   const { url: logoUrl } = useAppLogo();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [hrExpanded, setHrExpanded] = useState(true);
@@ -171,14 +173,14 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
     clients: 0,
     finance: 0,
     reviews: 0,
-    'field-dispatch': 0,
-    'field-job-review': 0,
+    'field-dispatch': newJobCount,
+    'field-job-review': jobReviewCount,
     'field-incidents': 0,
     bundles: 0,
     referrals: 0,
     settings: 0,
     'notification-log': 0,
-    'task-delegation': 0,
+    'task-delegation': newTaskCount,
     'media-library': 0,
     backup: 0,
     'hr-dashboard': 0,

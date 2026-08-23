@@ -35,6 +35,7 @@ function buildEmailHtml(opts: {
   details: { label: string; value: string }[];
   footerText: string;
 }): string {
+  const appUrl = (Deno.env.get("APP_URL") || "https://alphateknexus.com").replace(/\/$/, "");
   const detailRows = opts.details
     .map(
       (d) => `<tr><td style="padding:12px 20px;border-bottom:1px solid #e2e8f0;"><span style="color:#64748b;font-size:13px;">${d.label}</span><span style="float:right;color:#0f172a;font-size:13px;font-weight:600;">${d.value}</span></td></tr>`
@@ -43,22 +44,23 @@ function buildEmailHtml(opts: {
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;padding:24px 0;">
+<body style="margin:0;padding:0;background-color:#eef2f6;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#eef2f6;padding:32px 12px;">
 <tr><td align="center">
-<table width="480" cellpadding="0" cellspacing="0" style="background-color:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-<tr><td style="background:linear-gradient(135deg,#0f172a,#1e293b);padding:32px 40px;text-align:center;">
-<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;letter-spacing:-0.3px;">AlphaTek Nexus</h1>
-<p style="margin:6px 0 0;color:#94a3b8;font-size:13px;">${opts.subtitle}</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fff;border:1px solid #dbe3ea;border-radius:14px;overflow:hidden;">
+<tr><td style="height:5px;background:#10b981;font-size:0;line-height:0;">&nbsp;</td></tr>
+<tr><td style="padding:28px 36px 22px;border-bottom:1px solid #edf1f5;"><table width="100%" cellpadding="0" cellspacing="0"><tr>
+<td><img src="${appUrl}/alphateknexus_logo.png" width="42" height="42" alt="AlphaTek Nexus" style="display:block;border-radius:10px;"></td>
+<td style="padding-left:12px;"><strong style="display:block;color:#0f172a;font-size:17px;">AlphaTek Nexus</strong><span style="display:block;margin-top:3px;color:#64748b;font-size:12px;">${opts.subtitle}</span></td>
+</tr></table></td></tr>
+<tr><td style="padding:34px 36px 12px;text-align:left;">
+<h1 style="margin:0 0 8px;color:#0f172a;font-size:24px;font-weight:700;line-height:1.25;">${opts.bodyTitle}</h1>
+<p style="margin:0;color:#475569;font-size:15px;line-height:1.65;">${opts.bodyText}</p>
 </td></tr>
-<tr><td style="padding:32px 40px 0;text-align:center;">
-<h2 style="margin:0 0 4px;color:#0f172a;font-size:20px;font-weight:700;">${opts.bodyTitle}</h2>
-<p style="margin:0;color:#64748b;font-size:14px;">${opts.bodyText}</p>
-</td></tr>
-${detailRows ? `<tr><td style="padding:24px 40px;"><table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;">${detailRows}</table></td></tr>` : ""}
-<tr><td style="padding:0 40px 32px;text-align:center;">
-<p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6;">${opts.footerText}<br/>No reply is needed.</p>
-<p style="margin:16px 0 0;color:#cbd5e1;font-size:11px;">&copy; AlphaTek Nexus. All rights reserved.</p>
+${detailRows ? `<tr><td style="padding:22px 36px 28px;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;">${detailRows}</table></td></tr>` : ""}
+<tr><td style="padding:20px 36px;background:#f8fafc;border-top:1px solid #edf1f5;">
+<p style="margin:0;color:#64748b;font-size:12px;line-height:1.6;">${opts.footerText}<br>No reply is needed.</p>
+<p style="margin:12px 0 0;color:#94a3b8;font-size:11px;">&copy; AlphaTek Nexus. All rights reserved.</p>
 </td></tr>
 </table>
 </td></tr>

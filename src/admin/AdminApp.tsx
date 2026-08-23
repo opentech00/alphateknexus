@@ -44,6 +44,7 @@ import { FieldIncidentsPage } from './pages/FieldIncidentsPage';
 import { AdminSessionsPage } from './pages/AdminSessionsPage';
 import { TaskDelegationPage } from './pages/TaskDelegationPage';
 import { MediaLibraryPage } from './pages/MediaLibraryPage';
+import { AdminOperationsProvider } from './contexts/AdminOperationsContext';
 
 function AdminIdleWarning() {
   const { idleWarningVisible, idleWarningSecondsLeft, dismissIdleWarning, signOut } = useAuth();
@@ -222,7 +223,9 @@ function AdminContent() {
 export function AdminApp() {
   return (
     <AdminNotificationsProvider>
-      <AdminContent />
+      <AdminOperationsProvider>
+        <AdminContent />
+      </AdminOperationsProvider>
     </AdminNotificationsProvider>
   );
 }

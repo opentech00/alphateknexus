@@ -1,0 +1,1 @@
+import{c as e,j as r,T as t}from"./ThemeContext-WFKrpxJ3.js";import{bA as o}from"./icons-DJkxqf3m.js";import{A as i,F as m}from"./FieldStaffApp-lF7z-TT4.js";import"./react-vendor-G6162pbW.js";import"./supabase-wIXNjVJv.js";e(document.getElementById("root")).render(r.jsx(o.StrictMode,{children:r.jsx(t,{children:r.jsx(i,{children:r.jsx(m,{})})})}));
