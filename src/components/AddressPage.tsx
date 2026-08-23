@@ -91,7 +91,7 @@ export function AddressPage() {
         const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/address-search?q=${encodeURIComponent(query.trim())}`;
         const res = await fetch(url, {
           headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY,
             'Content-Type': 'application/json',
           },
         });

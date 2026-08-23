@@ -117,7 +117,7 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
       });
       if (!res.ok) {

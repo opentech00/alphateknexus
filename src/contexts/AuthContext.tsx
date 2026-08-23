@@ -292,46 +292,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUpInProgressRef.current = true;
 
     try {
-      const { data: fnData, error: fnError } = await supabase.functions.invoke('create-account', {
-        body: { email: email.trim().toLowerCase(), password, fullName: fullName.trim() },
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-account`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password, fullName: fullName.trim() }),
       });
+      const fnData = await response.json().catch(() => null) as Record<string, unknown> | null;
 
-      if (fnError) {
-        const httpErr = fnError as { message?: string; context?: Response };
-        let msg = 'Account creation failed.';
-
-        if (httpErr.context) {
-          try {
-            const body = await httpErr.context.clone().json() as Record<string, unknown> | null;
-            if (body && typeof body.error === 'string') {
-              msg = body.error;
-            } else if (body && typeof body.message === 'string') {
-              msg = body.message;
-            }
-          } catch {
-            // Ignore non-JSON error payloads and fall back below.
-          }
-        }
-
-        if (msg === 'Account creation failed.') {
-          const body = fnData as Record<string, string> | null;
-          msg = body?.error || httpErr.message || 'Account creation failed.';
-        }
-
-        return { error: msg };
+      if (!response.ok) {
+        const detail = typeof fnData?.error === 'string' ? fnData.error : `Account creation failed (${response.status}).`;
+        return { error: detail };
       }
 
-      if (!fnData?.success) {
-        return { error: fnData?.error || 'Account creation failed. Please try again.' };
+      if (fnData?.success !== true) {
+        return { error: typeof fnData?.error === 'string' ? fnData.error : 'Account creation failed. Please try again.' };
       }
 
+      await supabase.auth.signOut({ scope: 'local' });
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
       });
 
       if (signInError) {
-        return { error: 'Account created but auto sign-in failed. Please sign in manually.' };
+        console.error('signUp: auto sign-in error:', signInError.message);
+        return { error: `Account created, but sign-in failed: ${signInError.message}` };
       }
 
       try {

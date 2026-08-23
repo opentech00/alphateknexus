@@ -105,7 +105,8 @@ Deno.serve(async (req: Request) => {
 
     const resendKey = Deno.env.get("RESEND_API_KEY");
     if (!resendKey) {
-      return new Response(JSON.stringify({ error: "Email service not configured" }), {
+      console.error("send-verification-code: RESEND_API_KEY is not configured in Supabase Edge Function secrets");
+      return new Response(JSON.stringify({ error: "Resend email service is not configured. Set RESEND_API_KEY in Supabase Edge Function secrets." }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -128,7 +129,7 @@ Deno.serve(async (req: Request) => {
     if (!resendRes.ok) {
       const errText = await resendRes.text();
       console.error("send-verification-code delivery failure:", errText);
-      return new Response(JSON.stringify({ error: "Failed to send verification email" }), {
+      return new Response(JSON.stringify({ error: `Resend rejected the email request (${resendRes.status}). Check the Resend API key and verified sender domain.` }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

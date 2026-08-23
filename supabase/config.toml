@@ -1,0 +1,5 @@
+[functions.create-account]
+verify_jwt = false
+
+[functions.address-search]
+verify_jwt = false

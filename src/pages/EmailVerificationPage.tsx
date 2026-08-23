@@ -18,7 +18,7 @@ async function extractFnError(res: { data: unknown; error: unknown }): Promise<s
   const err = res.error as { message?: string; context?: Response };
   if (err.context) {
     try {
-      const body = await err.context.json();
+      const body = await err.context.clone().json();
       if (body?.error) return body.error;
     } catch { /* response body already consumed or not JSON */ }
   }
@@ -73,6 +73,15 @@ async function invokeWithRetry(
   return lastRes;
 }
 
+async function hasFreshAuthSession(): Promise<boolean> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const expiresAt = sessionData.session?.expires_at ?? 0;
+  if (sessionData.session && expiresAt > Math.floor(Date.now() / 1000) + 60) return true;
+
+  const { data: refreshed } = await supabase.auth.refreshSession();
+  return Boolean(refreshed.session);
+}
+
 export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerificationPageProps) {
   const { refreshVerification } = useAuth();
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
@@ -108,15 +117,10 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
       // Ensure the session token is valid before calling the edge function.
       // The gateway rejects requests with expired/missing tokens before the
       // function code runs, producing a generic non-2xx error.
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) {
-        // Try refreshing the session
-        const { data: refreshed } = await supabase.auth.refreshSession();
-        if (!refreshed.session) {
-          setError('Your session has expired. Please sign in again.');
-          setSending(false);
-          return;
-        }
+      if (!await hasFreshAuthSession()) {
+        setError('Your session has expired. Please sign in again.');
+        setSending(false);
+        return;
       }
 
       const res = await invokeWithRetry('send-verification-code', undefined, 3, () => setRetrying(true));
@@ -173,14 +177,10 @@ export function EmailVerificationPage({ email, onBack, onVerified }: EmailVerifi
     setInfo('');
     try {
       // Ensure the session token is valid before calling the edge function.
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) {
-        const { data: refreshed } = await supabase.auth.refreshSession();
-        if (!refreshed.session) {
-          setError('Your session has expired. Please sign in again.');
-          setVerifying(false);
-          return;
-        }
+      if (!await hasFreshAuthSession()) {
+        setError('Your session has expired. Please sign in again.');
+        setVerifying(false);
+        return;
       }
 
       const res = await invokeWithRetry('verify-email-code', { code }, 3, () => setRetrying(true));
