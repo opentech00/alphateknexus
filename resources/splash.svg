@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732">
+  <defs>
+    <linearGradient id="accent" x1="620" y1="640" x2="2110" y2="2110" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+  <rect width="2732" height="2732" fill="#0f172a"/>
+  <circle cx="1366" cy="1250" r="520" fill="#172554" opacity=".7"/>
+  <path fill="url(#accent)" d="m1366 650-330 705h182l148-318 148 318h182l-330-705Z"/>
+  <path fill="#0f172a" d="m1366 888-90 193 90-51 90 51-90-193Z"/>
+  <circle cx="1366" cy="1179" r="48" fill="#f8fafc"/>
+  <text x="1366" y="1665" fill="#f8fafc" font-family="Arial,Helvetica,sans-serif" font-size="160" font-weight="700" letter-spacing="18" text-anchor="middle">ALPHATEK</text>
+  <text x="1366" y="1815" fill="#34d399" font-family="Arial,Helvetica,sans-serif" font-size="86" font-weight="700" letter-spacing="48" text-anchor="middle">NEXUS</text>
+  <rect x="1166" y="1940" width="400" height="8" rx="4" fill="#2563eb"/>
+  <text x="1366" y="2075" fill="#94a3b8" font-family="Arial,Helvetica,sans-serif" font-size="46" letter-spacing="8" text-anchor="middle">SMART SERVICES. SEAMLESS LIFE.</text>
+</svg>
