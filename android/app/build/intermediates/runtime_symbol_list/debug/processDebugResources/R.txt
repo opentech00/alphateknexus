@@ -446,6 +446,7 @@ int color switch_thumb_normal_material_dark 0x7f050064
 int color switch_thumb_normal_material_light 0x7f050065
 int color tooltip_background_dark 0x7f050066
 int color tooltip_background_light 0x7f050067
+int color white 0x7f050068
 int dimen abc_action_bar_content_inset_material 0x7f060000
 int dimen abc_action_bar_content_inset_with_nav 0x7f060001
 int dimen abc_action_bar_default_height_material 0x7f060002

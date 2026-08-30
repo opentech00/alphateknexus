@@ -1,4 +1,4 @@
-#Wed Aug 26 15:56:17 GMT 2026
+#Wed Aug 26 16:21:52 GMT 2026
 base.0=C\:\\Users\\dell\\Desktop\\alphateknexus\\android\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes.dex
 base.1=C\:\\Users\\dell\\Desktop\\alphateknexus\\android\\app\\build\\intermediates\\dex\\debug\\mergeLibDexDebug\\13\\classes.dex
 base.10=C\:\\Users\\dell\\Desktop\\alphateknexus\\android\\app\\build\\intermediates\\global_synthetics_dex\\debug\\generateDebugGlobalSynthetics\\classes.dex
