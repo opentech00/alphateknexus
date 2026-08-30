@@ -202,7 +202,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
   }
 
   return (
-    <div className="flex flex-col min-h-full bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight">
+    <div className="flex-1 flex flex-col bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight overflow-y-auto mobile-scroll">
       {/* Wallet strip */}
       {wallet_enabled && (
       <div

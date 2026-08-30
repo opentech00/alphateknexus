@@ -212,7 +212,7 @@ function PortalContent() {
 
   return (
     <>
-      <div className="block md:hidden h-screen overflow-hidden">
+      <div className="block md:hidden h-full overflow-hidden">
         <MobileShell
           onNavigate={handleNavigate}
           onSelectService={handleSelectService}

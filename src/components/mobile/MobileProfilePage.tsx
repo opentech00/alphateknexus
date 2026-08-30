@@ -142,7 +142,7 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
   };
 
   return (
-    <div className={`pb-8 transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+    <div className={`flex-1 overflow-y-auto mobile-scroll pb-8 transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
       {/* ── Hero Card ── */}
       <div className="relative overflow-hidden bg-blue-700 mx-4 mt-4 rounded-3xl shadow-xl shadow-blue-900/20">
         <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-[0.07] pointer-events-none select-none">
