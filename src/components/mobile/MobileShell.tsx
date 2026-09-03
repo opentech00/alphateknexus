@@ -86,7 +86,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 h-[100dvh] h-screen w-full flex flex-col overflow-hidden bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight safe-area-all z-20"
+      className="fixed inset-0 h-[100dvh] h-screen w-full flex flex-col overflow-hidden bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight z-20"
     >
       {/* Top Bar — fixed height, safe-area top padding */}
       <header className="flex-shrink-0 z-30 bg-white/95 dark:bg-slate-900/95 black:bg-black backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-sm no-select">
