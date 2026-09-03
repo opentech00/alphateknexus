@@ -5,11 +5,12 @@
 * {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  
 }
 
 html, body, #root {
   min-height: 100%;
-  height: 100%;
+  height: auto;
   margin: 0;
   padding: 0;
   overflow-x: hidden;
@@ -19,7 +20,14 @@ html, body, #root {
 body {
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
+  touch-action: pan-y;
+}
+
+.mobile-scroll {
+  -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
+  touch-action: pan-y;
 }
 
 @keyframes fadeInUp {
@@ -311,13 +319,13 @@ html.system:not(.light):not(.dark):not(.black) {
   100% { background-position: 200% 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background: linear-gradient(90deg, #e2e8f0 20%, #f8fafc 50%, #e2e8f0 80%);
   background-size: 200% 100%;
-  animation: skeletonShimmer 1.5s ease-in-out infinite;
-  border-radius: 0.5rem;
+  animation: skeletonShimmer 1.2s ease-in-out infinite;
+  border-radius: 0.75rem;
 }
 .dark .skeleton, .black .skeleton {
-  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background: linear-gradient(90deg, #1e293b 20%, #334155 50%, #1e293b 80%);
   background-size: 200% 100%;
 }
 
@@ -831,3 +839,73 @@ html[data-accent="violet"] {
 .dark .hover\:bg-slate-900:hover, .black .hover\:bg-slate-900:hover {
   background-color: #475569 !important;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   PREMIUM GLASS & GLOW DESIGN UTILITIES
+   Aesthetic visual enhancements for cards, banners, buttons,
+   and dynamic hover states.
+   ═══════════════════════════════════════════════════════════ */
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+.dark .glass-card, .black .glass-card {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(51, 65, 85, 0.6);
+}
+
+.glass-card-hover {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 32px -8px rgba(16, 185, 129, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.glow-emerald {
+  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.25);
+}
+
+.glow-blue {
+  box-shadow: 0 0 25px -5px rgba(59, 130, 246, 0.25);
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+.animate-pulse-glow {
+  animation: pulseGlow 4s ease-in-out infinite;
+}
+
+@keyframes floatSubtle {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+}
+.animate-float {
+  animation: floatSubtle 3s ease-in-out infinite;
+}
+
+.badge-glow {
+  position: relative;
+}
+.badge-glow::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.4), rgba(59, 130, 246, 0.4));
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.badge-glow:hover::after {
+  opacity: 1;
+}
+

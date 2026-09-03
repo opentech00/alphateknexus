@@ -329,7 +329,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
   const pullIndicatorHeight = refreshing ? 40 : pulling ? Math.round(progress * 40) : 0;
 
   return (
-    <div ref={scrollRef} className="flex flex-col min-h-full bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight overflow-y-auto mobile-scroll">
+    <div ref={scrollRef} className="flex flex-col min-h-full bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight pb-8">
       {/* Pull-to-refresh indicator */}
       <div
         className="flex items-center justify-center overflow-hidden transition-all duration-200"

@@ -252,9 +252,13 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
 
       {/* Header */}
       <section className={`pt-10 pb-6 text-center transition-all duration-700 delay-100 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        <h1 className="text-3xl lg:text-4xl font-bold text-slate-900">Our Services</h1>
-        <p className="mt-3 text-slate-500 max-w-lg mx-auto">
-          Choose from our professional services designed for your business
+        <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-3">
+          <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+          <span className="text-xs text-emerald-700 dark:text-emerald-400 font-bold uppercase tracking-widest">Enterprise Solutions</span>
+        </div>
+        <h1 className="text-3xl lg:text-5xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">Our Services</h1>
+        <p className="mt-3 text-slate-500 dark:text-slate-400 max-w-lg mx-auto text-sm sm:text-base">
+          Professional logistics, waste management, security, janitorial, and procurement services tailored for your business
         </p>
       </section>
 
@@ -262,18 +266,18 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
       <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-8 transition-all duration-700 delay-200 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-emerald-500" />
-            <span className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Featured</span>
+            <Zap className="w-4 h-4 text-emerald-500 fill-emerald-500" />
+            <span className="text-sm font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Featured Divisions</span>
           </div>
-          <span className="text-sm text-slate-400">Swipe for more</span>
+          <span className="text-xs font-semibold text-slate-400">Swipe to explore</span>
         </div>
 
         <div className="relative group">
           <button
             onClick={() => scrollCarousel('left')}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 w-10 h-10 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-50"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 w-10 h-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
           >
-            <ChevronLeft className="w-5 h-5 text-slate-600" />
+            <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
           </button>
 
           <div
@@ -290,18 +294,18 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                   className="flex-shrink-0 w-72 sm:w-80 snap-start group/card cursor-pointer"
                   onClick={(e) => handleViewDetails(e, service)}
                 >
-                  <div className="relative h-52 w-72 sm:w-80 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+                  <div className="relative h-56 w-72 sm:w-80 rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] border border-slate-200/50 dark:border-slate-800">
                     <img
                       src={extras?.image}
                       alt={service.name}
                       width={320}
-                      height={208}
-                      className="w-full h-full object-cover"
+                      height={224}
+                      className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/30 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-900/40 to-transparent" />
                     <button
                       onClick={(e) => toggleFavorite(e, service.id)}
-                      className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition-colors"
+                      className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center hover:bg-black/60 transition-colors shadow-sm"
                     >
                       <Heart
                         className={`w-4 h-4 transition-all ${
@@ -314,12 +318,12 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                     </button>
                     {extras && (
                       <div className="absolute top-3 left-3 flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500 text-white text-xs font-medium rounded-full">
-                          <Zap className="w-3 h-3" />
+                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold rounded-full shadow-sm">
+                          <Zap className="w-3 h-3 fill-white" />
                           {extras.responseTime}
                         </span>
                         {svcRating && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-black/50 backdrop-blur-sm text-white text-xs font-medium rounded-full">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-black/60 backdrop-blur-md text-white text-xs font-bold rounded-full border border-white/10">
                             <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
                             {svcRating.avg}
                           </span>
@@ -327,12 +331,12 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                       </div>
                     )}
                     <div className="absolute bottom-0 left-0 right-0 p-5">
-                      <p className="text-xs text-slate-300 uppercase tracking-wider mb-1 line-clamp-1">
-                        {service.description?.slice(0, 50)}...
+                      <p className="text-xs text-emerald-300 font-semibold uppercase tracking-wider mb-1 line-clamp-1">
+                        {extras?.category || 'Service'}
                       </p>
-                      <h3 className="text-lg font-bold text-white">{service.name}</h3>
-                      <div className="flex items-center gap-2 mt-2 text-emerald-300 text-sm font-medium group-hover/card:gap-3 transition-all">
-                        Explore <ArrowRight className="w-3.5 h-3.5" />
+                      <h3 className="text-xl font-bold text-white leading-snug">{service.name}</h3>
+                      <div className="flex items-center gap-2 mt-2 text-emerald-400 text-sm font-semibold group-hover/card:gap-3 transition-all">
+                        Explore details <ArrowRight className="w-4 h-4" />
                       </div>
                     </div>
                   </div>
@@ -343,14 +347,14 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
 
           <button
             onClick={() => scrollCarousel('right')}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-10 h-10 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-50"
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-10 h-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
           >
-            <ChevronRight className="w-5 h-5 text-slate-600" />
+            <ChevronRight className="w-5 h-5 text-slate-600 dark:text-slate-300" />
           </button>
         </div>
 
         {/* Progress bar */}
-        <div className="mt-3 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+        <div className="mt-3 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
           <div className="h-full w-2/5 bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full" />
         </div>
       </section>
@@ -358,15 +362,15 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
       {/* Recommendation Banner */}
       {topBooked && (
         <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-8 transition-all duration-700 delay-300 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow">
+          <div className="glass-card rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-emerald-500/20 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-emerald-600" />
+              <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl flex items-center justify-center">
+                <TrendingUp className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
-                <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Recommended for you</p>
-                <p className="text-slate-700 mt-0.5">
-                  You've booked <span className="font-bold">{topBooked[0]}</span> {topBooked[1]}x -- keep the momentum.
+                <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Most Requested</p>
+                <p className="text-slate-800 dark:text-slate-200 mt-0.5 font-medium text-sm sm:text-base">
+                  You've booked <span className="font-extrabold text-emerald-600 dark:text-emerald-400">{topBooked[0]}</span> {topBooked[1]}x -- keep your workflow running smoothly.
                 </p>
               </div>
             </div>
@@ -375,7 +379,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                 const svc = services.find((s) => s.name === topBooked[0]);
                 if (svc) handleBookService(svc);
               }}
-              className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 text-white font-medium rounded-xl hover:bg-slate-900 transition-colors text-sm whitespace-nowrap"
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-semibold rounded-xl hover:bg-slate-800 dark:hover:bg-white transition-all text-sm whitespace-nowrap active:scale-[0.98] shadow-md"
             >
               Book again <ArrowRight className="w-4 h-4" />
             </button>
@@ -386,25 +390,28 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
       {/* Category Filters */}
       <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-8 transition-all duration-700 delay-[400ms] ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <div className="flex items-center gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 ${
-                activeCategory === cat
-                  ? 'bg-slate-800 text-white shadow-md'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              {cat === 'All' && <Grid3X3 className="w-3.5 h-3.5" />}
-              {cat === 'C&F' && <Ship className="w-3.5 h-3.5" />}
-              {cat === 'Smart Sort' && <Trash2 className="w-3.5 h-3.5" />}
-              {cat === 'Cleaning' && <Sparkles className="w-3.5 h-3.5" />}
-              {cat === 'Security' && <Shield className="w-3.5 h-3.5" />}
-              {cat === 'Procurement' && <ShoppingCart className="w-3.5 h-3.5" />}
-              {cat}
-            </button>
-          ))}
+          {categories.map((cat) => {
+            const active = activeCategory === cat;
+            return (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition-all duration-200 ${
+                  active
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-950/20 border border-emerald-500/30 scale-[1.02]'
+                    : 'bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80'
+                }`}
+              >
+                {cat === 'All' && <Grid3X3 className={`w-4 h-4 ${active ? 'text-white' : 'text-slate-400'}`} />}
+                {cat === 'C&F' && <Ship className={`w-4 h-4 ${active ? 'text-white' : 'text-blue-500'}`} />}
+                {cat === 'Smart Sort' && <Trash2 className={`w-4 h-4 ${active ? 'text-white' : 'text-emerald-500'}`} />}
+                {cat === 'Cleaning' && <Sparkles className={`w-4 h-4 ${active ? 'text-white' : 'text-cyan-500'}`} />}
+                {cat === 'Security' && <Shield className={`w-4 h-4 ${active ? 'text-white' : 'text-slate-500'}`} />}
+                {cat === 'Procurement' && <ShoppingCart className={`w-4 h-4 ${active ? 'text-white' : 'text-amber-500'}`} />}
+                {cat}
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -417,7 +424,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
             return (
               <div
                 key={service.id}
-                className={`bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-xl hover:border-emerald-200 transition-all duration-500 group ${
+                className={`glass-card glass-card-hover rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 transition-all duration-500 group relative ${
                   animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
                 }`}
                 style={{ transitionDelay: `${500 + index * 100}ms` }}
@@ -425,11 +432,11 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                 {/* Card Header */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-700 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
+                    <div className="w-13 h-13 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shadow-sm flex-shrink-0">
                       {iconMap[service.icon]}
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-slate-900">
+                      <h3 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
                       {service.slug === 'waste-management' ? (
                         <span
                           title="smart sort waste management"
@@ -439,16 +446,16 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                         </span>
                       ) : service.name}
                     </h3>
-                      <p className="text-sm text-slate-500 mt-0.5 line-clamp-2">{service.description}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">{service.description}</p>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0 ml-3">
                     <button
                       onClick={(e) => toggleFavorite(e, service.id)}
-                      className={`p-1.5 rounded-lg transition-all active:scale-90 ${
+                      className={`p-1.5 rounded-xl transition-all active:scale-90 ${
                         favorites.has(service.id)
-                          ? 'text-rose-500 hover:bg-rose-50'
-                          : 'text-slate-300 hover:text-rose-400 hover:bg-rose-50'
+                          ? 'text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                          : 'text-slate-300 dark:text-slate-600 hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30'
                       }`}
                     >
                       <Heart
@@ -459,33 +466,33 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                       />
                     </button>
                     {extras && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full">
-                        <Zap className="w-3 h-3" />
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs font-bold rounded-full border border-emerald-500/20">
+                        <Zap className="w-3 h-3 fill-emerald-500" />
                         {extras.responseTime}
                       </span>
                     )}
                     {svcRating ? (
-                      <div className="flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                        <span className="text-sm font-semibold text-amber-600">{svcRating.avg}</span>
-                        <span className="text-xs text-slate-400">({svcRating.count})</span>
+                      <div className="flex items-center gap-1 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full border border-amber-200/50">
+                        <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                        <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{svcRating.avg}</span>
+                        <span className="text-[10px] text-slate-400">({svcRating.count})</span>
                       </div>
                     ) : (
-                      <span className="text-xs text-slate-400">No reviews yet</span>
+                      <span className="text-[11px] text-slate-400">No reviews</span>
                     )}
                   </div>
                 </div>
 
                 {/* Pricing & Duration */}
-                <div className="flex gap-8 mb-4 pb-4 border-b border-slate-100">
+                <div className="flex gap-8 mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                   <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wide font-medium">Pricing</p>
-                    <p className="text-sm font-semibold text-slate-800 mt-0.5">{service.price_range}</p>
+                    <p className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Pricing</p>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">{service.price_range}</p>
                   </div>
                   {extras && (
                     <div>
-                      <p className="text-xs text-slate-400 uppercase tracking-wide font-medium">Duration</p>
-                      <p className="text-sm font-semibold text-slate-800 mt-0.5">{extras.duration}</p>
+                      <p className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Duration</p>
+                      <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">{extras.duration}</p>
                     </div>
                   )}
                 </div>
@@ -493,12 +500,12 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                 {/* Features */}
                 {extras && (
                   <div className="mb-5">
-                    <p className="text-xs text-slate-400 uppercase tracking-wide font-medium mb-2">Features</p>
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <p className="text-[11px] text-slate-400 uppercase tracking-widest font-bold mb-2">Highlights</p>
+                    <div className="grid grid-cols-2 gap-2">
                       {extras.features.map((f) => (
-                        <div key={f} className="flex items-center gap-2 text-sm text-slate-600">
+                        <div key={f} className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                          {f}
+                          <span>{f}</span>
                         </div>
                       ))}
                     </div>
@@ -510,21 +517,21 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleBookService(service, 'pickup')}
-                      className="flex items-center justify-center gap-1.5 px-4 py-3 bg-[#1e293b] text-white font-semibold rounded-xl hover:bg-[#0f172a] transition-all active:scale-[0.98] text-sm"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-3 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-semibold rounded-xl hover:bg-slate-800 dark:hover:bg-white transition-all active:scale-[0.98] text-xs sm:text-sm shadow-sm"
                     >
                       <PackageCheck className="w-4 h-4" />
                       One-Off Pickup
                     </button>
                     <button
                       onClick={() => handleBookService(service, 'subscribe')}
-                      className="flex items-center justify-center gap-1.5 px-4 py-3 bg-teal-500 text-white font-semibold rounded-xl hover:bg-teal-600 transition-all active:scale-[0.98] text-sm"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-3 bg-gradient-to-r from-teal-500 to-emerald-600 text-white font-semibold rounded-xl hover:from-teal-600 hover:to-emerald-700 transition-all active:scale-[0.98] text-xs sm:text-sm shadow-md shadow-emerald-950/20"
                     >
                       <Repeat2 className="w-4 h-4" />
                       Subscribe
                     </button>
                     <button
                       onClick={() => handleQuoteService(service)}
-                      className="flex items-center justify-center gap-1.5 px-4 py-3 bg-white border border-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.98] text-sm"
+                      className="flex items-center justify-center gap-1.5 px-3.5 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all active:scale-[0.98] text-xs sm:text-sm"
                     >
                       <MessageSquare className="w-4 h-4" />
                       Quote
@@ -534,14 +541,14 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => handleBookService(service)}
-                      className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-all hover:shadow-lg hover:shadow-emerald-500/20 active:scale-[0.98]"
+                      className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all shadow-md shadow-emerald-950/20 active:scale-[0.98]"
                     >
                       <CalendarPlus className="w-4 h-4" />
                       Hire Now
                     </button>
                     <button
                       onClick={() => handleQuoteService(service)}
-                      className="flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.98]"
+                      className="flex items-center gap-2 px-5 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all active:scale-[0.98]"
                     >
                       <MessageSquare className="w-4 h-4" />
                       Quote
