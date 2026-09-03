@@ -172,9 +172,9 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
         </div>
       </main>
 
-      {/* Bottom Navigation — static, always visible, safe-area bottom padding */}
-      <nav className="flex-shrink-0 z-30 bg-white/95 dark:bg-slate-900/95 black:bg-black backdrop-blur-md border-t border-slate-100 dark:border-slate-800 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] no-select">
-        <div className="flex items-center justify-around px-1.5 py-1 safe-area-pb">
+      {/* Bottom Navigation — static, always visible, safe-area bottom padding for all devices & browsers */}
+      <nav className="flex-shrink-0 z-40 bg-white/95 dark:bg-slate-900/95 black:bg-black backdrop-blur-xl border-t border-slate-100 dark:border-slate-800 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] no-select w-full">
+        <div className="flex items-center justify-around px-2 pt-2 mobile-nav-pb max-w-lg mx-auto">
           {ALL_NAV_ITEMS.filter(item => item.id !== 'wallet' || wallet_enabled).map(item => {
             const Icon = item.icon;
             const active = mobilePage === item.id;
@@ -182,19 +182,22 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
               <button
                 key={item.id}
                 onClick={() => handleSetPage(item.id)}
-                className={`relative flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-2xl transition-all duration-200 active:scale-90 no-select min-w-[58px] ${
+                className={`relative flex flex-col items-center justify-center gap-1 px-3 py-1.5 rounded-2xl transition-all duration-200 active:scale-95 no-select min-w-[64px] ${
                   active
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                    : 'text-slate-400 dark:text-slate-500'
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold'
+                    : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
                 }`}
               >
                 <Icon
-                  className="w-5 h-5 transition-colors duration-200"
+                  className="w-5 h-5 transition-transform duration-200"
                   strokeWidth={active ? 2.5 : 1.75}
                 />
-                <span className={`text-[10px] font-medium transition-colors duration-200 ${active ? 'font-semibold' : ''}`}>
+                <span className={`text-[11px] leading-none transition-colors duration-200 ${active ? 'font-bold' : 'font-medium'}`}>
                   {item.label}
                 </span>
+                {active && (
+                  <span className="w-1 h-1 rounded-full bg-blue-600 dark:bg-blue-400 mt-0.5" />
+                )}
               </button>
             );
           })}

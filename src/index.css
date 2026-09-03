@@ -272,6 +272,11 @@ html.system:not(.light):not(.dark):not(.black) {
   margin-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* ── Mobile Nav Bar Safe Bottom Padding (Universal cross-device/browser) ── */
+.mobile-nav-pb {
+  padding-bottom: max(0.625rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)));
+}
+
 /* ── Native-feeling mobile scroll ── */
 .mobile-scroll {
   -webkit-overflow-scrolling: touch;
