@@ -9,7 +9,7 @@ import { STATUS_META } from '../types';
 
 export function DashboardScreen({ onOpenJob, onReportIncident, onViewStats }: {
   onOpenJob: (id: string) => void;
-  onReportIncident: () => void;
+  onReportIncident?: () => void;
   onViewStats?: () => void;
 }) {
   const { employee } = useAuth();
@@ -83,12 +83,14 @@ export function DashboardScreen({ onOpenJob, onReportIncident, onViewStats }: {
 
       {/* Quick actions */}
       <div className="flex gap-2">
+        {onReportIncident && (
         <button
           onClick={onReportIncident}
           className="flex-1 flex items-center justify-center gap-2 bg-white border border-red-200 rounded-xl py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
         >
           <AlertTriangle className="w-4 h-4" /> Report Incident
         </button>
+        )}
         <button
           onClick={() => onViewStats?.()}
           className="flex-1 flex items-center justify-center gap-2 bg-white border border-slate-200 rounded-xl py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"

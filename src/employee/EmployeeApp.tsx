@@ -35,11 +35,11 @@ function EmployeeContent() {
 
   if (employee?.must_change_password) return <ChangePasswordPage />;
 
-  const isFieldStaff = appAccess?.app_type === 'field' && appAccess.is_active ||
-    employee?.hr_roles?.name?.toLowerCase().includes('field') ||
-    employee?.position?.toLowerCase().includes('field') ||
-    employee?.hr_roles?.name?.toLowerCase().includes('staff') ||
-    false;
+  const isDivisionHead = employee?.org_role === 'division_head';
+  const isFieldStaff =
+    !isDivisionHead &&
+    appAccess?.app_type === 'field' &&
+    !!appAccess.is_active;
 
   if (isFieldStaff) return (
     <>

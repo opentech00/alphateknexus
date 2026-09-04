@@ -120,6 +120,12 @@ export function DivisionPermissionsTab({ config }: Props) {
         </div>
       )}
 
+      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
+        Day-to-day grants happen in the Employee portal under Manage my division.
+        This tab is a Super Admin override. Use database slugs
+        (waste-management, cleaning-janitorial) so rows match bookings.
+      </div>
+
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />

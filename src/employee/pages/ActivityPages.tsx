@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { openDocument } from '../../lib/storageUrls';
 import type { Employee } from '../types';
 import { fmtDate, STATUS_META } from '../types';
+import { useAuth } from '../contexts/EmployeeAuthContext';
 
 /* ═══════════════════════════════════════════════════════════════
    Shared helpers
@@ -61,8 +62,11 @@ function serviceName(b: Booking): string {
 }
 
 export function BookingsPage({ employee }: { employee: Employee | null }) {
+  const { hasCapability } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const canManage = hasCapability('div.manage_bookings');
+  const canApprove = hasCapability('div.approve_quotes');
 
   useEffect(() => {
     if (!employee?.service_id) { setLoading(false); return; }
@@ -104,6 +108,22 @@ export function BookingsPage({ employee }: { employee: Employee | null }) {
                 {b.location && <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {b.location}</p>}
                 {b.contact_name && <p className="text-xs text-slate-500 mt-1">Contact: {b.contact_name}{b.contact_phone ? ` · ${b.contact_phone}` : ''}</p>}
                 {b.notes && <p className="text-xs text-slate-400 mt-1.5 line-clamp-2">{b.notes}</p>}
+                {(canManage || canApprove) && (
+                  <select
+                    value={b.status}
+                    onChange={async (ev) => {
+                      const next = ev.target.value;
+                      if (next === 'approved' && !canApprove) return;
+                      const { error } = await supabase.from('bookings').update({ status: next }).eq('id', b.id);
+                      if (!error) setBookings(prev => prev.map(row => row.id === b.id ? { ...row, status: next } : row));
+                    }}
+                    className="mt-2 text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white"
+                  >
+                    {['pending', 'pending_review', 'approved', 'confirmed', 'in_progress', 'completed', 'cancelled'].map(s => (
+                      <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                )}
               </div>
             );
           })}

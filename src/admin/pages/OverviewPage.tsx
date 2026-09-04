@@ -25,8 +25,8 @@ const completionData = [1, 0, 1, 2, 12, 3];
 
 const divisionMeta = [
   { name: 'Clearing & Forwarding', slug: 'clearing-forwarding', color: 'bg-blue-500' },
-  { name: 'Smart Sort', slug: 'smart-sort', color: 'bg-emerald-500' },
-  { name: 'Cleaning Services', slug: 'cleaning-services', color: 'bg-cyan-500' },
+  { name: 'Smart Sort', slug: 'waste-management', color: 'bg-emerald-500' },
+  { name: 'Cleaning Services', slug: 'cleaning-janitorial', color: 'bg-cyan-500' },
   { name: 'Private Security', slug: 'private-security', color: 'bg-amber-500' },
   { name: 'Procurement', slug: 'procurement', color: 'bg-rose-500' },
 ];

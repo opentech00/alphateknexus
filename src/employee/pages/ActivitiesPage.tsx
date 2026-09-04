@@ -34,9 +34,19 @@ const TYPE_META: Record<string, { label: string; color: string; bg: string }> = 
 };
 
 export function ActivitiesPage({ onNavigate }: { onNavigate: (key: string) => void }) {
-  const { employee } = useAuth();
+  const { employee, hasCapability } = useAuth();
   const [activities, setActivities] = useState<RoleActivity[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const capForActivity: Record<string, string> = {
+    bookings: 'div.view',
+    schedule: 'div.view',
+    documents: 'div.manage_documents',
+    report: 'div.reports',
+    performance: 'div.reports',
+    'cash-collections': 'div.cash_collections',
+    'delegated-tasks': 'div.delegate_tasks',
+  };
 
   useEffect(() => {
     if (!employee) return;
@@ -46,10 +56,15 @@ export function ActivitiesPage({ onNavigate }: { onNavigate: (key: string) => vo
         .select('id, activity_key, activity_label, activity_description, activity_type, display_order')
         .eq('is_active', true)
         .order('display_order', { ascending: true });
-      setActivities((data as RoleActivity[]) || []);
+      const rows = (data as RoleActivity[]) || [];
+      setActivities(rows.filter(a => {
+        const required = capForActivity[a.activity_key];
+        if (!required) return true;
+        return hasCapability(required);
+      }));
       setLoading(false);
     })();
-  }, [employee]);
+  }, [employee, hasCapability]);
 
   if (loading) {
     return (
@@ -66,7 +81,7 @@ export function ActivitiesPage({ onNavigate }: { onNavigate: (key: string) => vo
           <ClipboardList className="w-7 h-7 text-slate-400" />
         </div>
         <h3 className="font-semibold text-slate-900 mb-1">No activities assigned</h3>
-        <p className="text-sm text-slate-500">Your administrator hasn't assigned any activities to your role yet.</p>
+        <p className="text-sm text-slate-500">Your division head has not granted any work activities yet.</p>
       </div>
     );
   }

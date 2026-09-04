@@ -6,7 +6,7 @@ export function CleaningServicesPage() {
     <DivisionPage
       config={{
         name: 'Cleaning Services',
-        slug: 'cleaning-services',
+        slug: 'cleaning-janitorial',
         icon: Brush,
         accentColor: 'bg-cyan-600',
         accentLight: 'bg-cyan-50',

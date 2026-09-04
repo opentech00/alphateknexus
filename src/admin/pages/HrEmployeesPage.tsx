@@ -36,6 +36,7 @@ export function HrEmployeesPage() {
   const [deleteEmp, setDeleteEmp] = useState<Employee | null>(null);
   const [adminRoles, setAdminRoles] = useState<Record<string, string>>({});
   const [granting, setGranting] = useState<string | null>(null);
+  const [appointing, setAppointing] = useState<string | null>(null);
 
   const loadAdminRoles = async (empData: Employee[]) => {
     const userIds = empData.filter(e => e.user_id).map(e => e.user_id!);
@@ -143,7 +144,7 @@ export function HrEmployeesPage() {
     try {
       const { error: rpcErr } = await supabase.rpc('grant_admin_access', {
         target_employee_id: employeeId,
-        role_id: roleId,
+        role_id: roleId || null,
       });
       if (rpcErr) throw rpcErr;
       setAdminRoles(prev => ({ ...prev, [employeeId]: roleId || 'super' }));
@@ -177,6 +178,34 @@ export function HrEmployeesPage() {
       setError(err.message || 'Failed to revoke admin access');
     }
     setGranting(null);
+  };
+
+  const appointHead = async (employeeId: string) => {
+    setAppointing(employeeId);
+    try {
+      const { error: rpcErr } = await supabase.rpc('appoint_division_head', {
+        target_employee_id: employeeId,
+      });
+      if (rpcErr) throw rpcErr;
+      await load();
+    } catch (err: any) {
+      setError(err.message || 'Failed to appoint division head');
+    }
+    setAppointing(null);
+  };
+
+  const removeHead = async (employeeId: string) => {
+    setAppointing(employeeId);
+    try {
+      const { error: rpcErr } = await supabase.rpc('remove_division_head', {
+        target_employee_id: employeeId,
+      });
+      if (rpcErr) throw rpcErr;
+      await load();
+    } catch (err: any) {
+      setError(err.message || 'Failed to remove division head');
+    }
+    setAppointing(null);
   };
 
   return (
@@ -320,6 +349,30 @@ export function HrEmployeesPage() {
                         <option key={r.id} value={r.id}>{r.name}{r.services ? ` (${r.services.name})` : ''}</option>
                       ))}
                     </select>
+                  </div>
+                )}
+                {e.service_id && (
+                  <div className="flex items-center justify-between mb-2.5 px-2 py-2 rounded-lg bg-violet-50 border border-violet-100">
+                    <span className="text-xs font-medium text-violet-800">
+                      {e.org_role === 'division_head' ? 'Division Head (Employee portal)' : 'Org role: ' + (e.org_role || 'staff')}
+                    </span>
+                    {e.org_role === 'division_head' ? (
+                      <button
+                        onClick={() => removeHead(e.id)}
+                        disabled={appointing === e.id}
+                        className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                      >
+                        {appointing === e.id ? '…' : 'Remove head'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => appointHead(e.id)}
+                        disabled={appointing === e.id || !e.service_id}
+                        className="text-xs font-semibold text-violet-700 hover:text-violet-900 disabled:opacity-50"
+                      >
+                        {appointing === e.id ? '…' : 'Appoint Head'}
+                      </button>
+                    )}
                   </div>
                 )}
                 <div className="flex items-center justify-between text-xs text-slate-400 border-t border-slate-100 pt-2.5">

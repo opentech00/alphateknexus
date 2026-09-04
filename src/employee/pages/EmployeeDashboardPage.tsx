@@ -3,7 +3,7 @@ import {
   Mail, Phone, MapPin, Calendar, AlertTriangle, User, Briefcase,
   Building2, BadgeCheck, CreditCard, LogOut, Loader2, Clock, Bell,
   LayoutDashboard, ChevronRight, Menu, X, KeyRound, Banknote, ClipboardList,
-  GitBranch,
+  GitBranch, Shield,
 } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { supabase } from '../lib/supabase';
@@ -18,13 +18,14 @@ import {
   PerformancePage,
 } from './ActivityPages';
 import { DelegatedTasksPage } from './DelegatedTasksPage';
+import { ManageDivisionPage } from './ManageDivisionPage';
 import { EmployeeNotificationsBell } from '../components/EmployeeNotificationsBell';
 import { EmployeeNotificationsPage } from './EmployeeNotificationsPage';
 
-type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications' | 'bookings' | 'schedule' | 'documents' | 'report' | 'performance' | 'delegated-tasks';
+type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications' | 'bookings' | 'schedule' | 'documents' | 'report' | 'performance' | 'delegated-tasks' | 'manage-division';
 
 export function EmployeeDashboardPage() {
-  const { employee, user, signOut } = useAuth();
+  const { employee, signOut, hasCapability, isDivisionHead } = useAuth();
   const [idCard, setIdCard] = useState<IdCard | null>(null);
   const [cardLoading, setCardLoading] = useState(true);
   const [page, setPage] = useState<Page>('overview');
@@ -73,12 +74,17 @@ export function EmployeeDashboardPage() {
 
   const navItems: { key: Page; label: string; icon: typeof LayoutDashboard }[] = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard },
+    ...(isDivisionHead || hasCapability('div.manage_staff_access')
+      ? [{ key: 'manage-division' as Page, label: 'Manage division', icon: Shield }]
+      : []),
     { key: 'activities', label: 'My Activities', icon: ClipboardList },
     { key: 'delegated-tasks', label: 'Delegated Tasks', icon: GitBranch },
     { key: 'division', label: 'My Division', icon: Building2 },
     { key: 'role', label: 'My Role', icon: Briefcase },
     { key: 'id-card', label: 'ID Card', icon: CreditCard },
-    { key: 'cash-collections', label: 'Cash Collections', icon: Banknote },
+    ...(hasCapability('div.cash_collections')
+      ? [{ key: 'cash-collections' as Page, label: 'Cash Collections', icon: Banknote }]
+      : []),
     { key: 'profile', label: 'Profile', icon: User },
     { key: 'notifications', label: 'Notifications', icon: Bell },
   ];
@@ -197,17 +203,18 @@ export function EmployeeDashboardPage() {
       <div className="lg:ml-64 pt-14 lg:pt-0">
         <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
           {page === 'overview' && <OverviewPage employee={employee} idCard={idCard} cardLoading={cardLoading} cardStatus={cardStatus} sm={sm} onNavigate={handleNav} />}
+          {page === 'manage-division' && <ManageDivisionPage />}
           {page === 'activities' && <ActivitiesPage onNavigate={(k) => handleNav(k as Page)} />}
           {page === 'division' && <DivisionPage employee={employee} />}
           {page === 'role' && <RolePage employee={employee} />}
           {page === 'id-card' && <IdCardPage employee={employee} idCard={idCard} loading={cardLoading} cardStatus={cardStatus} />}
-          {page === 'cash-collections' && <CashCollectionsPage onBack={() => setPage('overview')} />}
+          {page === 'cash-collections' && hasCapability('div.cash_collections') && <CashCollectionsPage onBack={() => setPage('overview')} />}
           {page === 'profile' && <ProfilePage employee={employee} />}
-          {page === 'bookings' && <BookingsPage employee={employee} />}
-          {page === 'schedule' && <SchedulePage employee={employee} />}
-          {page === 'documents' && <DocumentsPage employee={employee} />}
-          {page === 'report' && <ReportPage employee={employee} onBack={() => handleNav('activities')} />}
-          {page === 'performance' && <PerformancePage employee={employee} />}
+          {page === 'bookings' && hasCapability('div.view') && <BookingsPage employee={employee} />}
+          {page === 'schedule' && hasCapability('div.view') && <SchedulePage employee={employee} />}
+          {page === 'documents' && hasCapability('div.manage_documents') && <DocumentsPage employee={employee} />}
+          {page === 'report' && hasCapability('div.reports') && <ReportPage employee={employee} onBack={() => handleNav('activities')} />}
+          {page === 'performance' && hasCapability('div.reports') && <PerformancePage employee={employee} />}
           {page === 'delegated-tasks' && <DelegatedTasksPage onBack={() => handleNav('activities')} />}
           {page === 'notifications' && <EmployeeNotificationsPage />}
         </main>
@@ -226,7 +233,9 @@ function OverviewPage({ employee, idCard, cardLoading, cardStatus, sm, onNavigat
   sm: any;
   onNavigate: (p: Page) => void;
 }) {
+  const { isDivisionHead } = useAuth();
   const tiles = [
+    ...(isDivisionHead ? [{ page: 'manage-division' as Page, label: 'Manage division', value: 'Team access', icon: Shield, color: 'text-violet-600', bg: 'bg-violet-50' }] : []),
     { page: 'division' as Page, label: 'My Division', value: employee.services?.name || 'Unassigned', icon: Building2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { page: 'role' as Page, label: 'My Role', value: employee.hr_roles?.name || 'Unassigned', icon: Briefcase, color: 'text-blue-600', bg: 'bg-blue-50' },
     { page: 'activities' as Page, label: 'My Activities', value: 'View tasks', icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50' },

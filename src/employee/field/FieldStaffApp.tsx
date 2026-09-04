@@ -16,7 +16,7 @@ import { DispatchOffersScreen } from './screens/DispatchOffersScreen';
 type Tab = 'dashboard' | 'offers' | 'jobs' | 'attendance' | 'inbox' | 'performance';
 
 function FieldStaffContent() {
-  const { employee, signOut } = useAuth();
+  const { employee, signOut, hasCapability } = useAuth();
   const { loading, error, online, pendingSync, refresh } = useFieldStaff();
   const [tab, setTab] = useState<Tab>('dashboard');
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
@@ -54,9 +54,11 @@ function FieldStaffContent() {
 
   const navItems: { key: Tab; label: string; icon: typeof Home }[] = [
     { key: 'dashboard',   label: 'Home',       icon: Home },
-    { key: 'offers',      label: 'Offers',      icon: Zap },
-    { key: 'jobs',        label: 'Jobs',        icon: ClipboardList },
-    { key: 'attendance',  label: 'Attendance', icon: Clock },
+    ...(hasCapability('field.jobs') ? [
+      { key: 'offers' as Tab, label: 'Offers', icon: Zap },
+      { key: 'jobs' as Tab, label: 'Jobs', icon: ClipboardList },
+    ] : []),
+    ...(hasCapability('field.attendance') ? [{ key: 'attendance' as Tab, label: 'Attendance', icon: Clock }] : []),
     { key: 'inbox',       label: 'Inbox',       icon: Bell },
     { key: 'performance', label: 'Performance', icon: BarChart3 },
   ];
@@ -112,7 +114,7 @@ function FieldStaffContent() {
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto min-h-0">
-        {tab === 'dashboard'   && <DashboardScreen onOpenJob={(id) => setSelectedJobId(id)} onReportIncident={() => setShowIncident(true)} onViewStats={() => setTab('performance')} />}
+        {tab === 'dashboard'   && <DashboardScreen onOpenJob={(id) => setSelectedJobId(id)} onReportIncident={hasCapability('field.incidents') ? () => setShowIncident(true) : undefined} onViewStats={() => setTab('performance')} />}
         {tab === 'offers'      && <DispatchOffersScreen />}
         {tab === 'jobs'        && <JobsScreen onOpenJob={(id) => setSelectedJobId(id)} />}
         {tab === 'attendance'  && <AttendanceScreen />}

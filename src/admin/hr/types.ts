@@ -28,6 +28,7 @@ export interface Employee {
   photo_url: string | null;
   hire_date: string | null;
   status: 'active' | 'on_leave' | 'inactive';
+  org_role?: 'staff' | 'field_staff' | 'division_head' | 'super_admin';
   created_at: string;
   updated_at: string;
   services?: Service | null;
@@ -68,8 +69,8 @@ export const ACTION_META: Record<string, { label: string; cls: string; icon: str
 
 export const DIVISIONS = [
   { name: 'Clearing & Forwarding', slug: 'clearing-forwarding' },
-  { name: 'Smart Sort / Recycling', slug: 'smart-sort' },
-  { name: 'Cleaning Services', slug: 'cleaning-services' },
+  { name: 'Smart Sort / Recycling', slug: 'waste-management' },
+  { name: 'Cleaning Services', slug: 'cleaning-janitorial' },
   { name: 'Private Security', slug: 'private-security' },
   { name: 'Procurement', slug: 'procurement' },
 ] as const;

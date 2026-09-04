@@ -20,7 +20,7 @@ const divisions = [
   },
   {
     name: 'Smart Sort / Recycling',
-    slug: 'smart-sort',
+    slug: 'waste-management',
     page: 'division-smart-sort',
     description: 'Waste management, smart sorting solutions, and eco-friendly recycling.',
     icon: Recycle,
@@ -31,7 +31,7 @@ const divisions = [
   },
   {
     name: 'Cleaning Services',
-    slug: 'cleaning-services',
+    slug: 'cleaning-janitorial',
     page: 'division-cleaning',
     description: 'Commercial and residential cleaning, deep cleaning, and sanitation.',
     icon: Brush,

@@ -42,6 +42,7 @@ export interface Employee {
   address: string | null;
   resume_url: string | null;
   must_change_password: boolean;
+  org_role?: 'staff' | 'field_staff' | 'division_head' | 'super_admin';
   services?: Service | null;
   hr_roles?: HrRole | null;
 }

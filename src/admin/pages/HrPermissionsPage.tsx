@@ -5,6 +5,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard, EmptyState, Spinner, ErrorBanner } from '../components/ui';
 import { type HrRole } from '../hr/types';
+import { GRANTABLE_CAPABILITIES, CAPABILITY_META } from '../../lib/capabilities';
 
 interface RolePermission {
   id: string;
@@ -157,6 +158,8 @@ export function HrPermissionsPage() {
         <StatCard label="Permissions Granted" value={stats.granted} icon={Check} color="text-emerald-600" accent="bg-emerald-50" />
       </div>
 
+      <DivisionGrantCeilingPanel />
+
       {error && <ErrorBanner message={error} />}
 
       <SuggestedPermissionsMatrix />
@@ -289,10 +292,80 @@ function SuggestedPermissionsMatrix() {
           <div className="px-5 py-3 bg-slate-50/50 border-t border-slate-100">
             <p className="text-xs text-slate-400">
               This is a suggested reference. Actual permissions are configured per-role in the matrix above.
+              Division Heads work in the Employee portal — they never receive Admin dashboard access.
             </p>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function DivisionGrantCeilingPanel() {
+  const [services, setServices] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [selected, setSelected] = useState('');
+  const [keys, setKeys] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    supabase.from('services').select('id,name,slug').order('name').then(({ data }) => {
+      const rows = (data || []) as { id: string; name: string; slug: string }[];
+      setServices(rows);
+      if (rows[0]) setSelected(rows[0].id);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!selected) return;
+    supabase.from('division_grant_ceilings').select('capability_key').eq('service_id', selected)
+      .then(({ data }) => setKeys(new Set((data || []).map((r: { capability_key: string }) => r.capability_key))));
+  }, [selected]);
+
+  const toggle = (key: string) => {
+    setKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setMessage('');
+    const { error } = await supabase.rpc('set_division_grant_ceiling', {
+      p_service_id: selected,
+      p_keys: [...keys],
+    });
+    setMessage(error ? error.message : 'Ceiling saved. Heads can only grant these capabilities.');
+    setSaving(false);
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+      <h3 className="text-sm font-bold text-slate-900 mb-1">Division Head grant ceiling</h3>
+      <p className="text-xs text-slate-500 mb-4">
+        Super Admins set which Employee-portal capabilities a Head may hand to staff in that division.
+      </p>
+      <select value={selected} onChange={e => setSelected(e.target.value)} className="mb-3 px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white">
+        {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      <div className="grid sm:grid-cols-2 gap-2 mb-4">
+        {GRANTABLE_CAPABILITIES.map(key => (
+          <label key={key} className="flex items-start gap-2 text-sm">
+            <input type="checkbox" checked={keys.has(key)} onChange={() => toggle(key)} className="mt-0.5 rounded border-slate-300 text-emerald-600" />
+            <span>
+              <span className="font-medium text-slate-800">{CAPABILITY_META[key].label}</span>
+              <span className="block text-xs text-slate-400">{CAPABILITY_META[key].desc}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <button onClick={save} disabled={saving || !selected} className="px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-xl disabled:opacity-50">
+        {saving ? 'Saving…' : 'Save ceiling'}
+      </button>
+      {message && <p className="text-xs text-slate-500 mt-2">{message}</p>}
     </div>
   );
 }

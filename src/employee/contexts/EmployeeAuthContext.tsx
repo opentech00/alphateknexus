@@ -3,6 +3,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { initPushNotifications } from '../../lib/pushNotifications';
 import type { Employee } from '../types';
+import type { CapabilityKey } from '../../lib/capabilities';
 
 interface AppAccess {
   app_type: 'employee' | 'field' | 'admin';
@@ -14,7 +15,11 @@ interface AuthContextValue {
   user: User | null;
   employee: Employee | null;
   appAccess: AppAccess | null;
+  capabilities: Set<string>;
+  hasCapability: (key: CapabilityKey | string) => boolean;
+  isDivisionHead: boolean;
   loading: boolean;
+  refreshEmployee: () => Promise<void>;
   signIn: (identifier: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   clearPasswordFlag: () => void;
@@ -34,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [appAccess, setAppAccess] = useState<AppAccess | null>(null);
+  const [capabilities, setCapabilities] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const lastActivityRef = useRef<number>(Date.now());
   const [idleWarningVisible, setIdleWarningVisible] = useState(false);
@@ -86,15 +92,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select('*, services(id,name,slug,description,icon), hr_roles(id,name,description,display_order,is_default,services(id,name,slug))')
       .eq('user_id', uid)
       .maybeSingle();
-    setEmployee(data as Employee | null);
+    const emp = data as Employee | null;
+    setEmployee(emp);
 
-    if (data) {
-      const { data: access } = await supabase
-        .from('app_access')
-        .select('app_type, is_active')
-        .eq('employee_id', (data as Employee).id)
-        .maybeSingle();
+    if (emp) {
+      const [{ data: access }, { data: caps }] = await Promise.all([
+        supabase.from('app_access').select('app_type, is_active').eq('employee_id', emp.id).maybeSingle(),
+        supabase.from('employee_capabilities').select('capability_key').eq('employee_id', emp.id),
+      ]);
       setAppAccess(access as AppAccess | null);
+      setCapabilities(new Set((caps || []).map((c: { capability_key: string }) => c.capability_key)));
+    } else {
+      setAppAccess(null);
+      setCapabilities(new Set());
     }
   };
 
@@ -119,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setEmployee(null);
           setAppAccess(null);
+          setCapabilities(new Set());
         }
         setLoading(false);
       })();
@@ -184,15 +195,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setEmployee(null);
     setAppAccess(null);
+    setCapabilities(new Set());
   };
 
   const clearPasswordFlag = () => {
     setEmployee((prev) => (prev ? { ...prev, must_change_password: false } : prev));
   };
 
+  const hasCapability = useCallback(
+    (key: CapabilityKey | string) => {
+      if (!employee || employee.status !== 'active') return false;
+      return capabilities.has(key);
+    },
+    [capabilities, employee],
+  );
+
+  const isDivisionHead = employee?.org_role === 'division_head' && employee.status === 'active';
+
+  const refreshEmployee = useCallback(async () => {
+    if (user) await fetchEmployee(user.id);
+  }, [user]);
+
   return (
     <AuthContext.Provider value={{
-      session, user, employee, appAccess, loading, signIn, signOut, clearPasswordFlag,
+      session, user, employee, appAccess, capabilities, hasCapability, isDivisionHead,
+      loading, refreshEmployee, signIn, signOut, clearPasswordFlag,
       idleWarningVisible, idleWarningSecondsLeft, dismissIdleWarning,
     }}>
       {children}
