@@ -62,7 +62,7 @@ function FieldStaffContent() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden">
       <ToastContainer />
 
       {/* Top bar */}
@@ -111,7 +111,7 @@ function FieldStaffContent() {
       )}
 
       {/* Content */}
-      <main className="flex-1 overflow-y-auto pb-20">
+      <main className="flex-1 overflow-y-auto min-h-0">
         {tab === 'dashboard'   && <DashboardScreen onOpenJob={(id) => setSelectedJobId(id)} onReportIncident={() => setShowIncident(true)} onViewStats={() => setTab('performance')} />}
         {tab === 'offers'      && <DispatchOffersScreen />}
         {tab === 'jobs'        && <JobsScreen onOpenJob={(id) => setSelectedJobId(id)} />}
@@ -120,24 +120,28 @@ function FieldStaffContent() {
         {tab === 'performance' && <PerformanceScreen />}
       </main>
 
-      {/* Bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex items-center justify-around px-2 py-1.5 z-20 max-w-md mx-auto">
-        {navItems.map(item => {
-          const Icon = item.icon;
-          const active = tab === item.key;
-          return (
-            <button
-              key={item.key}
-              onClick={() => setTab(item.key)}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${
-                active ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <Icon className={`w-5 h-5 ${active ? 'stroke-[2.5]' : ''}`} />
-              <span className={`text-[10px] font-medium ${active ? 'font-semibold' : ''}`}>{item.label}</span>
-            </button>
-          );
-        })}
+      {/* Bottom nav — full width, safe-area padded, not clipped by 100vh */}
+      <nav className="flex-shrink-0 w-full bg-white border-t border-slate-200 z-20 mobile-nav-pb">
+        <div className="flex items-stretch justify-around h-14 px-1 w-full">
+          {navItems.map(item => {
+            const Icon = item.icon;
+            const active = tab === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={() => setTab(item.key)}
+                className={`flex flex-1 flex-col items-center justify-center gap-0.5 min-w-0 px-0.5 rounded-lg transition-colors ${
+                  active ? 'text-emerald-600' : 'text-slate-600'
+                }`}
+              >
+                <Icon className="w-6 h-6 shrink-0 overflow-visible" strokeWidth={active ? 2.5 : 2} />
+                <span className={`text-[10px] leading-none truncate w-full text-center ${active ? 'font-semibold' : 'font-medium'}`}>
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </nav>
     </div>
   );

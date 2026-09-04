@@ -274,7 +274,7 @@ html.system:not(.light):not(.dark):not(.black) {
 
 /* ── Mobile Nav Bar Safe Bottom Padding (Universal cross-device/browser) ── */
 .mobile-nav-pb {
-  padding-bottom: max(0.85rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)));
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Native-feeling mobile scroll ── */

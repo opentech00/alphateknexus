@@ -86,7 +86,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 h-[100dvh] h-screen w-full flex flex-col overflow-hidden bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight z-20"
+      className="fixed inset-0 h-[100dvh] w-full flex flex-col overflow-hidden bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight z-20 min-h-0"
     >
       {/* Top Bar — fixed height, safe-area top padding */}
       <header className="flex-shrink-0 z-30 bg-white/95 dark:bg-slate-900/95 black:bg-black backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-sm no-select">
@@ -172,9 +172,9 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
         </div>
       </main>
 
-      {/* Bottom Navigation — static, always visible, safe-area bottom padding for all devices & browsers */}
-      <nav className="flex-shrink-0 z-40 bg-white/95 dark:bg-slate-900/95 black:bg-black backdrop-blur-xl border-t border-slate-100 dark:border-slate-800 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] no-select w-full">
-        <div className="flex items-center justify-around px-2 pt-2 mobile-nav-pb max-w-lg mx-auto">
+      {/* Bottom Navigation — pinned in the flex column, padded above the system inset */}
+      <nav className="flex-shrink-0 z-40 bg-white dark:bg-slate-900 black:bg-black border-t border-slate-200 dark:border-slate-700 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] no-select w-full mobile-nav-pb">
+        <div className="flex items-stretch justify-around h-14 px-1 max-w-lg mx-auto w-full">
           {ALL_NAV_ITEMS.filter(item => item.id !== 'wallet' || wallet_enabled).map(item => {
             const Icon = item.icon;
             const active = mobilePage === item.id;
@@ -182,22 +182,20 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
               <button
                 key={item.id}
                 onClick={() => handleSetPage(item.id)}
-                className={`relative flex flex-col items-center justify-center gap-1 px-3 py-1.5 rounded-2xl transition-all duration-200 active:scale-95 no-select min-w-[64px] ${
+                className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 min-w-0 px-1 rounded-2xl transition-all duration-200 active:scale-95 no-select ${
                   active
                     ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold'
-                    : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+                    : 'text-[#475569] dark:text-[#e2e8f0]'
                 }`}
               >
                 <Icon
-                  className="w-5 h-5 transition-transform duration-200"
-                  strokeWidth={active ? 2.5 : 1.75}
+                  className="w-6 h-6 shrink-0 overflow-visible"
+                  strokeWidth={active ? 2.5 : 2}
                 />
-                <span className={`text-[11px] leading-none transition-colors duration-200 ${active ? 'font-bold' : 'font-medium'}`}>
+                <span className={`text-[11px] leading-none truncate w-full text-center ${active ? 'font-bold' : 'font-medium'}`}>
                   {item.label}
                 </span>
-                {active && (
-                  <span className="w-1 h-1 rounded-full bg-blue-600 dark:bg-blue-400 mt-0.5" />
-                )}
+                <span className={`w-1 h-1 rounded-full ${active ? 'bg-blue-600 dark:bg-blue-400' : 'bg-transparent'}`} />
               </button>
             );
           })}

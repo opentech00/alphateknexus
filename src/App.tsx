@@ -177,7 +177,7 @@ function PortalContent() {
   if (page === 'booking') {
     return (
       <>
-        <div className="block md:hidden fixed inset-0 h-[100dvh] h-screen w-full overflow-y-auto bg-slate-50 safe-area-pt">
+        <div className="block md:hidden fixed inset-0 h-[100dvh] w-full overflow-y-auto bg-slate-50 safe-area-pt">
           <BookingPage service={bookingService} onNavigate={handleNavigate} rebookData={rebookData} mode={bookingMode} />
         </div>
         <div className="hidden md:block min-h-screen bg-slate-50">
@@ -195,7 +195,7 @@ function PortalContent() {
   if (page === 'smart-sort-subs') {
     return (
       <>
-        <div className="block md:hidden fixed inset-0 h-[100dvh] h-screen w-full overflow-y-auto bg-slate-50 safe-area-pt">
+        <div className="block md:hidden fixed inset-0 h-[100dvh] w-full overflow-y-auto bg-slate-50 safe-area-pt">
           <SmartSortSubscriptionsPage onNavigate={handleNavigate} />
         </div>
         <div className="hidden md:block min-h-screen bg-slate-50">
@@ -212,7 +212,7 @@ function PortalContent() {
 
   return (
     <>
-      <div className="block md:hidden fixed inset-0 h-[100dvh] h-screen w-full overflow-hidden bg-slate-50">
+      <div className="block md:hidden fixed inset-0 h-[100dvh] w-full overflow-hidden bg-slate-50">
         <MobileShell
           onNavigate={handleNavigate}
           onSelectService={handleSelectService}
