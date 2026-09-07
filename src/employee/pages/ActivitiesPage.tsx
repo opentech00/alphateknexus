@@ -8,6 +8,8 @@ import { supabase } from '../lib/supabase';
 
 interface RoleActivity {
   id: string;
+  role_id?: string | null;
+  service_id?: string | null;
   activity_key: string;
   activity_label: string;
   activity_description: string | null;
@@ -53,15 +55,30 @@ export function ActivitiesPage({ onNavigate }: { onNavigate: (key: string) => vo
     (async () => {
       const { data } = await supabase
         .from('role_activities')
-        .select('id, activity_key, activity_label, activity_description, activity_type, display_order')
+        .select('id, role_id, service_id, activity_key, activity_label, activity_description, activity_type, display_order')
         .eq('is_active', true)
         .order('display_order', { ascending: true });
       const rows = (data as RoleActivity[]) || [];
-      setActivities(rows.filter(a => {
+      const allowed = rows.filter(a => {
         const required = capForActivity[a.activity_key];
         if (!required) return true;
         return hasCapability(required);
-      }));
+      });
+
+      // If multiple policies return the same activity key (global + service + role),
+      // keep the most specific row only: role-scoped > service-scoped > global.
+      const rank = (a: RoleActivity) => (a.role_id ? 2 : a.service_id ? 1 : 0);
+      const deduped = new Map<string, RoleActivity>();
+      for (const a of allowed) {
+        const existing = deduped.get(a.activity_key);
+        if (!existing || rank(a) > rank(existing) || (rank(a) === rank(existing) && a.display_order < existing.display_order)) {
+          deduped.set(a.activity_key, a);
+        }
+      }
+
+      setActivities(
+        [...deduped.values()].sort((a, b) => a.display_order - b.display_order),
+      );
       setLoading(false);
     })();
   }, [employee, hasCapability]);
