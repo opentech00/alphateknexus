@@ -4,6 +4,7 @@ import {
   Trash2, UserCog, Eye, Settings, FileCheck, FolderOpen, MessageCircle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { canonicalSlug } from '../../lib/capabilities';
 import type { DivisionConfig } from './DivisionPage';
 
 interface DivisionPermission {
@@ -59,10 +60,16 @@ export function DivisionPermissionsTab({ config }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError('');
+    const slugs = [config.slug];
+    if (config.slug === 'cleaning-janitorial') slugs.push('cleaning-services');
+    else if (config.slug === 'cleaning-services') slugs.push('cleaning-janitorial');
+    else if (config.slug === 'waste-management') slugs.push('smart-sort');
+    else if (config.slug === 'smart-sort') slugs.push('waste-management');
+
     const { data, error } = await supabase
       .from('division_permissions')
       .select('*')
-      .eq('division_slug', config.slug)
+      .in('division_slug', slugs)
       .order('updated_at', { ascending: false });
     if (error) { setLoadError(error.message); setLoading(false); return; }
     const rows = (data || []) as DivisionPermission[];
@@ -272,16 +279,30 @@ function AddMemberModal({
     setError('');
     if (!selectedId) { setError('Select a team member first'); return; }
     setSubmitting(true);
-    const { error: err } = await supabase.from('division_permissions').insert({
+
+    const { data: empData } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('user_id', selectedId)
+      .maybeSingle();
+
+    const canonical = canonicalSlug(divisionSlug) || divisionSlug;
+
+    const payload: any = {
       user_id: selectedId,
-      division_slug: divisionSlug,
+      division_slug: canonical,
       can_view: true,
       can_manage_bookings: false,
       can_approve_quotes: false,
       can_manage_documents: false,
       can_message_clients: false,
       can_delete_records: false,
-    });
+    };
+    if (empData?.id) {
+      payload.employee_id = empData.id;
+    }
+
+    const { error: err } = await supabase.from('division_permissions').insert(payload);
     setSubmitting(false);
     if (err) { setError(err.message); return; }
     onAdded();

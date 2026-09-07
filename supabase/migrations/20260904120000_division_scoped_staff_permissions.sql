@@ -7,17 +7,35 @@
 */
 
 -- ── Canonical division slugs on legacy division_permissions ──────────────
-UPDATE division_permissions SET division_slug = 'waste-management'
-  WHERE division_slug = 'smart-sort';
+ALTER TABLE division_permissions DROP CONSTRAINT IF EXISTS division_permissions_division_slug_check;
+
+DELETE FROM division_permissions dp1
+WHERE dp1.division_slug = 'cleaning-services'
+  AND EXISTS (
+    SELECT 1 FROM division_permissions dp2
+    WHERE dp2.user_id = dp1.user_id AND dp2.division_slug = 'cleaning-janitorial'
+  );
+
 UPDATE division_permissions SET division_slug = 'cleaning-janitorial'
   WHERE division_slug = 'cleaning-services';
 
-ALTER TABLE division_permissions DROP CONSTRAINT IF EXISTS division_permissions_division_slug_check;
+DELETE FROM division_permissions dp1
+WHERE dp1.division_slug = 'smart-sort'
+  AND EXISTS (
+    SELECT 1 FROM division_permissions dp2
+    WHERE dp2.user_id = dp1.user_id AND dp2.division_slug = 'waste-management'
+  );
+
+UPDATE division_permissions SET division_slug = 'waste-management'
+  WHERE division_slug = 'smart-sort';
+
 ALTER TABLE division_permissions ADD CONSTRAINT division_permissions_division_slug_check
   CHECK (division_slug IN (
     'clearing-forwarding',
     'waste-management',
+    'smart-sort',
     'cleaning-janitorial',
+    'cleaning-services',
     'private-security',
     'procurement'
   ));
@@ -253,30 +271,41 @@ BEGIN
     RETURN COALESCE(NEW, OLD);
   END IF;
 
+  -- Canonicalize slug
+  IF slug = 'cleaning-services' THEN
+    slug := 'cleaning-janitorial';
+  ELSIF slug = 'smart-sort' THEN
+    slug := 'waste-management';
+  END IF;
+
   keys := public.employee_capability_keys(emp.id);
 
-  INSERT INTO division_permissions (
-    user_id, employee_id, division_slug,
-    can_view, can_manage_bookings, can_approve_quotes,
-    can_manage_documents, can_message_clients, can_delete_records, updated_at
-  ) VALUES (
-    emp.user_id, emp.id, slug,
-    'div.view' = ANY (keys),
-    'div.manage_bookings' = ANY (keys),
-    'div.approve_quotes' = ANY (keys),
-    'div.manage_documents' = ANY (keys),
-    'div.message_clients' = ANY (keys),
-    false,
-    now()
-  )
-  ON CONFLICT (user_id, division_slug) DO UPDATE SET
-    employee_id = EXCLUDED.employee_id,
-    can_view = EXCLUDED.can_view,
-    can_manage_bookings = EXCLUDED.can_manage_bookings,
-    can_approve_quotes = EXCLUDED.can_approve_quotes,
-    can_manage_documents = EXCLUDED.can_manage_documents,
-    can_message_clients = EXCLUDED.can_message_clients,
-    updated_at = now();
+  BEGIN
+    INSERT INTO division_permissions (
+      user_id, employee_id, division_slug,
+      can_view, can_manage_bookings, can_approve_quotes,
+      can_manage_documents, can_message_clients, can_delete_records, updated_at
+    ) VALUES (
+      emp.user_id, emp.id, slug,
+      'div.view' = ANY (keys),
+      'div.manage_bookings' = ANY (keys),
+      'div.approve_quotes' = ANY (keys),
+      'div.manage_documents' = ANY (keys),
+      'div.message_clients' = ANY (keys),
+      false,
+      now()
+    )
+    ON CONFLICT (user_id, division_slug) DO UPDATE SET
+      employee_id = EXCLUDED.employee_id,
+      can_view = EXCLUDED.can_view,
+      can_manage_bookings = EXCLUDED.can_manage_bookings,
+      can_approve_quotes = EXCLUDED.can_approve_quotes,
+      can_manage_documents = EXCLUDED.can_manage_documents,
+      can_message_clients = EXCLUDED.can_message_clients,
+      updated_at = now();
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'sync_division_permissions_from_capabilities failed for employee %: %', emp.id, SQLERRM;
+  END;
 
   RETURN COALESCE(NEW, OLD);
 END;
