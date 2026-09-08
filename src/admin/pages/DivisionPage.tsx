@@ -8,6 +8,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { MessageThread } from '../../components/MessageThread';
 import { DocumentUpload } from '../../components/DocumentUpload';
+import { ServiceDetailsPanel } from '../../components/ServiceDetailsPanel';
 import { StatCard } from '../components/ui';
 import { DivisionPermissionsTab } from './DivisionPermissionsTab';
 
@@ -374,7 +375,7 @@ export function DivisionPage({ config }: Props) {
         <div className="space-y-2.5">
           {bookings.map((booking) => {
             const isQuote = booking.details?.quote_request === true;
-            const hasDetails = !!booking.details && Object.keys(booking.details).length > 1;
+            const hasDetails = (!!booking.details && Object.keys(booking.details).length > 0) || !!booking.notes;
             const isExpanded = expandedId === booking.id;
 
             return (
@@ -436,7 +437,7 @@ export function DivisionPage({ config }: Props) {
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
                         >
                           <FileText className="w-3.5 h-3.5" />
-                          Details
+                          Full Details
                           {isExpanded && activeTab === 'details' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                         </button>
                       )}
@@ -479,7 +480,7 @@ export function DivisionPage({ config }: Props) {
                           }`}
                         >
                           <FileText className="w-3.5 h-3.5 inline mr-1" />
-                          Details
+                          Full Details
                         </button>
                       )}
                       <button
@@ -503,7 +504,18 @@ export function DivisionPage({ config }: Props) {
                     </div>
                     <div className="p-5">
                       {activeTab === 'details' && hasDetails ? (
-                        <BookingDetails details={booking.details!} />
+                        <ServiceDetailsPanel
+                          details={(booking.details || {}) as Record<string, unknown>}
+                          notes={booking.notes}
+                          serviceName={booking.services?.name}
+                          clientName={booking.contact_name}
+                          clientPhone={booking.contact_phone}
+                          clientEmail={booking.contact_email}
+                          scheduledDate={booking.scheduled_date}
+                          scheduledTime={booking.scheduled_time}
+                          location={booking.location}
+                          submittedAt={booking.created_at}
+                        />
                       ) : activeTab === 'messages' ? (
                         <MessageThread bookingId={booking.id} />
                       ) : (

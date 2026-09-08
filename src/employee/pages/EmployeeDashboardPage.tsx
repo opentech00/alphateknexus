@@ -21,6 +21,7 @@ import { DelegatedTasksPage } from './DelegatedTasksPage';
 import { ManageDivisionPage } from './ManageDivisionPage';
 import { EmployeeNotificationsBell } from '../components/EmployeeNotificationsBell';
 import { EmployeeNotificationsPage } from './EmployeeNotificationsPage';
+import { EmployeeOverviewInsights } from '../components/EmployeeOverviewInsights';
 
 type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications' | 'bookings' | 'schedule' | 'documents' | 'report' | 'performance' | 'delegated-tasks' | 'manage-division';
 
@@ -233,7 +234,8 @@ function OverviewPage({ employee, idCard, cardLoading, cardStatus, sm, onNavigat
   sm: any;
   onNavigate: (p: Page) => void;
 }) {
-  const { isDivisionHead } = useAuth();
+  const { isDivisionHead, hasCapability } = useAuth();
+
   const tiles = [
     ...(isDivisionHead ? [{ page: 'manage-division' as Page, label: 'Manage division', value: 'Team access', icon: Shield, color: 'text-violet-600', bg: 'bg-violet-50' }] : []),
     { page: 'division' as Page, label: 'My Division', value: employee.services?.name || 'Unassigned', icon: Building2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -289,6 +291,13 @@ function OverviewPage({ employee, idCard, cardLoading, cardStatus, sm, onNavigat
           );
         })}
       </div>
+
+      <EmployeeOverviewInsights
+        employee={employee}
+        isDivisionHead={isDivisionHead}
+        hasCapability={hasCapability}
+        onNavigate={(p) => onNavigate(p as Page)}
+      />
 
       {/* Mini ID card preview */}
       {!cardLoading && idCard && (

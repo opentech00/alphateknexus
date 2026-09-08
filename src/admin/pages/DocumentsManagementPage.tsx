@@ -1,12 +1,12 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
-  FileText, Image, FileSpreadsheet, File, Trash2, Download, Search,
+  FileText, Image, FileSpreadsheet, File, Trash2, Download, Search, Eye, FolderOpen,
   Filter, XCircle, AlertCircle, X, Building2, Truck, Recycle, Brush,
   ShieldCheck, Package, Calendar, User, Clock, Banknote, CheckCircle2,
   XCircle as RejectIcon, Loader2, Landmark,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { openDocument } from '../../lib/storageUrls';
+import { openDocument, signedDocumentUrl } from '../../lib/storageUrls';
 import { PageHeader, EmptyState } from '../components/ui';
 
 interface DocumentRow {
@@ -46,10 +46,42 @@ interface PaymentVerificationRow {
   } | null;
 }
 
+interface EmployeeDocumentRow {
+  id: string;
+  employee_id: string;
+  file_name: string;
+  file_path: string;
+  file_type: string | null;
+  file_size: number | null;
+  document_type: string;
+  description: string | null;
+  created_at: string;
+  source_bucket: 'employee-documents' | 'employee-resumes';
+  is_legacy_resume: boolean;
+  employees: {
+    full_name: string;
+    employee_number: string;
+    services: { name: string; slug: string } | null;
+  } | null;
+}
+
 const BANK_DOC_TYPE_LABELS: Record<string, string> = {
   payslip: 'Payslip',
   cheque: 'Cheque',
   deposit_slip: 'Deposit Slip',
+};
+
+const EMPLOYEE_DOC_TYPE_LABELS: Record<string, string> = {
+  resume: 'Resume / CV',
+  cover_letter: 'Cover Letter',
+  contract: 'Contract',
+  offer_letter: 'Offer Letter',
+  id_copy: 'ID Copy',
+  certificate: 'Certificate',
+  performance_review: 'Performance Review',
+  warning_letter: 'Warning Letter',
+  medical: 'Medical',
+  other: 'Other',
 };
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -72,6 +104,13 @@ const DIVISIONS = [
   { label: 'Private Security', slug: 'private-security', icon: ShieldCheck, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
   { label: 'Procurement', slug: 'procurement', icon: Package, color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-200' },
 ];
+
+function canonicalDivisionSlug(slug: string | null | undefined): string | null {
+  if (!slug) return null;
+  if (slug === 'smart-sort') return 'waste-management';
+  if (slug === 'cleaning-services') return 'cleaning-janitorial';
+  return slug;
+}
 
 function formatFileSize(bytes: number | null): string {
   if (!bytes) return '—';
@@ -104,20 +143,24 @@ function isAllowedFile(file: File): string | null {
 export function DocumentsManagementPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [verifications, setVerifications] = useState<PaymentVerificationRow[]>([]);
+  const [employeeDocuments, setEmployeeDocuments] = useState<EmployeeDocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeDivision, setActiveDivision] = useState('all');
   const [search, setSearch] = useState('');
   const [uploadingForBooking, setUploadingForBooking] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [view, setView] = useState<'documents' | 'verifications'>('documents');
+  const [view, setView] = useState<'documents' | 'verifications' | 'employee-documents'>('documents');
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [rejectModal, setRejectModal] = useState<PaymentVerificationRow | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [employeeDocActionId, setEmployeeDocActionId] = useState<string | null>(null);
+  const [migratingLegacyResumes, setMigratingLegacyResumes] = useState(false);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const fetchDocuments = async () => {
     setLoading(true);
-    const [docsRes, verifRes] = await Promise.all([
+    const [docsRes, verifRes, employeeDocsRes, legacyResumesRes] = await Promise.all([
       supabase
         .from('documents')
         .select(`
@@ -135,6 +178,23 @@ export function DocumentsManagementPage() {
           bookings ( contact_name, services ( name, slug ) )
         `)
         .order('created_at', { ascending: false }),
+      supabase
+        .from('employee_documents')
+        .select(`
+          id, employee_id, file_name, file_path, file_type, file_size, document_type, description, created_at,
+          employees!employee_documents_employee_id_fkey (
+            full_name, employee_number,
+            services ( name, slug )
+          )
+        `)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('employees')
+        .select(`
+          id, full_name, employee_number, resume_url, created_at,
+          services ( name, slug )
+        `)
+        .not('resume_url', 'is', null),
     ]);
 
     if (docsRes.error) {
@@ -147,6 +207,47 @@ export function DocumentsManagementPage() {
     } else {
       setVerifications((verifRes.data as unknown as PaymentVerificationRow[]) || []);
     }
+    if (employeeDocsRes.error) {
+      console.error('Error fetching employee documents:', employeeDocsRes.error);
+    } else {
+      const docs: EmployeeDocumentRow[] = ((employeeDocsRes.data as unknown as EmployeeDocumentRow[]) || []).map((doc) => ({
+        ...doc,
+        source_bucket: 'employee-documents',
+        is_legacy_resume: false,
+      }));
+
+      const legacyRows = ((legacyResumesRes.data || []) as any[])
+        .filter((emp) => !!emp.resume_url)
+        .map((emp) => ({
+          id: `legacy-resume-${emp.id}`,
+          employee_id: emp.id,
+          file_name: String(emp.resume_url).split('/').pop() || 'resume',
+          file_path: emp.resume_url as string,
+          file_type: null,
+          file_size: null,
+          document_type: 'resume',
+          description: 'Legacy resume (migrated view from employee profile)',
+          created_at: emp.created_at || new Date().toISOString(),
+          source_bucket: 'employee-resumes' as const,
+          is_legacy_resume: true,
+          employees: {
+            full_name: emp.full_name || 'Unknown',
+            employee_number: emp.employee_number || '—',
+            services: Array.isArray(emp.services) ? (emp.services[0] ?? null) : (emp.services ?? null),
+          },
+        } satisfies EmployeeDocumentRow));
+
+      const merged: EmployeeDocumentRow[] = [...docs];
+      for (const legacy of legacyRows) {
+        const alreadyInModule = docs.some(
+          (doc) => doc.employee_id === legacy.employee_id && doc.document_type === 'resume',
+        );
+        if (!alreadyInModule) merged.push(legacy);
+      }
+
+      merged.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
+      setEmployeeDocuments(merged);
+    }
     setLoading(false);
   };
 
@@ -155,7 +256,7 @@ export function DocumentsManagementPage() {
   const filtered = useMemo(() => {
     let rows = documents;
     if (activeDivision !== 'all') {
-      rows = rows.filter((d) => (d.service_slug || d.bookings?.services?.slug) === activeDivision);
+      rows = rows.filter((d) => canonicalDivisionSlug(d.service_slug || d.bookings?.services?.slug) === activeDivision);
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -172,10 +273,37 @@ export function DocumentsManagementPage() {
   const counts = useMemo(() => {
     const map: Record<string, number> = { all: documents.length };
     DIVISIONS.slice(1).forEach((d) => {
-      map[d.slug] = documents.filter((doc) => (doc.service_slug || doc.bookings?.services?.slug) === d.slug).length;
+      map[d.slug] = documents.filter((doc) => canonicalDivisionSlug(doc.service_slug || doc.bookings?.services?.slug) === d.slug).length;
     });
     return map;
   }, [documents]);
+
+  const filteredEmployeeDocs = useMemo(() => {
+    let rows = employeeDocuments;
+    if (activeDivision !== 'all') {
+      rows = rows.filter((d) => canonicalDivisionSlug(d.employees?.services?.slug) === activeDivision);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      rows = rows.filter(
+        (d) =>
+          d.file_name.toLowerCase().includes(q) ||
+          d.employees?.full_name?.toLowerCase().includes(q) ||
+          d.employees?.employee_number?.toLowerCase().includes(q) ||
+          EMPLOYEE_DOC_TYPE_LABELS[d.document_type]?.toLowerCase().includes(q) ||
+          (d.description || '').toLowerCase().includes(q),
+      );
+    }
+    return rows;
+  }, [employeeDocuments, activeDivision, search]);
+
+  const employeeDocCounts = useMemo(() => {
+    const map: Record<string, number> = { all: employeeDocuments.length };
+    DIVISIONS.slice(1).forEach((d) => {
+      map[d.slug] = employeeDocuments.filter((doc) => canonicalDivisionSlug(doc.employees?.services?.slug) === d.slug).length;
+    });
+    return map;
+  }, [employeeDocuments]);
 
   const handleUpload = async (bookingId: string, userId: string, file: File) => {
     const err = isAllowedFile(file);
@@ -219,10 +347,170 @@ export function DocumentsManagementPage() {
     setDeletingId(null);
   };
 
+  const viewEmployeeDocument = async (doc: EmployeeDocumentRow) => {
+    setEmployeeDocActionId(doc.id);
+    const { data, error } = await supabase.storage.from(doc.source_bucket).createSignedUrl(doc.file_path, 300);
+    setEmployeeDocActionId(null);
+    if (error || !data?.signedUrl) {
+      setUploadError('Failed to open employee document.');
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const downloadEmployeeDocument = async (doc: EmployeeDocumentRow) => {
+    setEmployeeDocActionId(doc.id);
+    const { data, error } = await supabase.storage.from(doc.source_bucket).createSignedUrl(doc.file_path, 300);
+    setEmployeeDocActionId(null);
+    if (error || !data?.signedUrl) {
+      setUploadError('Failed to generate employee document download link.');
+      return;
+    }
+    const anchor = document.createElement('a');
+    anchor.href = data.signedUrl;
+    anchor.download = doc.file_name || 'employee-document';
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  };
+
+  const deleteEmployeeDocument = async (doc: EmployeeDocumentRow) => {
+    if (!window.confirm(`Delete "${doc.file_name}" from employee documents?`)) return;
+    setEmployeeDocActionId(doc.id);
+    const { error: storageErr } = await supabase.storage.from(doc.source_bucket).remove([doc.file_path]);
+    if (storageErr) {
+      setUploadError(`Failed to delete employee document file: ${storageErr.message}`);
+      setEmployeeDocActionId(null);
+      return;
+    }
+    if (doc.is_legacy_resume) {
+      const { error: clearErr } = await supabase.from('employees').update({ resume_url: null }).eq('id', doc.employee_id);
+      if (clearErr) {
+        setUploadError(`Legacy resume file deleted but profile cleanup failed: ${clearErr.message}`);
+        setEmployeeDocActionId(null);
+        return;
+      }
+    } else {
+      const { error: dbErr } = await supabase.from('employee_documents').delete().eq('id', doc.id);
+      if (dbErr) {
+        setUploadError(`Failed to delete employee document record: ${dbErr.message}`);
+        setEmployeeDocActionId(null);
+        return;
+      }
+    }
+    setEmployeeDocuments((prev) => prev.filter((d) => d.id !== doc.id));
+    setEmployeeDocActionId(null);
+  };
+
+  const migrateLegacyResumes = async () => {
+    const legacy = employeeDocuments.filter((d) => d.is_legacy_resume);
+    if (legacy.length === 0) {
+      setActionNotice('No legacy resumes to migrate.');
+      return;
+    }
+    if (!window.confirm(`Migrate ${legacy.length} legacy resume(s) into Employee Docs now?`)) return;
+
+    setMigratingLegacyResumes(true);
+    setUploadError(null);
+    setActionNotice(null);
+
+    const { data: userData } = await supabase.auth.getUser();
+    let moved = 0;
+    const failures: string[] = [];
+
+    for (const row of legacy) {
+      try {
+        const { data: signed, error: signErr } = await supabase.storage
+          .from('employee-resumes')
+          .createSignedUrl(row.file_path, 300);
+        if (signErr || !signed?.signedUrl) {
+          failures.push(`${row.file_name} (sign failed)`);
+          continue;
+        }
+
+        const response = await fetch(signed.signedUrl);
+        if (!response.ok) {
+          failures.push(`${row.file_name} (download failed)`);
+          continue;
+        }
+
+        const blob = await response.blob();
+        const cleanName = row.file_name.replace(/[^A-Za-z0-9._-]/g, '_');
+        const newPath = `${row.employee_id}/${Date.now()}-${cleanName}`;
+
+        const { error: uploadErr } = await supabase.storage
+          .from('employee-documents')
+          .upload(newPath, blob, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: row.file_type || blob.type || undefined,
+          });
+        if (uploadErr) {
+          failures.push(`${row.file_name} (upload failed)`);
+          continue;
+        }
+
+        const { error: insertErr } = await supabase.from('employee_documents').insert({
+          employee_id: row.employee_id,
+          uploaded_by: userData.user?.id || null,
+          document_type: 'resume',
+          file_name: row.file_name,
+          file_path: newPath,
+          file_type: row.file_type || blob.type || null,
+          file_size: blob.size || null,
+          description: 'Migrated from legacy employee-resumes bucket',
+        });
+        if (insertErr) {
+          await supabase.storage.from('employee-documents').remove([newPath]);
+          failures.push(`${row.file_name} (record insert failed)`);
+          continue;
+        }
+
+        await supabase.from('employees').update({ resume_url: null }).eq('id', row.employee_id);
+        await supabase.storage.from('employee-resumes').remove([row.file_path]);
+        moved += 1;
+      } catch {
+        failures.push(`${row.file_name} (unexpected error)`);
+      }
+    }
+
+    await fetchDocuments();
+    setMigratingLegacyResumes(false);
+
+    if (failures.length > 0) {
+      setUploadError(`Migrated ${moved}/${legacy.length}. Failed: ${failures.slice(0, 3).join(', ')}${failures.length > 3 ? '...' : ''}`);
+    } else {
+      setActionNotice(`Successfully migrated ${moved} legacy resume${moved === 1 ? '' : 's'} to Employee Docs.`);
+    }
+  };
+
+  const viewClientDocument = async (urlOrPath: string) => {
+    const ok = await openDocument(urlOrPath);
+    if (!ok) setUploadError('Failed to open document.');
+  };
+
+  const downloadClientDocument = async (urlOrPath: string, filename: string) => {
+    const signedUrl = await signedDocumentUrl(urlOrPath, 300);
+    if (!signedUrl) {
+      setUploadError('Failed to generate document download link.');
+      return;
+    }
+    const anchor = document.createElement('a');
+    anchor.href = signedUrl;
+    anchor.download = filename || 'document';
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  };
+
   const filteredVerifications = useMemo(() => {
     let rows = verifications;
     if (activeDivision !== 'all') {
-      rows = rows.filter((v) => (v.service_slug || v.bookings?.services?.slug) === activeDivision);
+      rows = rows.filter((v) => canonicalDivisionSlug(v.service_slug || v.bookings?.services?.slug) === activeDivision);
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -244,7 +532,7 @@ export function DocumentsManagementPage() {
   const verifCounts = useMemo(() => {
     const map: Record<string, number> = { all: verifications.length };
     DIVISIONS.slice(1).forEach((d) => {
-      map[d.slug] = verifications.filter((v) => (v.service_slug || v.bookings?.services?.slug) === d.slug).length;
+      map[d.slug] = verifications.filter((v) => canonicalDivisionSlug(v.service_slug || v.bookings?.services?.slug) === d.slug).length;
     });
     return map;
   }, [verifications]);
@@ -359,7 +647,35 @@ export function DocumentsManagementPage() {
             <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-red-500 text-white font-bold">{pendingVerifCount}</span>
           )}
         </button>
+        <button
+          onClick={() => setView('employee-documents')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            view === 'employee-documents' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <FolderOpen className="w-4 h-4" /> Employee Docs
+        </button>
       </div>
+
+      {uploadError && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{uploadError}</span>
+          <button onClick={() => setUploadError(null)} className="ml-auto text-red-400 hover:text-red-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {actionNotice && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
+          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+          <span>{actionNotice}</span>
+          <button onClick={() => setActionNotice(null)} className="ml-auto text-emerald-500 hover:text-emerald-700">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {view === 'verifications' ? (
         <>
@@ -418,7 +734,7 @@ export function DocumentsManagementPage() {
           ) : (
             <div className="space-y-3">
               {filteredVerifications.map((verif) => {
-                const div = DIVISIONS.find((d) => d.slug === (verif.service_slug || verif.bookings?.services?.slug)) || DIVISIONS[0];
+                const div = DIVISIONS.find((d) => d.slug === canonicalDivisionSlug(verif.service_slug || verif.bookings?.services?.slug)) || DIVISIONS[0];
                 const DivIcon = div.icon;
                 const docTypeLabel = BANK_DOC_TYPE_LABELS[verif.document_type] || verif.document_type;
                 return (
@@ -431,7 +747,7 @@ export function DocumentsManagementPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <a
                             href="#"
-                            onClick={(e) => { e.preventDefault(); openDocument(verif.document_url); }}
+                            onClick={(e) => { e.preventDefault(); viewClientDocument(verif.document_url); }}
                             className="text-sm font-semibold text-slate-800 hover:text-indigo-600 truncate"
                             title={verif.document_name}
                           >
@@ -461,14 +777,20 @@ export function DocumentsManagementPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <a
-                          href="#"
-                          onClick={(e) => { e.preventDefault(); openDocument(verif.document_url); }}
+                        <button
+                          onClick={() => viewClientDocument(verif.document_url)}
                           className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                          title="View / Download"
+                          title="View"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => downloadClientDocument(verif.document_url, verif.document_name)}
+                          className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                          title="Download"
                         >
                           <Download className="w-4 h-4" />
-                        </a>
+                        </button>
                         {verif.status === 'pending' && (
                           <>
                             <button
@@ -541,6 +863,163 @@ export function DocumentsManagementPage() {
             </div>
           )}
         </>
+      ) : view === 'employee-documents' ? (
+      <>
+        <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-100 border border-slate-200 rounded-lg px-3 py-2">
+            <FolderOpen className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+            Employee resumes and HR files, grouped and searchable by division.
+          </div>
+          <button
+            onClick={migrateLegacyResumes}
+            disabled={migratingLegacyResumes || employeeDocuments.every((d) => !d.is_legacy_resume)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Migrate old resumes into Employee Docs"
+          >
+            {migratingLegacyResumes ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
+            Migrate Legacy Resumes
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {DIVISIONS.map((div) => {
+            const Icon = div.icon;
+            const active = activeDivision === div.slug;
+            return (
+              <button
+                key={div.slug}
+                onClick={() => setActiveDivision(div.slug)}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all border ${
+                  active ? `${div.bg} ${div.color} ${div.border}` : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {div.label}
+                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs ${active ? 'bg-white/70' : 'bg-slate-100'}`}>
+                  {employeeDocCounts[div.slug] || 0}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="relative mb-5">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by file, employee, employee no, type..."
+            className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-700 focus:border-slate-700"
+          />
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center h-48">
+            <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-700 rounded-full animate-spin" />
+          </div>
+        ) : filteredEmployeeDocs.length === 0 ? (
+          <EmptyState
+            icon={FolderOpen}
+            title="No employee documents found"
+            description={search || activeDivision !== 'all' ? 'Try adjusting filters.' : 'No employee resumes or HR files have been uploaded yet.'}
+          />
+        ) : (
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="text-left text-xs font-semibold text-slate-600 uppercase tracking-wider px-5 py-3">File</th>
+                    <th className="text-left text-xs font-semibold text-slate-600 uppercase tracking-wider px-5 py-3">Employee</th>
+                    <th className="text-left text-xs font-semibold text-slate-600 uppercase tracking-wider px-5 py-3 hidden lg:table-cell">Division</th>
+                    <th className="text-left text-xs font-semibold text-slate-600 uppercase tracking-wider px-5 py-3 hidden md:table-cell">Size</th>
+                    <th className="text-left text-xs font-semibold text-slate-600 uppercase tracking-wider px-5 py-3 hidden lg:table-cell">Date</th>
+                    <th className="text-right text-xs font-semibold text-slate-600 uppercase tracking-wider px-5 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredEmployeeDocs.map((doc) => {
+                    const div = DIVISIONS.find((d) => d.slug === canonicalDivisionSlug(doc.employees?.services?.slug)) || DIVISIONS[0];
+                    const DivIcon = div.icon;
+                    const docTypeLabel = EMPLOYEE_DOC_TYPE_LABELS[doc.document_type] || doc.document_type;
+                    return (
+                      <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-3">
+                            {getFileIcon(doc.file_type, doc.file_name)}
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-800 truncate block max-w-[220px]" title={doc.file_name}>
+                                {doc.file_name}
+                              </p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="inline-block text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded-full font-medium">
+                                  {docTypeLabel}
+                                </span>
+                                {doc.is_legacy_resume && (
+                                  <span className="inline-block text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">
+                                    Legacy
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="text-sm text-slate-700">{doc.employees?.full_name || 'Unknown'}</div>
+                          <div className="text-xs text-slate-400">{doc.employees?.employee_number || '—'}</div>
+                        </td>
+                        <td className="px-5 py-3 hidden lg:table-cell">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${div.bg} ${div.color}`}>
+                            <DivIcon className="w-3 h-3" />
+                            {div.label === 'All Documents' ? doc.employees?.services?.name || '—' : div.label}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 hidden md:table-cell text-sm text-slate-500">
+                          {formatFileSize(doc.file_size)}
+                        </td>
+                        <td className="px-5 py-3 hidden lg:table-cell text-sm text-slate-500">
+                          {new Date(doc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => viewEmployeeDocument(doc)}
+                              disabled={employeeDocActionId === doc.id}
+                              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-50"
+                              title="View"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => downloadEmployeeDocument(doc)}
+                              disabled={employeeDocActionId === doc.id}
+                              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-50"
+                              title="Download"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteEmployeeDocument(doc)}
+                              disabled={employeeDocActionId === doc.id}
+                              className="p-2 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors disabled:opacity-50"
+                              title="Delete"
+                            >
+                              {employeeDocActionId === doc.id
+                                ? <div className="w-4 h-4 border-2 border-red-200 border-t-red-500 rounded-full animate-spin" />
+                                : <Trash2 className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </>
       ) : (
       <>
 
@@ -585,16 +1064,6 @@ export function DocumentsManagementPage() {
         />
       </div>
 
-      {uploadError && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>{uploadError}</span>
-          <button onClick={() => setUploadError(null)} className="ml-auto text-red-400 hover:text-red-600">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
       {/* Documents */}
       {loading ? (
         <div className="flex items-center justify-center h-48">
@@ -622,7 +1091,7 @@ export function DocumentsManagementPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((doc) => {
-                  const div = DIVISIONS.find((d) => d.slug === (doc.service_slug || doc.bookings?.services?.slug)) || DIVISIONS[0];
+                  const div = DIVISIONS.find((d) => d.slug === canonicalDivisionSlug(doc.service_slug || doc.bookings?.services?.slug)) || DIVISIONS[0];
                   const DivIcon = div.icon;
                   return (
                     <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors">
@@ -632,7 +1101,7 @@ export function DocumentsManagementPage() {
                           <div className="min-w-0">
                             <a
                               href="#"
-                              onClick={(e) => { e.preventDefault(); openDocument(doc.file_url); }}
+                              onClick={(e) => { e.preventDefault(); viewClientDocument(doc.file_url); }}
                               className="text-sm font-medium text-slate-800 hover:text-emerald-600 truncate block max-w-[200px]"
                               title={doc.file_name}
                             >
@@ -664,14 +1133,20 @@ export function DocumentsManagementPage() {
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center justify-end gap-1.5">
-                          <a
-                            href="#"
-                            onClick={(e) => { e.preventDefault(); openDocument(doc.file_url); }}
+                          <button
+                            onClick={() => viewClientDocument(doc.file_url)}
                             className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                            title="View / Download"
+                            title="View"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => downloadClientDocument(doc.file_url, doc.file_name)}
+                            className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                            title="Download"
                           >
                             <Download className="w-4 h-4" />
-                          </a>
+                          </button>
                           <button
                             onClick={() => handleDelete(doc)}
                             disabled={deletingId === doc.id}

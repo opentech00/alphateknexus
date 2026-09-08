@@ -780,6 +780,17 @@ function DeleteEmployeeModal({ employee: e, onClose, onDeleted }: {
         if ((e as any).resume_url) {
           await supabase.storage.from('employee-resumes').remove([(e as any).resume_url]);
         }
+        const { data: legacyDocs } = await supabase
+          .from('employee_documents')
+          .select('id, file_path')
+          .eq('employee_id', e.id);
+        if (legacyDocs && legacyDocs.length > 0) {
+          const paths = legacyDocs.map((d) => d.file_path).filter(Boolean);
+          if (paths.length > 0) {
+            await supabase.storage.from('employee-documents').remove(paths);
+          }
+          await supabase.from('employee_documents').delete().eq('employee_id', e.id);
+        }
         await supabase.from('employee_activity_logs').delete().eq('employee_id', e.id);
         await supabase.from('employee_id_cards').delete().eq('employee_id', e.id);
         const { error: delErr } = await supabase.from('employees').delete().eq('id', e.id);
@@ -904,7 +915,24 @@ function AddEmployeeModal({ roles, services, onClose, onCreated }: {
 
   const handleResumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setResumeFile(file);
+    if (!file) return;
+    const allowed = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    if (!allowed.includes(file.type)) {
+      setError('Resume must be PDF, DOC, or DOCX.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Resume exceeds 10MB limit.');
+      e.target.value = '';
+      return;
+    }
+    setError('');
+    setResumeFile(file);
   };
 
   const handleSubmit = async () => {
@@ -928,18 +956,6 @@ function AddEmployeeModal({ roles, services, onClose, onCreated }: {
         photo_url = urlData.publicUrl;
       }
 
-      // Upload resume if provided
-      let resume_url: string | null = null;
-      if (resumeFile) {
-        const ext = resumeFile.name.split('.').pop();
-        const path = `${Date.now()}.${ext}`;
-        const { data: uploadData, error: uploadErr } = await supabase.storage
-          .from('employee-resumes')
-          .upload(path, resumeFile, { upsert: true });
-        if (uploadErr) { setError(`Resume upload failed: ${uploadErr.message}`); setLoading(false); return; }
-        resume_url = uploadData.path;
-      }
-
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-employee-account`, {
         method: 'POST',
@@ -959,7 +975,7 @@ function AddEmployeeModal({ roles, services, onClose, onCreated }: {
           emergency_contact: emergencyContact || null,
           address: address || null,
           photo_url,
-          resume_url,
+          resume_url: null,
           password,
           dashboard_url: window.location.origin + '/employee.html',
         }),
@@ -967,6 +983,40 @@ function AddEmployeeModal({ roles, services, onClose, onCreated }: {
 
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to create employee'); setLoading(false); return; }
+
+      // Store resume in the HR documents module for centralized management.
+      if (resumeFile && data.employee?.id) {
+        const clean = resumeFile.name.replace(/[^A-Za-z0-9._-]/g, '_');
+        const filePath = `${data.employee.id}/${Date.now()}-${clean}`;
+        const { error: resumeUpErr } = await supabase.storage
+          .from('employee-documents')
+          .upload(filePath, resumeFile, { cacheControl: '3600', upsert: false });
+        if (resumeUpErr) {
+          setError(`Employee created, but resume upload failed: ${resumeUpErr.message}`);
+          setLoading(false);
+          return;
+        }
+
+        const { data: userData } = await supabase.auth.getUser();
+        const { error: docInsertErr } = await supabase.from('employee_documents').insert({
+          employee_id: data.employee.id,
+          uploaded_by: userData.user?.id || null,
+          document_type: 'resume',
+          file_name: resumeFile.name,
+          file_path: filePath,
+          file_type: resumeFile.type || null,
+          file_size: resumeFile.size,
+          description: 'Uploaded during employee onboarding',
+        });
+
+        if (docInsertErr) {
+          await supabase.storage.from('employee-documents').remove([filePath]);
+          setError(`Employee created, but resume record could not be saved: ${docInsertErr.message}`);
+          setLoading(false);
+          return;
+        }
+      }
+
       setEmailSent(data.email_sent === true);
       setEmployeeNumber(data.employee?.employee_number || '');
       setDone(true);

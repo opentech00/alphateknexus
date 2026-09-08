@@ -106,6 +106,18 @@ Deno.serve(async (req: Request) => {
       if (emp.resume_url) {
         try { await adminClient.storage.from("employee-resumes").remove([emp.resume_url]); } catch { /* best-effort */ }
       }
+      try {
+        const { data: employeeDocs } = await adminClient
+          .from("employee_documents")
+          .select("file_path")
+          .eq("employee_id", emp.id);
+        const docPaths = (employeeDocs || []).map((row: any) => row.file_path).filter(Boolean);
+        if (docPaths.length > 0) {
+          await adminClient.storage.from("employee-documents").remove(docPaths);
+        }
+      } catch {
+        /* best-effort */
+      }
       // Delete employee activity logs and ID cards
       await adminClient.from("employee_activity_logs").delete().eq("employee_id", emp.id);
       await adminClient.from("employee_id_cards").delete().eq("employee_id", emp.id);

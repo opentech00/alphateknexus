@@ -61,7 +61,7 @@ export const SLUG_ALIASES: Record<string, string> = {
   'waste-management': 'waste-management',
   'cleaning-janitorial': 'cleaning-janitorial',
   'clearing-forwarding': 'clearing-forwarding',
-  'private-security': 'private-security',
+  'private-security': 'private-security',                                                                                                                                                                                                                                                                                                                                                                                                     
   procurement: 'procurement',
 };
 

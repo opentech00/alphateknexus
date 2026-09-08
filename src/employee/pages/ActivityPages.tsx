@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
   Loader2, FileText, Calendar, Upload, ClipboardList, BarChart3,
-  ArrowLeft, CheckCircle2, Clock, AlertCircle, FileDown, Inbox,
+  ArrowLeft, CheckCircle2, Clock, AlertCircle, FileDown, Inbox, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { openDocument } from '../../lib/storageUrls';
 import type { Employee } from '../types';
 import { fmtDate, STATUS_META } from '../types';
 import { useAuth } from '../contexts/EmployeeAuthContext';
+import { ServiceDetailsPanel } from '../../components/ServiceDetailsPanel';
 
 /* ═══════════════════════════════════════════════════════════════
    Shared helpers
@@ -51,8 +52,11 @@ interface Booking {
   location: string | null;
   contact_name: string | null;
   contact_phone: string | null;
+  contact_email: string | null;
+  created_at: string;
   notes: string | null;
-  services?: { name: string }[] | { name: string } | null;
+  details?: Record<string, unknown> | null;
+  services?: { name: string; slug?: string }[] | { name: string; slug?: string } | null;
 }
 
 function serviceName(b: Booking): string {
@@ -65,6 +69,7 @@ export function BookingsPage({ employee }: { employee: Employee | null }) {
   const { hasCapability } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const canManage = hasCapability('div.manage_bookings');
   const canApprove = hasCapability('div.approve_quotes');
 
@@ -73,7 +78,7 @@ export function BookingsPage({ employee }: { employee: Employee | null }) {
     (async () => {
       const { data } = await supabase
         .from('bookings')
-        .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, notes, services(name)')
+        .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, created_at, notes, details, services(name, slug)')
         .eq('service_id', employee.service_id)
         .order('scheduled_date', { ascending: false })
         .limit(50);
@@ -93,8 +98,9 @@ export function BookingsPage({ employee }: { employee: Employee | null }) {
         <div className="space-y-3">
           {bookings.map((b) => {
             const meta = STATUS_META[b.status] || STATUS_META.pending;
+            const hasFullDetails = !!b.details || !!b.notes;
             return (
-              <div key={b.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+              <div key={b.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div>
                     <p className="font-semibold text-slate-900 text-sm">{serviceName(b)}</p>
@@ -105,24 +111,57 @@ export function BookingsPage({ employee }: { employee: Employee | null }) {
                     {meta.label}
                   </span>
                 </div>
-                {b.location && <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {b.location}</p>}
-                {b.contact_name && <p className="text-xs text-slate-500 mt-1">Contact: {b.contact_name}{b.contact_phone ? ` · ${b.contact_phone}` : ''}</p>}
-                {b.notes && <p className="text-xs text-slate-400 mt-1.5 line-clamp-2">{b.notes}</p>}
-                {(canManage || canApprove) && (
-                  <select
-                    value={b.status}
-                    onChange={async (ev) => {
-                      const next = ev.target.value;
-                      if (next === 'approved' && !canApprove) return;
-                      const { error } = await supabase.from('bookings').update({ status: next }).eq('id', b.id);
-                      if (!error) setBookings(prev => prev.map(row => row.id === b.id ? { ...row, status: next } : row));
-                    }}
-                    className="mt-2 text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white"
-                  >
-                    {['pending', 'pending_review', 'approved', 'confirmed', 'in_progress', 'completed', 'cancelled'].map(s => (
-                      <option key={s} value={s}>{s.replace('_', ' ')}</option>
-                    ))}
-                  </select>
+                <div className="px-4 pb-4">
+                  {b.location && <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {b.location}</p>}
+                  {b.contact_name && <p className="text-xs text-slate-500 mt-1">Contact: {b.contact_name}{b.contact_phone ? ` · ${b.contact_phone}` : ''}{b.contact_email ? ` · ${b.contact_email}` : ''}</p>}
+                  <p className="text-xs text-slate-400 mt-1">Submitted: {fmtDate(b.created_at)}</p>
+                  {b.notes && <p className="text-xs text-slate-400 mt-1.5 line-clamp-2">{b.notes}</p>}
+
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    {hasFullDetails && (
+                      <button
+                        onClick={() => setExpandedId(expandedId === b.id ? null : b.id)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        View Full Details
+                        {expandedId === b.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+                    )}
+                    {(canManage || canApprove) && (
+                      <select
+                        value={b.status}
+                        onChange={async (ev) => {
+                          const next = ev.target.value;
+                          if (next === 'approved' && !canApprove) return;
+                          const { error } = await supabase.from('bookings').update({ status: next }).eq('id', b.id);
+                          if (!error) setBookings(prev => prev.map(row => row.id === b.id ? { ...row, status: next } : row));
+                        }}
+                        className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white"
+                      >
+                        {['pending', 'pending_review', 'approved', 'confirmed', 'in_progress', 'completed', 'cancelled'].map(s => (
+                          <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
+
+                {expandedId === b.id && hasFullDetails && (
+                  <div className="border-t border-slate-100 p-4">
+                    <ServiceDetailsPanel
+                      details={b.details}
+                      notes={b.notes}
+                      serviceName={serviceName(b)}
+                      clientName={b.contact_name}
+                      clientPhone={b.contact_phone}
+                      clientEmail={b.contact_email}
+                      scheduledDate={b.scheduled_date}
+                      scheduledTime={b.scheduled_time}
+                      location={b.location}
+                      submittedAt={b.created_at}
+                    />
+                  </div>
                 )}
               </div>
             );
