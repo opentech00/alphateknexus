@@ -9,7 +9,7 @@ Vercel should use:
 - Framework: Vite (auto-detected)
 - Build command: `npm run build`
 - Output directory: `dist`
-- Node.js: 18.x
+- Node.js: 24.x
 
 Pretty URLs are defined in `vercel.json`: `/admin`, `/employee`, and `/field` serve the matching HTML entry points.
 

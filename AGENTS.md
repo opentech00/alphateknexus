@@ -14,7 +14,7 @@ This repo is a Vite + React + TypeScript application with Supabase-backed auth/d
 - Install dependencies with `npm install`.
 - Build the app with `npm run build`.
 - The frontend expects `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` at build time. Maps also need `VITE_MAPBOX_ACCESS_TOKEN`.
-- Keep Node aligned with Vercel: Node 18.
+- Keep Node aligned with Vercel: Node 24.
 
 ## Production (Vercel)
 
