@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Search, ChevronRight, Ship, Trash2, Shield, Sparkles, ShoppingCart,
-  Loader2, CalendarPlus, MessageSquare, PackageCheck, Repeat2,
-  ChevronDown, Info, MapPin, Calendar, ArrowRight, RefreshCw,
+  ArrowRight, RefreshCw, UserCircle, ChevronDown, MapPin, Calendar,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import type { Service } from '../../types';
 import { ServiceDetailModal } from '../ServiceDetailModal';
-import { useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
+import { useAppLogo, useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
 import { useHaptics } from '../../hooks/useHaptics';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { ServiceCardSkeleton, BookingMiniSkeleton } from './Skeleton';
+import { NotificationsPanel } from '../NotificationsPanel';
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -26,26 +26,25 @@ interface ServiceMeta {
   label: string;
   icon: React.ReactNode;
   image: string;
-  defaultMode: ServiceMode;
-  hasQuote: boolean;
-  hasHire: boolean;
+  blurb: string;
+  priceHint: string;
   special?: 'waste';
 }
 
 const SERVICE_META: ServiceMeta[] = [
-  { slug: 'clearing-forwarding', label: 'Clearing & Forwarding', icon: <Ship className="w-5 h-5" />,        image: fallbackServiceImage('clearing-forwarding'), defaultMode: 'hire',  hasQuote: true, hasHire: true },
-  { slug: 'procurement',         label: 'Procurement',            icon: <ShoppingCart className="w-5 h-5" />, image: fallbackServiceImage('procurement'),         defaultMode: 'quote', hasQuote: true, hasHire: true },
-  { slug: 'private-security',    label: 'Private Security',      icon: <Shield className="w-5 h-5" />,       image: fallbackServiceImage('private-security'),    defaultMode: 'hire',  hasQuote: true, hasHire: true },
-  { slug: 'cleaning-janitorial', label: 'Cleaning & Janitorial', icon: <Sparkles className="w-5 h-5" />,      image: fallbackServiceImage('cleaning-janitorial'), defaultMode: 'hire',  hasQuote: true, hasHire: true },
-  { slug: 'waste-management',    label: 'Smart Sort (Waste)',    icon: <Trash2 className="w-5 h-5" />,        image: fallbackServiceImage('waste-management'),    defaultMode: 'pickup', hasQuote: true, hasHire: true, special: 'waste' },
+  { slug: 'waste-management',    label: 'Waste Management',      icon: <Trash2 className="w-5 h-5" />,        image: fallbackServiceImage('waste-management'),    blurb: 'Smart, clean and sustainable waste solutions for a greener city.', priceHint: 'From SLE 300,000', special: 'waste' },
+  { slug: 'private-security',    label: 'Private Security',      icon: <Shield className="w-5 h-5" />,       image: fallbackServiceImage('private-security'),    blurb: 'Trained professionals for your safety and peace of mind.', priceHint: 'From SLE 250,000' },
+  { slug: 'clearing-forwarding', label: 'Clearing & Forwarding', icon: <Ship className="w-5 h-5" />,        image: fallbackServiceImage('clearing-forwarding'), blurb: 'Fast, reliable and global logistics solutions.', priceHint: 'From SLE 500,000' },
+  { slug: 'cleaning-janitorial', label: 'Cleaning & Janitorial', icon: <Sparkles className="w-5 h-5" />,      image: fallbackServiceImage('cleaning-janitorial'), blurb: 'Spotless spaces for a healthier environment.', priceHint: 'From SLE 120,000' },
+  { slug: 'procurement',         label: 'Procurement',            icon: <ShoppingCart className="w-5 h-5" />, image: fallbackServiceImage('procurement'),         blurb: 'Quality products and services when you need them.', priceHint: 'From SLE 100,000' },
 ];
 
-const SERVICE_COLORS: Record<string, { bg: string; text: string; gradient: string }> = {
-  'clearing-forwarding': { bg: 'bg-blue-50',   text: 'text-blue-600',   gradient: 'from-blue-500 to-blue-600' },
-  'procurement':         { bg: 'bg-violet-50', text: 'text-violet-600', gradient: 'from-violet-500 to-violet-600' },
-  'private-security':    { bg: 'bg-slate-100', text: 'text-slate-700',  gradient: 'from-slate-600 to-slate-800' },
-  'cleaning-janitorial': { bg: 'bg-teal-50',   text: 'text-teal-600',   gradient: 'from-teal-500 to-teal-600' },
-  'waste-management':    { bg: 'bg-emerald-50', text: 'text-emerald-600', gradient: 'from-emerald-500 to-emerald-600' },
+const SERVICE_COLORS: Record<string, { chip: string; text: string; price: string; ring: string }> = {
+  'clearing-forwarding': { chip: 'bg-indigo-100', text: 'text-indigo-600', price: 'text-indigo-600', ring: 'ring-indigo-200' },
+  'procurement':         { chip: 'bg-amber-100',  text: 'text-amber-600',  price: 'text-amber-600',  ring: 'ring-amber-200' },
+  'private-security':    { chip: 'bg-blue-100',   text: 'text-blue-600',   price: 'text-blue-600',   ring: 'ring-blue-200' },
+  'cleaning-janitorial': { chip: 'bg-teal-100',   text: 'text-teal-600',   price: 'text-teal-600',   ring: 'ring-teal-200' },
+  'waste-management':    { chip: 'bg-emerald-100', text: 'text-emerald-600', price: 'text-emerald-600', ring: 'ring-emerald-200' },
 };
 
 interface HomeBooking {
@@ -74,162 +73,58 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Cancelled',
 };
 
-function HeroIllustration() {
-  return (
-    <svg viewBox="0 0 120 110" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      <rect x="65" y="20" width="44" height="80" rx="4" fill="#1e3a6e" opacity="0.6" />
-      <rect x="72" y="28" width="8" height="8" rx="1" fill="#93c5fd" opacity="0.8" />
-      <rect x="84" y="28" width="8" height="8" rx="1" fill="#93c5fd" opacity="0.5" />
-      <rect x="96" y="28" width="8" height="8" rx="1" fill="#93c5fd" opacity="0.8" />
-      <rect x="72" y="42" width="8" height="8" rx="1" fill="#93c5fd" opacity="0.5" />
-      <rect x="84" y="42" width="8" height="8" rx="1" fill="#93c5fd" opacity="0.9" />
-      <rect x="96" y="42" width="8" height="8" rx="1" fill="#93c5fd" opacity="0.6" />
-      <rect x="72" y="56" width="8" height="8" rx="1" fill="#93c5fd" opacity="0.8" />
-      <rect x="84" y="56" width="8" height="8" rx="1" fill="#93c5fd" opacity="0.4" />
-      <rect x="96" y="56" width="8" height="8" rx="1" fill="#93c5fd" opacity="0.7" />
-      <ellipse cx="52" cy="102" rx="14" ry="4" fill="#1e3a6e" opacity="0.2" />
-      <rect x="47" y="84" width="5" height="18" rx="2.5" fill="#f97316" />
-      <rect x="54" y="84" width="5" height="18" rx="2.5" fill="#f97316" />
-      <rect x="42" y="56" width="22" height="30" rx="6" fill="#f97316" />
-      <rect x="32" y="58" width="12" height="5" rx="2.5" fill="#f97316" transform="rotate(15 32 58)" />
-      <rect x="63" y="58" width="14" height="5" rx="2.5" fill="#f97316" transform="rotate(-20 63 58)" />
-      <rect x="74" y="55" width="12" height="15" rx="2" fill="white" opacity="0.9" />
-      <rect x="77" y="59" width="6" height="1.5" rx="0.75" fill="#3b82f6" />
-      <rect x="77" y="62" width="6" height="1.5" rx="0.75" fill="#3b82f6" />
-      <rect x="77" y="65" width="4" height="1.5" rx="0.75" fill="#3b82f6" />
-      <circle cx="53" cy="46" r="12" fill="#fed7aa" />
-      <ellipse cx="53" cy="36" rx="12" ry="6" fill="#92400e" />
-      <circle cx="49" cy="47" r="1.5" fill="#78350f" />
-      <circle cx="57" cy="47" r="1.5" fill="#78350f" />
-      <path d="M49 52 Q53 55 57 52" stroke="#78350f" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-    </svg>
-  );
-}
-
 function ServiceGridCard({
   meta,
   service,
   index,
-  onSelect,
+  wide = false,
   onViewDetails,
 }: {
   meta: ServiceMeta;
   service?: Service;
   index: number;
-  onSelect: (svc: Service, mode: ServiceMode) => void;
+  wide?: boolean;
   onViewDetails: (svc: Service) => void;
 }) {
   const { vibrate } = useHaptics();
-  const [expanded, setExpanded] = useState(false);
-  const colors = SERVICE_COLORS[meta.slug] || { bg: 'bg-slate-100', text: 'text-slate-600', gradient: 'from-slate-500 to-slate-600' };
-
-  const handleAction = (mode: ServiceMode) => {
-    vibrate('medium');
-    if (service) onSelect(service, mode);
-  };
+  const colors = SERVICE_COLORS[meta.slug] || { chip: 'bg-slate-100', text: 'text-slate-600', price: 'text-slate-600', ring: 'ring-slate-200' };
+  const priceText = service?.price_range?.trim() || meta.priceHint;
 
   return (
     <div
-      className={`bg-white dark:bg-slate-800 dark:border-slate-700 rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-300 active:scale-[0.98] hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600 ${expanded ? 'col-span-2' : ''}`}
+      className={`bg-white dark:bg-slate-800 dark:border-slate-700 rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-300 active:scale-[0.98] hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600 ${wide ? 'col-span-2' : ''}`}
       style={{ animation: `fadeInUp 0.4s ease-out ${index * 0.08}s both` }}
     >
-      {/* Service image banner */}
-      <div className={`relative h-20 ${colors.bg} overflow-hidden`}>
+      <div className="relative h-24 overflow-hidden">
         <img
           src={meta.image}
           alt={meta.label}
-          className="absolute inset-0 w-full h-full object-cover opacity-90"
+          className="absolute inset-0 w-full h-full object-cover"
           loading="lazy"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
-        <div className={`absolute inset-0 bg-gradient-to-br ${colors.gradient} opacity-10`} />
-        {/* Icon badge */}
-        <div className={`absolute bottom-2 left-2.5 w-8 h-8 bg-white rounded-lg shadow-sm flex items-center justify-center ${colors.text}`}>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />
+        <div className={`absolute left-3 bottom-3 w-9 h-9 rounded-xl bg-white/95 shadow-sm ring-1 ${colors.ring} flex items-center justify-center ${colors.text}`}>
           {meta.icon}
         </div>
       </div>
 
-      {/* Card body */}
       <button
-        onClick={() => { vibrate('light'); setExpanded(!expanded); }}
-        className="w-full flex flex-col items-center text-center px-3 pt-2.5 pb-3 no-select"
+        onClick={() => {
+          vibrate('light');
+          if (service) onViewDetails(service);
+        }}
+        className="w-full text-left p-3.5 no-select"
       >
-        <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight line-clamp-2 min-h-[2rem]">{meta.label}</h3>
-        {service?.price_range && (
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 truncate w-full">{service.price_range}</p>
-        )}
-        <div className={`mt-1.5 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}>
-          <ChevronDown className={`w-3.5 h-3.5 ${colors.text}`} />
+        <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100 leading-tight">{meta.label}</h3>
+        <p className={`mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400 ${wide ? 'line-clamp-1' : 'line-clamp-2 min-h-8'}`}>{meta.blurb}</p>
+        <div className="mt-2.5 flex items-center justify-between">
+          <p className={`text-[13px] font-bold ${colors.price}`}>{priceText}</p>
+          <span className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 inline-flex items-center justify-center">
+            <ArrowRight className={`w-4 h-4 ${colors.text}`} />
+          </span>
         </div>
       </button>
-
-      {/* Expanded content */}
-      {expanded && (
-        <div className="px-4 pb-4 pt-0 animate-slide-in-from-bottom">
-          {service?.description && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 leading-relaxed text-center">{service.description}</p>
-          )}
-
-          {/* View Details button */}
-          <button
-            onClick={() => service && onViewDetails(service)}
-            className="group/details w-full flex items-center justify-center gap-1.5 py-2.5 mb-2.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl active:scale-[0.98] hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all no-select border border-blue-100 dark:border-blue-800/50"
-          >
-            <Info className="w-3.5 h-3.5 transition-transform group-hover/details:scale-110" />
-            View more details
-            <ArrowRight className="w-3 h-3 transition-transform group-hover/details:translate-x-0.5" />
-          </button>
-
-          {meta.special === 'waste' ? (
-            <div className="space-y-2">
-              <button
-                onClick={() => handleAction('pickup')}
-                className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-800 text-white font-semibold rounded-xl active:scale-[0.98] transition-transform no-select text-sm"
-              >
-                <PackageCheck className="w-4 h-4" />
-                One-Off Pickup
-              </button>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleAction('subscribe')}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-emerald-600 text-white font-semibold rounded-xl active:scale-[0.98] transition-transform no-select text-sm"
-                >
-                  <Repeat2 className="w-3.5 h-3.5" />
-                  Subscribe
-                </button>
-                <button
-                  onClick={() => handleAction('quote')}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white border border-slate-200 text-slate-700 font-medium rounded-xl active:scale-[0.98] transition-transform no-select text-sm"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  Get Quote
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              {meta.hasHire && (
-                <button
-                  onClick={() => handleAction('hire')}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 text-white font-semibold rounded-xl active:scale-[0.98] transition-transform no-select text-sm shadow-sm hover:bg-blue-700"
-                >
-                  <CalendarPlus className="w-3.5 h-3.5" />
-                  Hire Now
-                </button>
-              )}
-              {meta.hasQuote && (
-                <button
-                  onClick={() => handleAction('quote')}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white border border-slate-200 text-slate-700 font-medium rounded-xl active:scale-[0.98] transition-transform no-select text-sm hover:border-slate-300"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  Get Quote
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -274,6 +169,7 @@ function BookingMiniCard({
 
 export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props) {
   const { images: serviceImages } = useServiceBrandingImages();
+  const { url: logoUrl } = useAppLogo();
   const { profile } = useAuth();
   const { vibrate } = useHaptics();
   const [services, setServices] = useState<Service[]>([]);
@@ -310,6 +206,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
   });
 
   const firstName = profile?.full_name?.split(' ')[0] || 'there';
+  const initials = (profile?.full_name || profile?.email || 'U').trim().charAt(0).toUpperCase();
 
   const filtered = SERVICE_META.filter(m =>
     search === '' || m.label.toLowerCase().includes(search.toLowerCase())
@@ -329,7 +226,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
   const pullIndicatorHeight = refreshing ? 40 : pulling ? Math.round(progress * 40) : 0;
 
   return (
-    <div ref={scrollRef} className="flex flex-col min-h-full bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight pb-8">
+    <div ref={scrollRef} className="flex flex-col min-h-full bg-[#f5f8ff] dark:bg-slate-950 black:bg-black no-tap-highlight pb-8">
       {/* Pull-to-refresh indicator */}
       <div
         className="flex items-center justify-center overflow-hidden transition-all duration-200"
@@ -341,23 +238,53 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
         />
       </div>
 
-      {/* Greeting */}
-      <div className="px-5 pt-5 pb-3 safe-area-pt" style={{ animation: 'fadeInUp 0.4s ease-out both' }}>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Hello, {firstName}</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">What service do you need today?</p>
+      {/* Header + Greeting */}
+      <div className="px-5 pt-3 pb-3 safe-area-pt" style={{ animation: 'fadeInUp 0.4s ease-out both' }}>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <img src={logoUrl} alt="Alphatek Nexus" className="h-9 w-auto object-contain flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-lg leading-5 font-bold text-[#173362] tracking-tight truncate">
+                Alphatek <span className="text-emerald-500">Nexus</span>
+              </p>
+              <p className="text-[11px] text-slate-500 truncate">Smart Solutions. A Safer Tomorrow.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <NotificationsPanel />
+            <button
+              onClick={() => onNavigate('account')}
+              className="h-9 pl-1 pr-0.5 rounded-full border border-slate-200 bg-white inline-flex items-center gap-1 shadow-sm active:scale-95 transition-transform"
+              aria-label="Open profile"
+            >
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="Profile" className="w-7 h-7 rounded-full object-cover" />
+              ) : (
+                <span className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold inline-flex items-center justify-center">
+                  {initials || <UserCircle className="w-4 h-4" />}
+                </span>
+              )}
+              <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+            </button>
+          </div>
+        </div>
+        <h1 className="text-4xl leading-tight font-bold text-[#173362] dark:text-slate-100 tracking-tight">
+          Hello, {firstName} <span className="align-middle text-2xl">👋</span>
+        </h1>
+        <p className="text-base text-slate-500 dark:text-slate-400 mt-1">What service do you need today?</p>
       </div>
 
       {/* Search */}
       <div className="px-5 mb-4" style={{ animation: 'fadeInUp 0.4s ease-out 0.08s both' }}>
         <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
             inputMode="search"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search services..."
-            className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-800 dark:border-slate-700 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm no-tap-highlight transition-all dark:text-slate-100 dark:placeholder-slate-500"
+            placeholder="Search for a service..."
+            className="w-full pl-11 pr-4 py-3.5 bg-white/95 dark:bg-slate-800 dark:border-slate-700 border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm no-tap-highlight transition-all dark:text-slate-100 dark:placeholder-slate-500"
           />
         </div>
       </div>
@@ -365,26 +292,48 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
       {/* Hero Banner */}
       {search === '' && (
         <div className="mx-5 mb-5" style={{ animation: 'fadeInUp 0.5s ease-out 0.15s both' }}>
-          <div className="relative bg-gradient-to-br from-blue-600 via-blue-600 to-blue-800 rounded-2xl overflow-hidden shadow-lg shadow-blue-600/20 transition-transform active:scale-[0.99]">
-            <div className="absolute -top-8 -right-8 w-32 h-32 bg-blue-500/30 rounded-full animate-pulse" style={{ animationDuration: '3s' }} />
-            <div className="absolute -bottom-6 right-16 w-20 h-20 bg-blue-800/20 rounded-full" />
-            <div className="relative flex items-end min-h-[130px]">
-              <div className="flex-1 p-5 pb-5">
-                <p className="text-white font-bold text-lg leading-snug mb-1">
-                  Reliable. Professional.<br />Trusted.
-                </p>
-                <p className="text-blue-100 text-xs leading-relaxed mb-4">
-                  We deliver exceptional services<br />that you can count on.
+          <div className="relative rounded-3xl overflow-hidden shadow-lg shadow-blue-900/20">
+            <img
+              src={serviceImages['private-security'] || fallbackServiceImage('private-security')}
+              alt="Essential services"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0c3486]/90 via-[#1158d4]/75 to-[#2f8bf0]/45" />
+            <div className="relative p-4 min-h-[188px] flex">
+              <div className="flex-1 pr-2">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-400 text-white">
+                  Trusted &amp; Professional
+                </span>
+                <h3 className="mt-3 text-3xl leading-8 font-extrabold text-white">
+                  Your One-Stop Solution
+                  <br />
+                  for <span className="text-emerald-300">Essential Services</span>
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-blue-100">
+                  Book, manage and get your services
+                  <br />
+                  done with ease.
                 </p>
                 <button
                   onClick={() => onNavigate('services')}
-                  className="inline-flex items-center gap-1.5 bg-white text-blue-700 text-xs font-semibold px-4 py-2.5 rounded-xl hover:bg-blue-50 transition-colors active:scale-95 shadow-sm no-select"
+                  className="mt-4 inline-flex items-center gap-2 bg-white text-[#103871] text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-blue-50 transition-colors active:scale-95 shadow-sm no-select"
                 >
-                  Explore Services
+                  Explore Services <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="w-28 h-28 flex-shrink-0 mr-1">
-                <HeroIllustration />
+              <div className="hidden min-[390px]:flex flex-col justify-center gap-2.5 ml-1">
+                {['Safe', 'Reliable', 'Professional'].map((item) => (
+                  <span key={item} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-sm text-white text-[11px] font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-emerald-300" />
+                    {item}
+                  </span>
+                ))}
+              </div>
+              <div className="absolute right-4 bottom-3 flex gap-1.5">
+                <span className="w-4 h-1.5 rounded-full bg-white" />
+                <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
+                <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
+                <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
               </div>
             </div>
           </div>
@@ -392,14 +341,17 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
       )}
 
       {/* Services Grid */}
-      <div className="px-5 pb-6" style={{ animation: 'fadeInUp 0.5s ease-out 0.2s both' }}>
+      <div className="px-5 pb-4" style={{ animation: 'fadeInUp 0.5s ease-out 0.2s both' }}>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Our Services</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-[#173362] dark:text-slate-100">Our Services</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Choose a service and get it done, fast!</p>
+          </div>
           <button
             onClick={() => onNavigate('services')}
-            className="text-sm text-blue-600 dark:text-blue-400 font-medium flex items-center gap-0.5 active:scale-95 transition-transform no-select"
+            className="text-sm text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1 active:scale-95 transition-transform no-select"
           >
-            View all <ChevronRight className="w-3.5 h-3.5" />
+            View All <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
@@ -419,7 +371,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
                   meta={meta}
                   service={svc}
                   index={idx}
-                  onSelect={handleSelect}
+                  wide={meta.slug === 'procurement'}
                   onViewDetails={handleViewDetails}
                 />
               );
@@ -428,11 +380,11 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
         )}
       </div>
 
-      {/* My Bookings / Requests section */}
-      <div className="px-5 pb-8" style={{ animation: 'fadeInUp 0.5s ease-out 0.3s both' }}>
+      {/* Previous bookings section */}
+      <div className="px-5 pb-5" style={{ animation: 'fadeInUp 0.5s ease-out 0.3s both' }}>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">My Bookings</h2>
+            <h2 className="text-base font-bold text-[#173362] dark:text-slate-100">Previous Bookings</h2>
             {activeBookings.length > 0 && (
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{activeBookings.length} active request{activeBookings.length !== 1 ? 's' : ''}</p>
             )}

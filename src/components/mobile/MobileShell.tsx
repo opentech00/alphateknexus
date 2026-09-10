@@ -11,6 +11,7 @@ import { MobileProfilePage } from './MobileProfilePage';
 import { MobileServicesPage } from './MobileServicesPage';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { useHaptics } from '../../hooks/useHaptics';
+import { useAuth } from '../../contexts/AuthContext';
 
 type MobilePage = 'home' | 'bookings' | 'wallet' | 'profile' | 'services';
 
@@ -40,6 +41,7 @@ const PAGE_TITLE: Record<MobilePage, string> = {
 export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook }: Props) {
   const { wallet_enabled } = useFeatureFlags();
   const { url: logoUrl } = useAppLogo();
+  const { profile } = useAuth();
   const { vibrate } = useHaptics();
   const [mobilePage, setMobilePage] = useState<MobilePage>('home');
   const [pageKey, setPageKey] = useState(0);
@@ -81,6 +83,8 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
   };
 
   const isSubPage = mobilePage === 'services';
+  const showTopBar = mobilePage !== 'home';
+  const profileInitial = (profile?.full_name || profile?.email || 'U').trim().charAt(0).toUpperCase();
 
   return (
     <div
@@ -89,6 +93,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
       className="fixed inset-0 h-[100dvh] w-full flex flex-col overflow-hidden bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight z-20 min-h-0"
     >
       {/* Top Bar — fixed height, safe-area top padding */}
+      {showTopBar && (
       <header className="flex-shrink-0 z-30 bg-white/95 dark:bg-slate-900/95 black:bg-black backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-sm no-select">
         <div className="relative flex items-center justify-between px-4 py-2.5 safe-area-pt">
           {/* Left: back button or logo */}
@@ -116,9 +121,25 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
           </h1>
 
           {/* Right: notifications only */}
-          <NotificationsPanel />
+          <div className="flex items-center gap-2">
+            <NotificationsPanel />
+            <button
+              onClick={() => handleSetPage('profile')}
+              className="h-8 pl-1 pr-0.5 rounded-full border border-slate-200 bg-white inline-flex items-center gap-0.5 shadow-sm active:scale-95 transition-transform"
+              aria-label="Open profile"
+            >
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="Profile" className="w-6 h-6 rounded-full object-cover" />
+              ) : (
+                <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-[11px] font-semibold inline-flex items-center justify-center">
+                  {profileInitial}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </header>
+      )}
 
       {/* Page Content — flex-1 fills remaining space, scrolls internally */}
       <main className="flex-1 overflow-y-auto overscroll-y-contain mobile-scroll min-h-0 w-full relative z-10" key={pageKey}>
@@ -128,6 +149,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
               onNavigate={(page) => {
                 if (page === 'services') handleSetPage('services');
                 else if (page === 'bookings') handleSetPage('bookings');
+                else if (page === 'account') handleSetPage('profile');
                 else onNavigate(page);
               }}
               onSelectService={onSelectService}
@@ -173,8 +195,8 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
       </main>
 
       {/* Bottom Navigation — pinned in the flex column, padded above the system inset */}
-      <nav className="flex-shrink-0 z-40 bg-white dark:bg-slate-900 black:bg-black border-t border-slate-200 dark:border-slate-700 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] no-select w-full mobile-nav-pb">
-        <div className="flex items-stretch justify-around h-14 px-1 max-w-lg mx-auto w-full">
+      <nav className="flex-shrink-0 z-40 bg-white/95 dark:bg-slate-900 black:bg-black border-t border-slate-200 dark:border-slate-700 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] no-select w-full mobile-nav-pb backdrop-blur">
+        <div className="flex items-stretch justify-around h-14 px-2 max-w-lg mx-auto w-full">
           {ALL_NAV_ITEMS.filter(item => item.id !== 'wallet' || wallet_enabled).map(item => {
             const Icon = item.icon;
             const active = mobilePage === item.id;
@@ -184,7 +206,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
                 onClick={() => handleSetPage(item.id)}
                 className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 min-w-0 px-1 rounded-2xl transition-all duration-200 active:scale-95 no-select ${
                   active
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold'
+                    ? 'bg-[#eaf2ff] dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold'
                     : 'text-[#475569] dark:text-[#e2e8f0]'
                 }`}
               >
