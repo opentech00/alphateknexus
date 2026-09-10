@@ -1,11 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   MapPin, Home, Building2, Plus, Trash2, Star, Loader2, X,
-  CheckCircle2, ChevronRight, Search,
+  CheckCircle2, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Portal } from '../lib/portal';
+import { LocationAutocomplete } from './LocationAutocomplete';
+import type { AddressSuggestion } from '../lib/addressSearch';
 
 export interface SavedAddress {
   id: string;
@@ -19,18 +21,6 @@ export interface SavedAddress {
   longitude: number | null;
   is_default: boolean;
   created_at: string;
-}
-
-interface SearchResult {
-  display_name: string;
-  address_line: string;
-  city: string;
-  region: string;
-  postal_code: string;
-  country: string;
-  country_code: string;
-  latitude: number | null;
-  longitude: number | null;
 }
 
 const LABEL_PRESETS = [
@@ -57,14 +47,7 @@ export function AddressPage() {
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
 
-  // Autocomplete
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [showResults, setShowResults] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const resultsRef = useRef<HTMLDivElement>(null);
-
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
@@ -82,45 +65,7 @@ export function AddressPage() {
 
   useEffect(() => { loadAddresses(); }, [loadAddresses]);
 
-  // Autocomplete search with debounce
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.trim().length < 3) { setResults([]); return; }
-    setSearching(true);
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/address-search?q=${encodeURIComponent(query.trim())}`;
-        const res = await fetch(url, {
-          headers: {
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY,
-            'Content-Type': 'application/json',
-          },
-        });
-        if (!res.ok) throw new Error('search failed');
-        const data = await res.json();
-        setResults(data.results || []);
-        setShowResults(true);
-      } catch {
-        setResults([]);
-      } finally {
-        setSearching(false);
-      }
-    }, 350);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query]);
-
-  // Close results on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (resultsRef.current && !resultsRef.current.contains(e.target as Node)) {
-        setShowResults(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const selectResult = (r: SearchResult) => {
+  const selectResult = (r: AddressSuggestion) => {
     setAddressLine(r.address_line || r.display_name.split(',').slice(0, 2).join(', ').trim());
     setCity(r.city);
     setRegion(r.region);
@@ -129,7 +74,6 @@ export function AddressPage() {
     setLat(r.latitude);
     setLng(r.longitude);
     setQuery(r.display_name);
-    setShowResults(false);
   };
 
   const openAdd = () => {
@@ -144,7 +88,6 @@ export function AddressPage() {
     setLat(null);
     setLng(null);
     setQuery('');
-    setResults([]);
     setError('');
     setModalOpen(true);
   };
@@ -374,37 +317,15 @@ export function AddressPage() {
               </div>
 
               {/* Address autocomplete */}
-              <div ref={resultsRef} className="relative">
+              <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">Search Address</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                  <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onFocus={() => results.length > 0 && setShowResults(true)}
-                    placeholder="Start typing your address…"
-                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 black:bg-[#111] border border-slate-200 dark:border-slate-700 black:border-[#222] rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all"
-                  />
-                  {searching && (
-                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 animate-spin" />
-                  )}
-                </div>
-                {showResults && results.length > 0 && (
-                  <div className="absolute z-20 mt-1 w-full bg-white dark:bg-slate-800 black:bg-[#111] border border-slate-200 dark:border-slate-700 black:border-[#222] rounded-xl shadow-lg max-h-56 overflow-y-auto">
-                    {results.map((r, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => selectResult(r)}
-                        className="flex items-start gap-2 w-full px-4 py-2.5 text-left hover:bg-emerald-50 transition-colors border-b border-slate-50 last:border-0"
-                      >
-                        <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                        <span className="text-sm text-slate-700 leading-snug">{r.display_name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <LocationAutocomplete
+                  value={query}
+                  onChange={setQuery}
+                  onSelect={selectResult}
+                  showLocate
+                  placeholder="Start typing your address…"
+                />
               </div>
 
               {/* Manual fields */}

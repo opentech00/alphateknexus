@@ -239,42 +239,81 @@ html.system:not(.light):not(.dark):not(.black) {
 }
 
 /* ── Safe area insets for iOS notch & Android nav bar ── */
+:root {
+  --sat: max(env(safe-area-inset-top, 0px), var(--sat-fallback, 0px));
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
 .safe-area-pt {
-  padding-top: env(safe-area-inset-top, 0px);
+  padding-top: var(--sat);
 }
 .safe-area-pb {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: var(--sab);
 }
 .safe-area-pl {
-  padding-left: env(safe-area-inset-left, 0px);
+  padding-left: var(--sal);
 }
 .safe-area-pr {
-  padding-right: env(safe-area-inset-right, 0px);
+  padding-right: var(--sar);
 }
 .safe-area-px {
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
 }
 .safe-area-py {
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-top: var(--sat);
+  padding-bottom: var(--sab);
 }
 .safe-area-all {
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
+  padding-top: var(--sat);
+  padding-bottom: var(--sab);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
 }
 .safe-area-mt {
-  margin-top: env(safe-area-inset-top, 0px);
+  margin-top: var(--sat);
 }
 .safe-area-mb {
-  margin-bottom: env(safe-area-inset-bottom, 0px);
+  margin-bottom: var(--sab);
+}
+
+.home-safe-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding-top: calc(var(--sat) + 0.75rem);
+  padding-left: max(1.25rem, var(--sal));
+  padding-right: max(1.25rem, var(--sar));
+  background: rgba(245, 248, 255, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.dark .home-safe-header {
+  background: rgba(2, 6, 23, 0.94);
+}
+.black .home-safe-header {
+  background: rgba(0, 0, 0, 0.94);
+}
+
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  html, body { overscroll-behavior: none; }
+}
+html.is-standalone,
+html.is-native,
+html.is-standalone body,
+html.is-native body {
+  overscroll-behavior: none;
+}
+
+.shell-safe-header {
+  padding-top: calc(var(--sat) + 0.625rem);
 }
 
 /* ── Mobile Nav Bar Safe Bottom Padding (Universal cross-device/browser) ── */
 .mobile-nav-pb {
-  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(0.5rem, var(--sab));
 }
 
 /* ── Native-feeling mobile scroll ── */

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { ServicePaymentStep, PaymentSuccessScreen, PaymentFailedScreen } from './ServicePaymentStep';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 import { Portal } from '../lib/portal';
+import { LocationAutocomplete } from './LocationAutocomplete';
 
 interface Service {
   id: string;
@@ -295,12 +296,12 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
                   Delivery Address
                 </span>
               </label>
-              <input
-                type="text"
+              <LocationAutocomplete
                 value={deliveryAddress}
-                onChange={(e) => setDeliveryAddress(e.target.value)}
+                onChange={setDeliveryAddress}
+                showLocate
                 placeholder="Street, city, country"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all text-sm"
+                inputClassName="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all text-sm"
               />
             </div>
           </div>

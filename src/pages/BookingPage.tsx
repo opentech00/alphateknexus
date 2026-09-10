@@ -10,6 +10,7 @@ import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
 const SERVICE_FEE = 25;
 import { SchedulingCalendar } from '../components/SchedulingCalendar';
 import { ReceiptModal } from '../components/ReceiptModal';
+import { LocationAutocomplete } from '../components/LocationAutocomplete';
 import { ClearingForwardingForm } from '../components/ClearingForwardingForm';
 import { ClearingForwardingQuoteForm } from '../components/ClearingForwardingQuoteForm';
 import { SmartSortPickupForm } from '../components/SmartSortPickupForm';
@@ -850,12 +851,12 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
                 <MapPin className="w-4 h-4 text-gray-400" />
                 Location / Address
               </label>
-              <input
-                type="text"
+              <LocationAutocomplete
                 value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
+                onChange={(v) => setFormData({ ...formData, location: v })}
+                showLocate
                 placeholder="Service location or address"
+                inputClassName="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
               />
             </div>
 

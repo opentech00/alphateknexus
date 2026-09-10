@@ -238,8 +238,8 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
         />
       </div>
 
-      {/* Header + Greeting */}
-      <div className="px-5 pt-3 pb-3 safe-area-pt" style={{ animation: 'fadeInUp 0.4s ease-out both' }}>
+      {/* Header + Greeting — sticky, padded for notch / status bar */}
+      <div className="home-safe-header pb-3" style={{ animation: 'fadeInUp 0.4s ease-out both' }}>
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5 min-w-0">
             <img src={logoUrl} alt="Alphatek Nexus" className="h-9 w-auto object-contain flex-shrink-0" />

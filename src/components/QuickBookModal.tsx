@@ -6,6 +6,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Portal } from '../lib/portal';
+import { LocationAutocomplete } from './LocationAutocomplete';
 
 interface Service {
   id: string;
@@ -397,12 +398,12 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
                     ))}
                   </div>
                 )}
-                <input
-                  type="text"
+                <LocationAutocomplete
                   value={location}
-                  onChange={(e) => { setLocation(e.target.value); setSelectedAddressId(null); }}
+                  onChange={(v) => { setLocation(v); setSelectedAddressId(null); }}
+                  showLocate
                   placeholder="Enter service address or area"
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
+                  inputClassName="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
                 />
               </div>
 

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
+import { LocationAutocomplete } from './LocationAutocomplete';
 
 interface Service {
   id: string;
@@ -317,15 +318,15 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
               </Field>
 
               <Field label="Office / Customer Address" required>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  <input
-                    className={`${inputCls} pl-9`}
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Search your business address"
-                  />
-                </div>
+                <LocationAutocomplete
+                  value={address}
+                  onChange={setAddress}
+                  onSelect={(s) => { if (s.city) setCity(s.city); if (s.country) setCountry(s.country); }}
+                  countryCodes=""
+                  showLocate
+                  placeholder="Search your business address"
+                  inputClassName={`${inputCls} pl-9`}
+                />
               </Field>
 
               <div className="grid grid-cols-2 gap-4">

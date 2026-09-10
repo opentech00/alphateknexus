@@ -20,6 +20,7 @@ import { useAppLogo } from '../../lib/media';
 import { MobilePaymentMethodModal } from './MobilePaymentMethodModal';
 import { MobileServiceHistoryModal } from './MobileServiceHistoryModal';
 import { Portal } from '../../lib/portal';
+import { LocationAutocomplete } from '../LocationAutocomplete';
 
 type ModalType = null | 'wallet' | 'favorites' | 'appearance' | 'edit-profile' | 'address' | 'benefits' | 'payment' | 'history' | 'notifications' | 'help';
 
@@ -575,10 +576,16 @@ function EditProfileForm({ onDone }: { onDone: () => void }) {
             <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
               className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white outline-none transition-all" />
           </Field>
-          <Field label="Address" icon={MapPin}>
-            <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street, city, area"
-              className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white outline-none transition-all" />
-          </Field>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Address</label>
+            <LocationAutocomplete
+              value={address}
+              onChange={setAddress}
+              showLocate
+              placeholder="Street, city, area"
+              inputClassName="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white outline-none transition-all"
+            />
+          </div>
           <Field label="Email" icon={Mail}>
             <input type="email" disabled value={profile?.email || ''}
               className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-400 cursor-not-allowed" />

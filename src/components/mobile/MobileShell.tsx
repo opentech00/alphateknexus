@@ -95,7 +95,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
       {/* Top Bar — fixed height, safe-area top padding */}
       {showTopBar && (
       <header className="flex-shrink-0 z-30 bg-white/95 dark:bg-slate-900/95 black:bg-black backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-sm no-select">
-        <div className="relative flex items-center justify-between px-4 py-2.5 safe-area-pt">
+        <div className="relative flex items-center justify-between px-4 pb-2.5 shell-safe-header">
           {/* Left: back button or logo */}
           {isSubPage ? (
             <button

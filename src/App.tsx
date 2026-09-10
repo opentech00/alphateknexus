@@ -20,6 +20,7 @@ import { MobileShell } from './components/mobile/MobileShell';
 import { SplashScreen } from './components/mobile/SplashScreen';
 import { FinanceToastContainer } from './components/FinanceToast';
 import { IdleWarningModal } from './components/IdleWarningModal';
+import { PwaProvider } from './components/pwa/PwaProvider';
 
 
 function FailedLoginBanner() {
@@ -248,6 +249,7 @@ export default function App() {
     <AuthProvider>
       <ThemeProvider>
         <PortalContent />
+        <PwaProvider />
       </ThemeProvider>
     </AuthProvider>
   );

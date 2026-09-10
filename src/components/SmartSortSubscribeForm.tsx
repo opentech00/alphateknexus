@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import {
   ArrowLeft, Recycle, FileText, MapPin, Wallet, Plus, X,
   Pause, Trash2, Zap, Package, Leaf, HardHat, CalendarCheck,
-  AlertTriangle, CreditCard, ChevronDown, CheckCircle2, Crosshair, Clock,
+  AlertTriangle, CreditCard, ChevronDown, CheckCircle2, Clock,
   Pencil, Receipt, TrendingUp, History,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { SmartSortImpactDashboard } from './SmartSortImpactDashboard';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { Portal } from '../lib/portal';
+import { LocationAutocomplete } from './LocationAutocomplete';
 
 interface Service {
   id: string; name: string; slug: string; description: string; icon: string; price_range: string;
@@ -885,21 +886,13 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
               {/* Address */}
               <div>
                 <label className="block text-sm font-semibold text-slate-800 mb-1.5">Street Address <span className="text-rose-500">*</span></label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                      type="text"
-                      value={subAddress}
-                      onChange={e => setSubAddress(e.target.value)}
-                      placeholder="e.g. 15 Siaka Stevens Street"
-                      className="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none"
-                    />
-                  </div>
-                  <button type="button" className="px-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors flex-shrink-0">
-                    <Crosshair className="w-4 h-4 text-slate-500" />
-                  </button>
-                </div>
+                <LocationAutocomplete
+                  value={subAddress}
+                  onChange={setSubAddress}
+                  showLocate
+                  placeholder="e.g. 15 Siaka Stevens Street"
+                  inputClassName="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none"
+                />
               </div>
 
               <div>

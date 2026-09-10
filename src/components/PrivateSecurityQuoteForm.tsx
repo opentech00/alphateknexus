@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
+import { LocationAutocomplete } from './LocationAutocomplete';
 
 interface Props {
   service: Service;
@@ -226,7 +227,16 @@ export function PrivateSecurityQuoteForm({ service, onCancel, onSuccess }: Props
                 <Field label="WhatsApp"><input className={inputCls} type="tel" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} placeholder="+232..." /></Field>
               </div>
               <Field label="Email" required><input className={inputCls} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@company.com" /></Field>
-              <Field label="Address" required><input className={inputCls} value={address} onChange={e => setAddress(e.target.value)} placeholder="Street address of the site" /></Field>
+              <Field label="Address" required>
+                <LocationAutocomplete
+                  value={address}
+                  onChange={setAddress}
+                  onSelect={(s) => { if (s.city) setCity(s.city); if (s.country) setCountry(s.country); }}
+                  showLocate
+                  placeholder="Street address of the site"
+                  inputClassName={`${inputCls} pl-9`}
+                />
+              </Field>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="City" required><input className={inputCls} value={city} onChange={e => setCity(e.target.value)} placeholder="Freetown" /></Field>
                 <Field label="Country"><input className={inputCls} value={country} onChange={e => setCountry(e.target.value)} /></Field>

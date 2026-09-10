@@ -34,19 +34,31 @@ Deno.serve(async (req: Request) => {
   try {
     const url = new URL(req.url);
     const q = url.searchParams.get("q")?.trim();
+    const lat = url.searchParams.get("lat")?.trim();
+    const lon = url.searchParams.get("lon")?.trim();
+    const countrycodes = url.searchParams.get("countrycodes")?.trim();
 
-    if (!q || q.length < 3) {
-      return new Response(
-        JSON.stringify({ results: [] }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    const nominatimUrl = lat && lon
+      ? new URL("https://nominatim.openstreetmap.org/reverse")
+      : new URL("https://nominatim.openstreetmap.org/search");
 
-    const nominatimUrl = new URL("https://nominatim.openstreetmap.org/search");
-    nominatimUrl.searchParams.set("q", q);
     nominatimUrl.searchParams.set("format", "json");
     nominatimUrl.searchParams.set("addressdetails", "1");
-    nominatimUrl.searchParams.set("limit", "6");
+
+    if (lat && lon) {
+      nominatimUrl.searchParams.set("lat", lat);
+      nominatimUrl.searchParams.set("lon", lon);
+    } else {
+      if (!q || q.length < 3) {
+        return new Response(
+          JSON.stringify({ results: [] }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      nominatimUrl.searchParams.set("q", q);
+      nominatimUrl.searchParams.set("limit", "6");
+      if (countrycodes) nominatimUrl.searchParams.set("countrycodes", countrycodes);
+    }
 
     const res = await fetch(nominatimUrl.toString(), {
       headers: {
@@ -62,7 +74,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const raw: NominatimResult[] = await res.json();
+    const payload = await res.json();
+    const raw: NominatimResult[] = Array.isArray(payload)
+      ? payload
+      : payload && payload.display_name
+        ? [payload]
+        : [];
 
     const results = raw.map((r) => {
       const a = r.address || {};

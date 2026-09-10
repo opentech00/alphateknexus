@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import {
-  Sparkles, X, CheckCircle2, ArrowLeft, Eye, MapPin,
+  Sparkles, X, CheckCircle2, ArrowLeft, Eye,
   Building2, Repeat2, Tag,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ServicePaymentStep, PaymentSuccessScreen, PaymentFailedScreen } from './ServicePaymentStep';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
+import { LocationAutocomplete } from './LocationAutocomplete';
 
 interface Service {
   id: string; name: string; slug: string;
@@ -279,10 +280,13 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
                 </Field>
               </div>
               <Field label="Service Address">
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  <input className={`${inputCls} pl-9`} value={address} onChange={e => setAddress(e.target.value)} placeholder="Where should we deliver the service?" />
-                </div>
+                <LocationAutocomplete
+                  value={address}
+                  onChange={setAddress}
+                  showLocate
+                  placeholder="Where should we deliver the service?"
+                  inputClassName={`${inputCls} pl-9`}
+                />
               </Field>
             </div>
           </div>

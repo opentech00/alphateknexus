@@ -6,6 +6,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { ServicePaymentStep, PaymentSuccessScreen, PaymentFailedScreen } from './ServicePaymentStep';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
+import { LocationAutocomplete } from './LocationAutocomplete';
 
 interface Props {
   service: Service;
@@ -293,10 +294,14 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
                 <Field label="City" required><input className={inputCls} value={city} onChange={e => setCity(e.target.value)} placeholder="Freetown" /></Field>
               </div>
               <Field label="Site Address" required>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  <input className={`${inputCls} pl-9`} value={siteAddress} onChange={e => setSiteAddress(e.target.value)} placeholder="Street, building name, or landmark" />
-                </div>
+                <LocationAutocomplete
+                  value={siteAddress}
+                  onChange={setSiteAddress}
+                  onSelect={(s) => { if (s.city) setCity(s.city); }}
+                  showLocate
+                  placeholder="Street, building name, or landmark"
+                  inputClassName={`${inputCls} pl-9`}
+                />
               </Field>
             </div>
           </div>

@@ -6,6 +6,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Portal } from '../lib/portal';
+import { LocationAutocomplete } from '../components/LocationAutocomplete';
 
 interface FavoriteService {
   favorite_id: string;
@@ -378,12 +379,12 @@ function PresetModal({
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Location (Optional)</label>
-            <input
-              type="text"
+            <LocationAutocomplete
               value={form.location}
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
+              onChange={(v) => setForm({ ...form, location: v })}
+              showLocate
               placeholder="Service address"
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
+              inputClassName="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
             />
           </div>
 

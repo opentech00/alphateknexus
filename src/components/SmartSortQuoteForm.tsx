@@ -7,6 +7,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 import { Portal } from '../lib/portal';
+import { LocationAutocomplete } from './LocationAutocomplete';
 
 interface Service { id: string; name: string; slug: string; }
 
@@ -444,9 +445,15 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
                 {errors.propertyType && <p className="text-xs text-red-500 mt-1">{errors.propertyType}</p>}
               </Field>
               <Field label="Address" required>
-                <input
-                  type="text" value={address} onChange={e => setAddress(e.target.value)}
-                  placeholder="Street, area" className={inputCls + (errors.address ? ' border-red-400' : '')}
+                <LocationAutocomplete
+                  value={address}
+                  onChange={setAddress}
+                  onSelect={(s) => {
+                    if (s.city) setCity(s.city);
+                  }}
+                  showLocate
+                  placeholder="Street, area"
+                  inputClassName={inputCls + ' pl-9' + (errors.address ? ' border-red-400' : '')}
                 />
                 {errors.address && <p className="text-xs text-red-500 mt-1">{errors.address}</p>}
               </Field>

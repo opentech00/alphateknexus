@@ -3,6 +3,7 @@ import { X, Plus, Trash2, FileText, CheckCircle2, DollarSign, MapPin, Calendar }
 import { supabase } from '../lib/supabase';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 import { Portal } from '../lib/portal';
+import { LocationAutocomplete } from './LocationAutocomplete';
 
 interface Service {
   id: string;
@@ -290,12 +291,12 @@ export function ProcurementQuoteForm({ service, onCancel, onSuccess }: Props) {
                 Delivery Address
               </span>
             </label>
-            <input
-              type="text"
+            <LocationAutocomplete
               value={deliveryAddress}
-              onChange={(e) => setDeliveryAddress(e.target.value)}
+              onChange={setDeliveryAddress}
+              showLocate
               placeholder="Street address, city, country"
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all text-sm"
+              inputClassName="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all text-sm"
             />
           </div>
 
