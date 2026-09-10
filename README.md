@@ -58,10 +58,16 @@ To build the Android APK:
    - **Android Studio** — download from https://developer.android.com/studio
 
 2. **Set environment variables:**
-   ```bash
-   export JAVA_HOME=/path/to/jdk-17
-   export ANDROID_HOME=/path/to/Android/Sdk
-   ```
+   - macOS/Linux:
+     ```bash
+     export JAVA_HOME=/path/to/jdk-17
+     export ANDROID_HOME=/path/to/Android/Sdk
+     ```
+   - Windows PowerShell:
+     ```powershell
+     $env:JAVA_HOME="C:\Program Files\Java\jdk-17"
+     $env:ANDROID_HOME="$env:LOCALAPPDATA\Android\Sdk"
+     ```
 
 3. **Build and sync:**
    ```bash

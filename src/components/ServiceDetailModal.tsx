@@ -607,39 +607,51 @@ export function ServiceDetailModal({ service, rating, onClose, onHireNow, onRequ
         </div>
 
         {/* Sticky CTA bar */}
-        <div className="flex-shrink-0 p-3 sm:p-4 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <button
-            onClick={() => (onRequestQuote ? onRequestQuote(service) : onHireNow(service))}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors active:scale-95"
-          >
-            <MessageSquare className="w-4 h-4 shrink-0" />
-            <span className="truncate">Request Quote</span>
-          </button>
+        <div
+          className="flex-shrink-0 p-3 sm:p-4 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
+        >
           {detail.smartSortVariant ? (
-            <div className="flex gap-2 sm:gap-3 sm:flex-1">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <button
+                onClick={() => (onRequestQuote ? onRequestQuote(service) : onHireNow(service))}
+                className="col-span-2 w-full flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors active:scale-95"
+              >
+                <MessageSquare className="w-4 h-4 shrink-0" />
+                <span className="whitespace-nowrap">Request Quote</span>
+              </button>
               <button
                 onClick={() => onHireNow(service)}
-                className="flex-1 min-w-0 flex items-center justify-center gap-2 py-3 px-2 sm:px-3 rounded-xl text-sm font-semibold bg-teal-500 hover:bg-teal-600 text-white transition-all active:scale-95 shadow-sm"
+                className="w-full min-w-0 flex items-center justify-center gap-2 py-3 px-2 sm:px-3 rounded-xl text-sm font-semibold bg-teal-500 hover:bg-teal-600 text-white transition-all active:scale-95 shadow-sm"
               >
                 <Repeat2 className="w-4 h-4 shrink-0" />
                 <span className="truncate">Subscribe</span>
               </button>
               <button
                 onClick={() => onHireNow(service)}
-                className="flex-1 min-w-0 flex items-center justify-center gap-2 py-3 px-2 sm:px-3 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-900 text-white transition-all active:scale-95 shadow-sm"
+                className="w-full min-w-0 flex items-center justify-center gap-2 py-3 px-2 sm:px-3 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-900 text-white transition-all active:scale-95 shadow-sm"
               >
                 <PackageCheck className="w-4 h-4 shrink-0" />
                 <span className="truncate">One-Off Pickup</span>
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => onHireNow(service)}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-2 py-3 px-2 sm:px-3 rounded-xl text-sm font-semibold transition-all active:scale-95 shadow-sm ${accent.btn}`}
-            >
-              <CalendarPlus className="w-4 h-4 shrink-0" />
-              <span className="truncate">Hire Now</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <button
+                onClick={() => (onRequestQuote ? onRequestQuote(service) : onHireNow(service))}
+                className="w-full flex items-center justify-center gap-2 px-3 py-3 border border-slate-200 dark:border-slate-600 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors active:scale-95"
+              >
+                <MessageSquare className="w-4 h-4 shrink-0" />
+                <span className="whitespace-nowrap">Request Quote</span>
+              </button>
+              <button
+                onClick={() => onHireNow(service)}
+                className={`w-full flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-sm font-semibold transition-all active:scale-95 shadow-sm ${accent.btn}`}
+              >
+                <CalendarPlus className="w-4 h-4 shrink-0" />
+                <span className="whitespace-nowrap">Hire Now</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
