@@ -83,7 +83,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
   };
 
   const isSubPage = mobilePage === 'services';
-  const showTopBar = mobilePage !== 'home';
+  const showTopBar = mobilePage !== 'home' && mobilePage !== 'bookings';
   const profileInitial = (profile?.full_name || profile?.email || 'U').trim().charAt(0).toUpperCase();
 
   return (

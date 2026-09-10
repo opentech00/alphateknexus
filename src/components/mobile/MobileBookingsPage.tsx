@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Calendar, MapPin, Clock, AlertCircle, Loader2, Plus,
-  MessageSquare, Paperclip, ChevronDown, ChevronUp, Star, RotateCcw,
-  Truck, Wallet, Search, Recycle, CheckCircle2, Ban, Trash2, RefreshCw,
+  Calendar, MapPin, Clock, AlertCircle, Plus,
+  ChevronDown, Star, RotateCcw,
+  Search, Ban, Trash2, RefreshCw, Eye, ChevronRight, CalendarClock, UserCircle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { MessageThread } from '../MessageThread';
 import { DocumentUpload } from '../DocumentUpload';
 import { ReviewModal } from '../ReviewModal';
 import { BookingTracker } from '../BookingTracker';
-import { SubscriptionLifecycle } from '../SubscriptionLifecycle';
 import { CancelDeleteBookingModal } from '../CancelDeleteBookingModal';
-import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { useHaptics } from '../../hooks/useHaptics';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
-import { useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
+import { useAppLogo, useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
 import { BookingCardSkeleton } from './Skeleton';
 import { SwipeableBookingCard } from './SwipeableBookingCard';
+import { NotificationsPanel } from '../NotificationsPanel';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Booking {
   id: string;
@@ -36,21 +36,6 @@ interface Booking {
   services: { name: string; icon: string; slug: string };
 }
 
-interface Subscription {
-  id: string;
-  waste_type: string;
-  bin_size_liters: number;
-  frequency: string;
-  time_slot: string;
-  address: string;
-  landmark: string | null;
-  contact_phone: string;
-  plan_name: string | null;
-  plan_price_sle: number | null;
-  status: string;
-  created_at: string;
-}
-
 interface Props {
   onNavigate: (page: string) => void;
   onRebook?: (booking: Booking) => void;
@@ -59,30 +44,22 @@ interface Props {
 
 const statusConfig: Record<string, { label: string; badge: string; dot: string }> = {
   pending:         { label: 'Pending',     badge: 'text-amber-700 bg-amber-50 border-amber-200',     dot: 'bg-amber-500' },
-  pending_review:  { label: 'In Review',   badge: 'text-orange-700 bg-orange-50 border-orange-200', dot: 'bg-orange-500' },
-  approved:         { label: 'Approved',    badge: 'text-teal-700 bg-teal-50 border-teal-200',       dot: 'bg-teal-500' },
-  confirmed:        { label: 'Confirmed',   badge: 'text-blue-700 bg-blue-50 border-blue-200',      dot: 'bg-blue-500' },
-  in_progress:      { label: 'In Progress', badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
-  completed:        { label: 'Completed',   badge: 'text-slate-600 bg-slate-100 border-slate-200',  dot: 'bg-slate-400' },
-  cancelled:        { label: 'Cancelled',   badge: 'text-red-700 bg-red-50 border-red-200',         dot: 'bg-red-500' },
+  pending_review:  { label: 'Upcoming',    badge: 'text-orange-700 bg-orange-50 border-orange-200', dot: 'bg-orange-500' },
+  approved:        { label: 'Upcoming',    badge: 'text-teal-700 bg-teal-50 border-teal-200',       dot: 'bg-teal-500' },
+  confirmed:       { label: 'Confirmed',   badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
+  in_progress:     { label: 'Upcoming',    badge: 'text-blue-700 bg-blue-50 border-blue-200',       dot: 'bg-blue-500' },
+  completed:       { label: 'Completed',   badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
+  cancelled:       { label: 'Cancelled',   badge: 'text-violet-700 bg-violet-50 border-violet-200', dot: 'bg-violet-500' },
 };
 
-const SERVICE_IMAGES: Record<string, string> = {
-  'clearing-forwarding': '/service-clearing-forwarding.webp',
-  'procurement': '/service-procurement.webp',
-  'private-security': '/service-private-security.webp',
-  'cleaning-janitorial': '/service-cleaning-janitorial.webp',
-  'waste-management': '/service-smart-sort.webp',
-  'smart-sort': '/service-smart-sort.webp',
-};
-
-type Tab = 'all' | 'active' | 'subscriptions' | 'completed';
+type Tab = 'all' | 'upcoming' | 'completed' | 'cancelled';
 const ACTIVE_STATUSES = ['pending', 'pending_review', 'approved', 'confirmed', 'in_progress'];
 
 export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Props) {
-  const { wallet_enabled } = useFeatureFlags();
+  const { profile } = useAuth();
   const { vibrate } = useHaptics();
   const { images: serviceImages } = useServiceBrandingImages();
+  const { url: logoUrl } = useAppLogo();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('all');
@@ -91,10 +68,9 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
   const [activeSubTab, setActiveSubTab] = useState<'tracker' | 'messages' | 'documents'>('tracker');
   const [reviewModal, setReviewModal] = useState<{ bookingId: string; serviceId: string; serviceName: string } | null>(null);
   const [reviewedBookings, setReviewedBookings] = useState<Set<string>>(new Set());
-  const [walletBalance, setWalletBalance] = useState(0);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [fetchError, setFetchError] = useState('');
   const [cancelDeleteModal, setCancelDeleteModal] = useState<{ bookingId: string; status: string; serviceName: string } | null>(null);
+  const profileInitial = (profile?.full_name || profile?.email || 'U').trim().charAt(0).toUpperCase();
 
   const fetchBookings = useCallback(async () => {
     const { data, error } = await supabase
@@ -113,38 +89,15 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
     if (data) setReviewedBookings(new Set(data.map((r) => r.booking_id)));
   }, []);
 
-  const fetchWallet = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data } = await supabase
-      .from('wallet_transactions')
-      .select('amount_sle')
-      .eq('user_id', user.id)
-      .eq('status', 'completed');
-    const bal = (data || []).reduce((s, t: any) => s + Number(t.amount_sle), 0);
-    setWalletBalance(bal);
-  }, []);
-
-  const fetchSubscriptions = useCallback(async () => {
-    const { data } = await supabase
-      .from('smart_sort_subscriptions')
-      .select('id, waste_type, bin_size_liters, frequency, time_slot, address, landmark, contact_phone, plan_name, plan_price_sle, status, created_at')
-      .order('created_at', { ascending: false })
-      .limit(20);
-    setSubscriptions((data as Subscription[]) || []);
-  }, []);
-
   useEffect(() => {
     fetchBookings();
     fetchReviews();
-    if (wallet_enabled) fetchWallet();
-    fetchSubscriptions();
-  }, [fetchBookings, fetchReviews, fetchWallet, fetchSubscriptions]);
+  }, [fetchBookings, fetchReviews]);
 
   const filteredBookings = bookings.filter((b) => {
-    if (tab === 'active' && !ACTIVE_STATUSES.includes(b.status)) return false;
+    if (tab === 'upcoming' && !ACTIVE_STATUSES.includes(b.status)) return false;
     if (tab === 'completed' && b.status !== 'completed') return false;
-    if (tab === 'subscriptions') return false;
+    if (tab === 'cancelled' && b.status !== 'cancelled') return false;
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -156,25 +109,10 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
     return true;
   });
 
-  const WASTE_LABELS: Record<string, string> = {
-    general: 'General Waste', recyclables: 'Recyclables', organic: 'Organic / Green',
-    construction: 'Construction', ewaste: 'E-Waste', bulk: 'Bulk Items',
-  };
-
-  const filteredSubs = subscriptions.filter((s) => {
-    if (search) {
-      const q = search.toLowerCase();
-      return (s.address || '').toLowerCase().includes(q) ||
-        (s.plan_name || '').toLowerCase().includes(q) ||
-        (WASTE_LABELS[s.waste_type] || '').toLowerCase().includes(q);
-    }
-    return true;
-  });
-
   const handleRefresh = useCallback(async () => {
     vibrate('light');
-    await Promise.all([fetchBookings(), fetchReviews(), fetchSubscriptions(), wallet_enabled ? fetchWallet() : Promise.resolve()]);
-  }, [fetchBookings, fetchReviews, fetchSubscriptions, fetchWallet, wallet_enabled, vibrate]);
+    await Promise.all([fetchBookings(), fetchReviews()]);
+  }, [fetchBookings, fetchReviews, vibrate]);
 
   const { ref: scrollRef, pulling, progress, refreshing } = usePullToRefresh({
     onRefresh: handleRefresh,
@@ -188,13 +126,13 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
 
   const activeCount = bookings.filter(b => ACTIVE_STATUSES.includes(b.status)).length;
   const completedCount = bookings.filter(b => b.status === 'completed').length;
-  const subCount = subscriptions.filter(s => s.status !== 'cancelled').length;
+  const cancelledCount = bookings.filter(b => b.status === 'cancelled').length;
 
   const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: 'all', label: 'All', count: bookings.length },
-    { id: 'active', label: 'Active', count: activeCount },
-    { id: 'subscriptions', label: 'Subs', count: subCount },
-    { id: 'completed', label: 'Done', count: completedCount },
+    { id: 'all', label: 'All Bookings', count: bookings.length },
+    { id: 'upcoming', label: 'Upcoming', count: activeCount },
+    { id: 'completed', label: 'Completed', count: completedCount },
+    { id: 'cancelled', label: 'Cancelled', count: cancelledCount },
   ];
 
   if (loading) {
@@ -241,48 +179,51 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
       </div>
 
       {/* Header */}
-      <div className="px-4 pt-4 pb-2">
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">My Bookings</h1>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-          {bookings.length} booking{bookings.length !== 1 ? 's' : ''}{subCount > 0 && ` · ${subCount} subscription${subCount !== 1 ? 's' : ''}`}
-        </p>
-      </div>
+      <div className="px-4 pt-3 pb-2 safe-area-pt">
+        <div className="flex items-center justify-between mb-2.5">
+          <div className="flex items-center gap-2.5">
+            <img src={logoUrl} alt="Alphatek Nexus" className="h-9 w-auto object-contain" />
+            <div>
+              <p className="text-lg leading-5 font-bold text-[#173362] tracking-tight">Alphatek <span className="text-emerald-500">Nexus</span></p>
+              <p className="text-[11px] text-slate-500">Smart Solutions. A Safer Tomorrow.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <NotificationsPanel />
+            <button
+              onClick={() => onNavigate('account')}
+              className="h-9 pl-1 pr-0.5 rounded-full border border-slate-200 bg-white inline-flex items-center gap-1 shadow-sm active:scale-95 transition-transform"
+            >
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="Profile" className="w-7 h-7 rounded-full object-cover" />
+              ) : (
+                <span className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold inline-flex items-center justify-center">
+                  {profileInitial || <UserCircle className="w-4 h-4" />}
+                </span>
+              )}
+              <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+            </button>
+          </div>
+        </div>
 
-      {/* Summary stats */}
-      <div className="px-4 pb-3">
-        <div className="grid grid-cols-3 gap-2">
-          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-2.5 flex items-center gap-2">
-            <div className="w-7 h-7 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Truck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">Active</p>
-              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{activeCount}</p>
-            </div>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight text-[#173362]">My Bookings</h1>
+            <p className="text-base text-slate-500 mt-0.5">View and manage your service bookings</p>
           </div>
-          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-2.5 flex items-center gap-2">
-            <div className="w-7 h-7 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Recycle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">Subs</p>
-              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{subCount}</p>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-2.5 flex items-center gap-2">
-            <div className="w-7 h-7 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center flex-shrink-0">
-              <CheckCircle2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">Done</p>
-              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{completedCount}</p>
-            </div>
-          </div>
+          <button
+            onClick={() => onNavigate('services')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-white border border-slate-200 text-[13px] font-semibold text-[#173362] shadow-sm active:scale-95"
+          >
+            <Calendar className="w-3.5 h-3.5 text-blue-600" />
+            All Services
+            <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+          </button>
         </div>
       </div>
 
       {/* Search */}
-      <div className="px-4 pb-3">
+      <div className="px-4 pb-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
@@ -296,30 +237,8 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
         </div>
       </div>
 
-      {/* Wallet pill */}
-      {wallet_enabled && (
+      {/* Filter chips */}
       <div className="px-4 pb-3">
-        <div className="flex items-center gap-2.5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-3.5 py-2.5 shadow-sm">
-          <div className="w-7 h-7 bg-slate-900 dark:bg-slate-700 rounded-lg flex items-center justify-center flex-shrink-0">
-            <Wallet className="w-3.5 h-3.5 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
-              Wallet: Le {walletBalance.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-            </p>
-          </div>
-          <button
-            onClick={() => onNavigate('account')}
-            className="text-xs font-medium text-blue-600 flex items-center gap-1 flex-shrink-0 active:scale-95 transition-transform"
-          >
-            Top up <Plus className="w-3 h-3" />
-          </button>
-        </div>
-      </div>
-      )}
-
-      {/* Filter chips — sticky */}
-      <div className="sticky top-0 z-20 bg-gray-50 dark:bg-slate-950 black:bg-black px-4 pb-3 pt-1">
         <div className="flex gap-2 overflow-x-auto mobile-scroll" style={{ scrollbarWidth: 'none' }}>
           {tabs.map((t) => (
             <button
@@ -327,219 +246,156 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
               onClick={() => { vibrate('light'); setTab(t.id); }}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all active:scale-95 ${
                 tab === t.id
-                  ? 'bg-slate-900 dark:bg-blue-600 text-white'
+                  ? 'bg-blue-600 text-white shadow-sm'
                   : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
               }`}
             >
               {t.label}
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                tab === t.id ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-700'
+                tab === t.id ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700'
               }`}>{t.count}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Subscriptions sub-header */}
-      {tab === 'subscriptions' && (
-        <div className="flex items-center justify-between px-4 pb-3">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Recurring services you've subscribed to</p>
-          <button
-            onClick={() => onNavigate('subscriptions')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg active:scale-95 transition-transform"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Manage all
-          </button>
-        </div>
-      )}
-
       {/* Content */}
       <div className="flex-1 px-4 pb-6">
-        {/* Subscriptions tab */}
-        {tab === 'subscriptions' && (
-          filteredSubs.length === 0 ? (
-            <EmptyState
-              icon={<Recycle className="w-6 h-6 text-slate-400" />}
-              title={search ? 'No results found' : 'No subscriptions yet'}
-              subtitle={search ? 'Try a different search term.' : 'Subscribe to a Smart Sort plan for regular scheduled waste collection.'}
-              actionLabel={!search ? 'Browse Plans' : undefined}
-              onAction={() => onNavigate('services')}
-            />
-          ) : (
-            <div className="space-y-3">
-              {filteredSubs.map((sub, i) => (
-                <div
-                  key={sub.id}
-                  className="animate-slide-in-from-bottom"
-                  style={{ animationDelay: `${i * 0.05}s` }}
+        {filteredBookings.length === 0 ? (
+          <EmptyState
+            icon={<AlertCircle className="w-6 h-6 text-slate-400" />}
+            title={search ? 'No results found' : tab === 'all' ? 'No bookings yet' : `No ${tab} bookings`}
+            subtitle={search ? 'Try a different search term.' : tab === 'all' ? 'Browse our services and place your first booking to get started.' : 'Try switching to a different tab to see more results.'}
+            actionLabel={tab === 'all' && !search ? 'Browse Services' : undefined}
+            onAction={() => onNavigate('services')}
+          />
+        ) : (
+          <div className="space-y-3">
+            {filteredBookings.map((booking, i) => {
+              const sc = statusConfig[booking.status] || statusConfig.pending;
+              const isCompleted = booking.status === 'completed';
+              const hasReview = reviewedBookings.has(booking.id);
+              const isExpanded = expandedBooking === booking.id;
+              const serviceImage = serviceImages[booking.services?.slug] || fallbackServiceImage(booking.services?.slug || 'smart-sort');
+              const canRebook = isCompleted || booking.status === 'cancelled';
+              const canCancel = !isCompleted && booking.status !== 'cancelled';
+              const serviceTag = booking.services?.slug
+                ?.split('-')
+                .map((s) => s[0].toUpperCase() + s.slice(1))
+                .join(' ') || 'Service Request';
+              const priceValue = booking.details?.price_sle ? `SLE ${Number(booking.details.price_sle).toLocaleString()}` : 'SLE —';
+              const priceUnit = booking.status === 'confirmed' ? '(Monthly)' : '(One-time)';
+
+              return (
+                <SwipeableBookingCard
+                  key={booking.id}
+                  onRebook={() => onRebook?.(booking)}
+                  onCancel={() => setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name })}
+                  showRebook={canRebook}
+                  showCancel={canCancel}
                 >
-                  <SubscriptionLifecycle
-                    subscription={sub as any}
-                    onUpdated={fetchSubscriptions}
-                    onNavigate={onNavigate}
-                  />
-                </div>
-              ))}
-            </div>
-          )
-        )}
-
-        {/* Bookings list (All / Active / Completed) */}
-        {tab !== 'subscriptions' && (
-          filteredBookings.length === 0 ? (
-            <EmptyState
-              icon={<AlertCircle className="w-6 h-6 text-slate-400" />}
-              title={search ? 'No results found' : tab === 'all' ? 'No bookings yet' : `No ${tab} bookings`}
-              subtitle={search ? 'Try a different search term.' : tab === 'all' ? 'Browse our services and place your first booking to get started.' : 'Try switching to a different tab to see more results.'}
-              actionLabel={tab === 'all' && !search ? 'Browse Services' : undefined}
-              onAction={() => onNavigate('services')}
-            />
-          ) : (
-            <div className="space-y-3">
-              {filteredBookings.map((booking, i) => {
-                const sc = statusConfig[booking.status] || statusConfig.pending;
-                const isCompleted = booking.status === 'completed';
-                const hasReview = reviewedBookings.has(booking.id);
-                const isExpanded = expandedBooking === booking.id;
-                const serviceImage = serviceImages[booking.services?.slug] || fallbackServiceImage(booking.services?.slug || 'smart-sort');
-                const canRebook = isCompleted || booking.status === 'cancelled';
-                const canCancel = !isCompleted && booking.status !== 'cancelled';
-
-                return (
-                  <SwipeableBookingCard
-                    key={booking.id}
-                    onRebook={() => onRebook?.(booking)}
-                    onCancel={() => setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name })}
-                    showRebook={canRebook}
-                    showCancel={canCancel}
-                  >
                   <div
-                    className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-all"
+                    className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-2.5 transition-all"
                     style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.06}s both` }}
                   >
-                    {/* Image banner */}
-                    <div className="relative h-16 overflow-hidden">
+                    <div className="flex gap-2.5">
                       <img
                         src={serviceImage}
                         alt={booking.services.name}
-                        className="w-full h-full object-cover"
+                        className="w-24 h-20 rounded-xl object-cover flex-shrink-0"
                         loading="lazy"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                      <div className="absolute top-2 right-2">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full border ${sc.badge}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
-                          {sc.label}
-                        </span>
-                      </div>
-                      <h3 className="absolute bottom-1.5 left-3 text-sm font-bold text-white drop-shadow">{booking.services.name}</h3>
-                    </div>
 
-                    {/* Body */}
-                    <div className="p-3.5">
-                      <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mb-2 flex-wrap">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {new Date(booking.scheduled_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                        </span>
-                        {booking.scheduled_time && (
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> {booking.scheduled_time}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h3 className="text-[15px] font-bold text-[#173362] leading-tight truncate">{booking.services.name}</h3>
+                            <p className="text-xs text-slate-500 truncate">{serviceTag}</p>
+                          </div>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full border ${sc.badge}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                            {sc.label}
                           </span>
-                        )}
-                      </div>
-                      {booking.location && (
-                        <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mb-2">
-                          <MapPin className="w-3 h-3 flex-shrink-0" />
-                          <span className="truncate">{booking.location}</span>
                         </div>
-                      )}
-                      {booking.notes && (
-                        <p className="text-xs text-slate-400 dark:text-slate-500 line-clamp-1 mb-2">{booking.notes}</p>
-                      )}
 
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                          Le {booking.details?.price_sle?.toLocaleString() || '—'}
-                        </span>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {(isCompleted || booking.status === 'cancelled') && (
-                            <button
-                              onClick={() => onRebook?.(booking)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200 active:scale-95 transition-transform dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-400"
-                            >
-                              <RotateCcw className="w-3 h-3" /> Rebook
-                            </button>
-                          )}
-                          {!isCompleted && booking.status !== 'cancelled' && (
-                            <button
-                              onClick={() => setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name })}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-amber-700 bg-amber-50 rounded-lg border border-amber-200 active:scale-95 transition-transform dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-400"
-                            >
-                              <Ban className="w-3 h-3" /> Cancel
-                            </button>
-                          )}
-                          {(isCompleted || booking.status === 'cancelled') && (
-                            <button
-                              onClick={() => setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name })}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-red-700 bg-red-50 rounded-lg border border-red-200 active:scale-95 transition-transform dark:bg-red-900/30 dark:border-red-800 dark:text-red-400"
-                            >
-                              <Trash2 className="w-3 h-3" /> Delete
-                            </button>
-                          )}
-                          {isCompleted && !hasReview && (
-                            <button
-                              onClick={() => setReviewModal({
-                                bookingId: booking.id,
-                                serviceId: booking.service_id,
-                                serviceName: booking.services.name,
-                              })}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-amber-700 bg-amber-50 rounded-lg border border-amber-200 active:scale-95 transition-transform dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-400"
-                            >
-                              <Star className="w-3 h-3" /> Review
-                            </button>
-                          )}
-                          {isCompleted && hasReview && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 text-[11px] text-emerald-600 bg-emerald-50 rounded-full dark:bg-emerald-900/30 dark:text-emerald-400">
-                              <Star className="w-3 h-3 fill-emerald-500" /> Reviewed
-                            </span>
-                          )}
-                          <button
-                            onClick={() => toggleExpand(booking.id)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-slate-600 bg-slate-50 rounded-lg active:scale-95 transition-transform dark:bg-slate-700 dark:text-slate-300"
-                          >
-                            <MessageSquare className="w-3 h-3" />
-                            <Paperclip className="w-3 h-3" />
-                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                          </button>
+                        <div className="mt-1.5 grid gap-0.5">
+                          <p className="text-xs text-slate-600 flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-slate-400" />
+                            {new Date(booking.scheduled_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                          <p className="text-xs text-slate-600 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            {booking.scheduled_time || 'Time not set'}
+                          </p>
+                          <p className="text-xs text-slate-600 flex items-center gap-1 truncate">
+                            <MapPin className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                            <span className="truncate">{booking.location || 'Location not set'}</span>
+                          </p>
                         </div>
+                      </div>
+
+                      <div className="text-right flex-shrink-0 min-w-[92px]">
+                        <ChevronRight className="w-4 h-4 text-slate-300 ml-auto mb-2" />
+                        <p className="text-xl font-bold text-[#173362] leading-none">{priceValue}</p>
+                        <p className="text-[11px] text-slate-500 mt-1">{priceUnit}</p>
                       </div>
                     </div>
 
-                    {/* Expanded section */}
+                    <div className="mt-2.5 grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => toggleExpand(booking.id)}
+                        className="h-8 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 text-xs font-semibold inline-flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        View Details
+                      </button>
+
+                      {canRebook ? (
+                        <button
+                          onClick={() => onRebook?.(booking)}
+                          className="h-8 rounded-lg bg-white text-blue-700 border border-blue-200 text-xs font-semibold inline-flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Book Again
+                        </button>
+                      ) : canCancel ? (
+                        <button
+                          onClick={() => setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name })}
+                          className="h-8 rounded-lg bg-white text-red-600 border border-red-200 text-xs font-semibold inline-flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                        >
+                          <Ban className="w-3.5 h-3.5" />
+                          Cancel Booking
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => toggleExpand(booking.id)}
+                          className="h-8 rounded-lg bg-white text-blue-700 border border-blue-200 text-xs font-semibold inline-flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                        >
+                          <CalendarClock className="w-3.5 h-3.5" />
+                          Reschedule
+                        </button>
+                      )}
+                    </div>
+
                     {isExpanded && (
-                      <div className="border-t border-slate-100 dark:border-slate-700">
-                        <div className="flex">
+                      <div className="mt-2.5 border-t border-slate-100 dark:border-slate-700 pt-2.5">
+                        <div className="flex gap-1 rounded-lg bg-slate-50 dark:bg-slate-700/30 p-1">
                           {(['tracker', 'messages', 'documents'] as const).map((t) => (
                             <button
                               key={t}
                               onClick={() => { vibrate('light'); setActiveSubTab(t); }}
-                              className={`flex-1 py-2.5 text-[11px] font-medium capitalize transition-colors ${
+                              className={`flex-1 py-2 text-[11px] font-semibold rounded-md capitalize transition-colors ${
                                 activeSubTab === t
-                                  ? 'text-blue-700 border-b-2 border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 dark:text-blue-400'
+                                  ? 'bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 shadow-sm'
                                   : 'text-slate-500 dark:text-slate-400'
                               }`}
                             >
-                              {t === 'tracker' && <Truck className="w-3 h-3 inline mr-1" />}
-                              {t === 'messages' && <MessageSquare className="w-3 h-3 inline mr-1" />}
-                              {t === 'documents' && <Paperclip className="w-3 h-3 inline mr-1" />}
                               {t}
                             </button>
                           ))}
                         </div>
-                        <div className="p-4 bg-slate-50/50 dark:bg-slate-900/50">
+                        <div className="mt-2 p-3 rounded-xl bg-slate-50/80 dark:bg-slate-900/50">
                           {activeSubTab === 'tracker' ? (
                             <BookingTracker bookingId={booking.id} currentStatus={booking.status} />
                           ) : activeSubTab === 'messages' ? (
@@ -548,24 +404,55 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                             <DocumentUpload bookingId={booking.id} serviceSlug={booking.services?.slug} />
                           )}
                         </div>
+
+                        <div className="mt-2 flex items-center justify-end gap-2">
+                          {isCompleted && !hasReview && (
+                            <button
+                              onClick={() => setReviewModal({
+                                bookingId: booking.id,
+                                serviceId: booking.service_id,
+                                serviceName: booking.services.name,
+                              })}
+                              className="h-8 px-3 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold inline-flex items-center gap-1 active:scale-95 transition-transform"
+                            >
+                              <Star className="w-3.5 h-3.5" />
+                              Add Review
+                            </button>
+                          )}
+                          {(isCompleted || booking.status === 'cancelled') && (
+                            <button
+                              onClick={() => setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name })}
+                              className="h-8 px-3 rounded-lg bg-red-50 text-red-700 border border-red-200 text-xs font-semibold inline-flex items-center gap-1 active:scale-95 transition-transform"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Delete
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
-                  </SwipeableBookingCard>
-                );
-              })}
-            </div>
-          )
+                </SwipeableBookingCard>
+              );
+            })}
+          </div>
         )}
-      </div>
 
-      {/* FAB */}
-      <button
-        onClick={() => onNavigate('services')}
-        className="fixed bottom-24 right-5 w-14 h-14 bg-slate-900 dark:bg-blue-600 text-white rounded-2xl shadow-xl flex items-center justify-center active:scale-90 transition-transform z-30"
-      >
-        <Plus className="w-6 h-6" />
-      </button>
+        <button
+          onClick={() => onNavigate('services')}
+          className="mt-4 w-full rounded-2xl bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-600 px-4 py-3 text-white shadow-md active:scale-[0.99] transition-transform"
+        >
+          <span className="flex items-center justify-between gap-2">
+            <span className="text-left">
+              <span className="block text-sm font-bold">Need a new booking?</span>
+              <span className="block text-xs text-white/90">Easily book any service in a few taps.</span>
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-blue-700">
+              Book Now <ChevronRight className="w-3.5 h-3.5" />
+            </span>
+          </span>
+        </button>
+      </div>
 
       {reviewModal && (
         <ReviewModal
