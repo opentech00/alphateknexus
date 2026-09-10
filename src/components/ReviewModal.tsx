@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Star, X, Send, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -50,8 +51,8 @@ export function ReviewModal({ bookingId, serviceId, serviceName, onClose, onSucc
 
   const ratingLabels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal((
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
@@ -148,5 +149,5 @@ export function ReviewModal({ bookingId, serviceId, serviceName, onClose, onSucc
         </form>
       </div>
     </div>
-  );
+  ), document.body);
 }

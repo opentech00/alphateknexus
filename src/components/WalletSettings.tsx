@@ -4,6 +4,7 @@ import {
   AlertTriangle, CreditCard, Smartphone, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { Portal } from '../lib/portal';
 
 interface PaymentMethod {
   id: string;
@@ -86,7 +87,8 @@ export function WalletSettings({ onClose }: { onClose: () => void }) {
   const budgetPresets = [500, 1000, 2500, 5000];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm">
+    <Portal>
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
       <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col animate-in slide-in-from-bottom duration-300">
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -292,5 +294,6 @@ export function WalletSettings({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

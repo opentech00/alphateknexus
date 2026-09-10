@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { BottomSheet } from './BottomSheet';
 import { ReviewModal } from '../ReviewModal';
 import { useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
+import { Portal } from '../../lib/portal';
 
 interface Booking {
   id: string;
@@ -319,7 +320,8 @@ function BookingDetailModal({
   });
 
   return (
-    <div className="fixed inset-0 z-[110] flex flex-col justify-end">
+    <Portal>
+    <div className="fixed inset-0 z-[200] flex flex-col justify-end" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fadeIn" onClick={onClose} />
       <div className="relative bg-white rounded-t-3xl shadow-2xl max-h-[88vh] flex flex-col animate-slideUp">
         {/* Drag handle */}
@@ -408,6 +410,7 @@ function BookingDetailModal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
 

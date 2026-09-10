@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Calendar, MapPin, Clock, AlertCircle, Plus,
-  MessageSquare, Paperclip, ChevronDown, ChevronUp, Star, RotateCcw,
-  Truck, Wallet, Search, Recycle, CheckCircle2, Ban, Trash2, RefreshCw,
+  MessageSquare, Paperclip, ChevronDown, Star, RotateCcw,
+  Truck, Wallet, Search, Recycle, Trash2, RefreshCw, ChevronRight,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { MessageThread } from '../MessageThread';
@@ -60,11 +60,11 @@ interface Props {
 const statusConfig: Record<string, { label: string; badge: string; dot: string }> = {
   pending: { label: 'Pending', badge: 'text-amber-700 bg-amber-50 border-amber-200', dot: 'bg-amber-500' },
   pending_review: { label: 'In Review', badge: 'text-orange-700 bg-orange-50 border-orange-200', dot: 'bg-orange-500' },
-  approved: { label: 'Approved', badge: 'text-teal-700 bg-teal-50 border-teal-200', dot: 'bg-teal-500' },
-  confirmed: { label: 'Confirmed', badge: 'text-blue-700 bg-blue-50 border-blue-200', dot: 'bg-blue-500' },
-  in_progress: { label: 'In Progress', badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
-  completed: { label: 'Completed', badge: 'text-slate-600 bg-slate-100 border-slate-200', dot: 'bg-slate-400' },
-  cancelled: { label: 'Cancelled', badge: 'text-red-700 bg-red-50 border-red-200', dot: 'bg-red-500' },
+  approved: { label: 'Approved', badge: 'text-cyan-700 bg-cyan-50 border-cyan-200', dot: 'bg-cyan-500' },
+  confirmed: { label: 'Confirmed', badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
+  in_progress: { label: 'Upcoming', badge: 'text-blue-700 bg-blue-50 border-blue-200', dot: 'bg-blue-500' },
+  completed: { label: 'Completed', badge: 'text-teal-700 bg-teal-50 border-teal-200', dot: 'bg-teal-500' },
+  cancelled: { label: 'Cancelled', badge: 'text-violet-700 bg-violet-50 border-violet-200', dot: 'bg-violet-500' },
 };
 
 type Tab = 'all' | 'active' | 'subscriptions' | 'completed';
@@ -247,10 +247,22 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
       </div>
 
       <div className="px-4 pt-4 pb-2">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">My Bookings</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          View and manage your service bookings
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">My Bookings</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              View and manage your service bookings
+            </p>
+          </div>
+          <button
+            onClick={() => onNavigate('services')}
+            className="inline-flex items-center gap-1 px-3 py-2 rounded-full bg-white border border-slate-200 text-xs font-semibold text-slate-700 shadow-sm active:scale-95 transition-transform"
+          >
+            <Calendar className="w-3.5 h-3.5 text-blue-600" />
+            All Services
+            <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+          </button>
+        </div>
       </div>
 
       <div className="px-4 pb-2">
@@ -370,6 +382,10 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
               const serviceImage = serviceImages[booking.services?.slug] || fallbackServiceImage(booking.services?.slug || 'smart-sort');
               const canRebook = isCompleted || booking.status === 'cancelled';
               const canCancel = !isCompleted && booking.status !== 'cancelled';
+              const primaryActionLabel = canRebook ? 'Book Again' : booking.status === 'pending' || booking.status === 'pending_review' ? 'Cancel Booking' : 'Manage';
+              const serviceCategory = booking.services?.slug
+                ? booking.services.slug.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
+                : 'Service Request';
 
               return (
                 <SwipeableBookingCard
@@ -380,82 +396,83 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                   showCancel={canCancel}
                 >
                   <div
-                    className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-all"
+                    className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-2.5 transition-all"
                     style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.06}s both` }}
                   >
-                    <div className="relative h-16 overflow-hidden">
+                    <div className="flex gap-2.5">
                       <img
                         src={serviceImage}
                         alt={booking.services.name}
-                        className="w-full h-full object-cover"
+                        className="w-24 h-20 rounded-xl object-cover flex-shrink-0"
                         loading="lazy"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                      <div className="absolute top-2 right-2">
+
+                      <div className="flex-1 min-w-0">
+                        <div className="min-w-0">
+                          <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100 truncate">{booking.services.name}</h3>
+                          <p className="text-[11px] text-slate-500 truncate">{serviceCategory}</p>
+                        </div>
+
+                        <div className="mt-1 grid gap-0.5">
+                          <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(booking.scheduled_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                          <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                            <Clock className="w-3 h-3" />
+                            {booking.scheduled_time || 'Time not set'}
+                          </span>
+                          <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                            <MapPin className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">{booking.location || 'Location not set'}</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-right flex-shrink-0 min-w-[102px]">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full border ${sc.badge}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
                           {sc.label}
                         </span>
+                        <ChevronRight className="w-4 h-4 text-slate-300 ml-auto mt-1" />
+                        <p className="mt-2 text-base font-bold text-slate-900 dark:text-slate-100">
+                          SLE {booking.details?.price_sle?.toLocaleString() || '—'}
+                        </p>
+                        <p className="text-[11px] text-slate-500">{isCompleted ? '(One-time)' : '(Service)'}</p>
                       </div>
-                      <h3 className="absolute bottom-1.5 left-3 text-sm font-bold text-white drop-shadow">{booking.services.name}</h3>
                     </div>
 
-                    <div className="p-3.5">
-                      <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mb-2 flex-wrap">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {new Date(booking.scheduled_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                        </span>
-                        {booking.scheduled_time && (
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> {booking.scheduled_time}
-                          </span>
-                        )}
-                      </div>
-                      {booking.location && (
-                        <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mb-2">
-                          <MapPin className="w-3 h-3 flex-shrink-0" />
-                          <span className="truncate">{booking.location}</span>
-                        </div>
-                      )}
-                      {booking.notes && (
-                        <p className="text-xs text-slate-400 dark:text-slate-500 line-clamp-1 mb-2">{booking.notes}</p>
-                      )}
-
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                          Le {booking.details?.price_sle?.toLocaleString() || '—'}
-                        </span>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <button
-                            onClick={() => toggleExpand(booking.id)}
-                            className="h-8 px-3 rounded-lg text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 active:scale-95 transition-transform"
-                          >
-                            View Details
-                          </button>
-                          {(isCompleted || booking.status === 'cancelled') && (
-                            <button
-                              onClick={() => onRebook?.(booking)}
-                              className="h-8 px-3 rounded-lg text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 active:scale-95 transition-transform dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-400"
-                            >
-                              Book Again
-                            </button>
-                          )}
-                          {!isCompleted && booking.status !== 'cancelled' && (
-                            <button
-                              onClick={() => setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name })}
-                              className="h-8 px-3 rounded-lg text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 active:scale-95 transition-transform dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-400"
-                            >
-                              Cancel Booking
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => toggleExpand(booking.id)}
+                        className="h-8 rounded-lg text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 active:scale-95 transition-transform"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (canRebook) onRebook?.(booking);
+                          else if (booking.status === 'pending' || booking.status === 'pending_review') {
+                            setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name });
+                          } else {
+                            toggleExpand(booking.id);
+                          }
+                        }}
+                        className={`h-8 rounded-lg text-[11px] font-semibold active:scale-95 transition-transform ${
+                          canRebook
+                            ? 'text-blue-700 bg-white border border-blue-200'
+                            : booking.status === 'pending' || booking.status === 'pending_review'
+                              ? 'text-red-600 bg-white border border-red-200'
+                              : 'text-blue-700 bg-white border border-blue-200'
+                        }`}
+                      >
+                        {primaryActionLabel}
+                      </button>
                     </div>
 
                     {isExpanded && (
-                      <div className="border-t border-slate-100 dark:border-slate-700">
+                      <div className="mt-2 border-t border-slate-100 dark:border-slate-700">
                         <div className="flex">
                           {(['tracker', 'messages', 'documents'] as const).map((t) => (
                             <button

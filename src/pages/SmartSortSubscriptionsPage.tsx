@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
+import { Portal } from '../lib/portal';
 
 interface SmartSortSubscriptionsPageProps {
   onNavigate: (page: string) => void;
@@ -678,7 +679,8 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
 
       {/* Reschedule Modal */}
       {reschedulePickup && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm">
+        <Portal>
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
           <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -741,6 +743,7 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

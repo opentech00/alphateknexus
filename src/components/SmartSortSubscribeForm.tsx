@@ -8,6 +8,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { SmartSortImpactDashboard } from './SmartSortImpactDashboard';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
+import { Portal } from '../lib/portal';
 
 interface Service {
   id: string; name: string; slug: string; description: string; icon: string; price_range: string;
@@ -722,7 +723,8 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
 
       {/* ─── Choose a Plan Modal ─── */}
       {showPlanModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <Portal>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-xl font-bold text-slate-900">Choose a Plan</h2>
@@ -779,11 +781,13 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
             </button>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* ─── New / Edit Subscription Form Modal ─── */}
       {showSubForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm">
+        <Portal>
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
           <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col">
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 flex-shrink-0">
               <div>
@@ -936,6 +940,7 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

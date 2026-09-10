@@ -4,6 +4,7 @@ import {
   Loader2, Recycle, Briefcase, X, Truck, Bell,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { Portal } from '../lib/portal';
 
 interface CalendarBooking {
   id: string;
@@ -368,7 +369,8 @@ export function UnifiedCalendar({ onNavigate }: UnifiedCalendarProps) {
 
       {/* Event Detail Modal */}
       {detailEvent && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-[fadeIn_0.2s_ease]" onClick={() => setDetailEvent(null)}>
+        <Portal>
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-[fadeIn_0.2s_ease]" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()} onClick={() => setDetailEvent(null)}>
           <div
             className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md animate-[slideUp_0.3s_ease]"
             onClick={(e) => e.stopPropagation()}
@@ -454,6 +456,7 @@ export function UnifiedCalendar({ onNavigate }: UnifiedCalendarProps) {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

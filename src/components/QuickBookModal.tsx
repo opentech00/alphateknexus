@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { Portal } from '../lib/portal';
 
 interface Service {
   id: string;
@@ -176,7 +177,8 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
   const stepIndex = step === 'service' ? 0 : step === 'details' ? 1 : 2;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <Portal>
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
 
@@ -540,5 +542,6 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

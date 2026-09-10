@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Star, X, Send, Loader2, ThumbsUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { Portal } from '../lib/portal';
 
 interface AppReviewModalProps {
   onClose: () => void;
@@ -49,7 +50,8 @@ export function AppReviewModal({ onClose, onSubmitted }: AppReviewModalProps) {
 
   if (submitted) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <Portal>
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
         <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           <div className="p-8 text-center">
@@ -69,11 +71,13 @@ export function AppReviewModal({ onClose, onSubmitted }: AppReviewModalProps) {
           </div>
         </div>
       </div>
+      </Portal>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <Portal>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
@@ -170,5 +174,6 @@ export function AppReviewModal({ onClose, onSubmitted }: AppReviewModalProps) {
         </form>
       </div>
     </div>
+    </Portal>
   );
 }

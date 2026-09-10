@@ -22,6 +22,7 @@ import { PremiumBenefitsPage } from './PremiumBenefitsPage';
 import { SpendingDashboard } from '../components/SpendingDashboard';
 import { ReceiptsPanel } from '../components/ReceiptsPanel';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
+import { Portal } from '../lib/portal';
 
 interface AccountPageProps {
   onNavigate: (page: string) => void;
@@ -79,7 +80,8 @@ function Modal({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <Portal>
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
       <div
         className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm animate-[fadeIn_0.15s_ease-out]"
         onClick={onClose}
@@ -110,6 +112,7 @@ function Modal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
 

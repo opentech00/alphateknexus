@@ -3,6 +3,7 @@ import { X, Plus, Trash2, Package, CheckCircle2, MapPin, Calendar, Eye, ArrowLef
 import { supabase } from '../lib/supabase';
 import { ServicePaymentStep, PaymentSuccessScreen, PaymentFailedScreen } from './ServicePaymentStep';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
+import { Portal } from '../lib/portal';
 
 interface Service {
   id: string;
@@ -158,7 +159,8 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+    <Portal>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4 py-6" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 flex-shrink-0">
@@ -387,5 +389,6 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

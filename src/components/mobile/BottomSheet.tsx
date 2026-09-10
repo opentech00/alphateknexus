@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useHaptics } from '../../hooks/useHaptics';
 
@@ -70,8 +71,8 @@ export function BottomSheet({ open, onClose, title, showHandle = true, children,
 
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex flex-col justify-end">
+  return createPortal((
+    <div className="fixed inset-0 z-[200] flex flex-col justify-end" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/55 backdrop-blur-sm animate-fadeIn transition-opacity duration-300"
@@ -112,11 +113,11 @@ export function BottomSheet({ open, onClose, title, showHandle = true, children,
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain mobile-scroll">
           {children}
         </div>
       </div>
     </div>
-  );
+  ), document.body);
 }
 

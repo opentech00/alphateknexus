@@ -10,8 +10,8 @@ interface SwipeableBookingCardProps {
   showCancel?: boolean;
 }
 
-const ACTION_WIDTH = 72;
-const TRIGGER_WIDTH = 56;
+const ACTION_WIDTH = 84;
+const TRIGGER_WIDTH = 64;
 
 /**
  * SwipeableBookingCard — wraps booking card content with a swipe-left gesture
@@ -80,7 +80,7 @@ export function SwipeableBookingCard({
         {showRebook && (
           <button
             onClick={() => handleAction('rebook')}
-            className="flex flex-col items-center justify-center w-[72px] bg-emerald-500 text-white gap-1 active:bg-emerald-600 transition-colors"
+            className="flex flex-col items-center justify-center w-[84px] bg-emerald-500 text-white gap-1 active:bg-emerald-600 transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
             <span className="text-[10px] font-semibold">Rebook</span>
@@ -89,7 +89,7 @@ export function SwipeableBookingCard({
         {showCancel && (
           <button
             onClick={() => handleAction('cancel')}
-            className="flex flex-col items-center justify-center w-[72px] bg-amber-500 text-white gap-1 active:bg-amber-600 transition-colors"
+            className="flex flex-col items-center justify-center w-[84px] bg-amber-500 text-white gap-1 active:bg-amber-600 transition-colors"
           >
             <Ban className="w-4 h-4" />
             <span className="text-[10px] font-semibold">Cancel</span>

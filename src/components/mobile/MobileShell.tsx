@@ -90,7 +90,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 h-[100dvh] w-full flex flex-col overflow-hidden bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight z-20 min-h-0"
+      className="fixed inset-0 h-[100dvh] w-full flex flex-col overflow-hidden bg-[#f5f8ff] dark:bg-slate-950 black:bg-black no-tap-highlight z-20 min-h-0"
     >
       {/* Top Bar — fixed height, safe-area top padding */}
       {showTopBar && (
@@ -125,13 +125,13 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
             <NotificationsPanel />
             <button
               onClick={() => handleSetPage('profile')}
-              className="h-8 pl-1 pr-0.5 rounded-full border border-slate-200 bg-white inline-flex items-center gap-0.5 shadow-sm active:scale-95 transition-transform"
+              className="h-10 min-w-[2.5rem] pl-1 pr-0.5 rounded-full border border-slate-200 bg-white inline-flex items-center gap-0.5 shadow-sm active:scale-95 transition-transform"
               aria-label="Open profile"
             >
               {profile?.avatar_url ? (
                 <img src={profile.avatar_url} alt="Profile" className="w-6 h-6 rounded-full object-cover" />
               ) : (
-                <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-[11px] font-semibold inline-flex items-center justify-center">
+                <span className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 text-[11px] font-semibold inline-flex items-center justify-center">
                   {profileInitial}
                 </span>
               )}
@@ -204,7 +204,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
               <button
                 key={item.id}
                 onClick={() => handleSetPage(item.id)}
-                className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 min-w-0 px-1 rounded-2xl transition-all duration-200 active:scale-95 no-select ${
+                className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 min-w-0 px-1 min-h-[44px] rounded-2xl transition-all duration-200 active:scale-95 no-select ${
                   active
                     ? 'bg-[#eaf2ff] dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold'
                     : 'text-[#475569] dark:text-[#e2e8f0]'

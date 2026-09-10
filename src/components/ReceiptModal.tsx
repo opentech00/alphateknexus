@@ -4,6 +4,7 @@ import {
   Calendar, CreditCard, Hash, ArrowLeft,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { Portal } from '../lib/portal';
 
 interface Receipt {
   id: string;
@@ -151,18 +152,21 @@ export function ReceiptModal({ paymentReference, onClose, onViewBookings }: Rece
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn">
+      <Portal>
+      <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
         <div className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
           <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mx-auto mb-4" />
           <p className="text-sm text-slate-500 dark:text-slate-400">Generating your receipt...</p>
         </div>
       </div>
+      </Portal>
     );
   }
 
   if (!receipt) {
     return (
-      <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn">
+      <Portal>
+      <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
         <div className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
           <div className="w-14 h-14 bg-amber-50 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
             <ReceiptIcon className="w-7 h-7 text-amber-500" />
@@ -189,11 +193,13 @@ export function ReceiptModal({ paymentReference, onClose, onViewBookings }: Rece
           </div>
         </div>
       </div>
+      </Portal>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn">
+    <Portal>
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
       <div className="bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100 dark:border-slate-700">
@@ -301,6 +307,7 @@ export function ReceiptModal({ paymentReference, onClose, onViewBookings }: Rece
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
 

@@ -19,6 +19,7 @@ import { BottomSheet } from './BottomSheet';
 import { useAppLogo } from '../../lib/media';
 import { MobilePaymentMethodModal } from './MobilePaymentMethodModal';
 import { MobileServiceHistoryModal } from './MobileServiceHistoryModal';
+import { Portal } from '../../lib/portal';
 
 type ModalType = null | 'wallet' | 'favorites' | 'appearance' | 'edit-profile' | 'address' | 'benefits' | 'payment' | 'history' | 'notifications' | 'help';
 
@@ -142,7 +143,7 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
   };
 
   return (
-    <div className={`flex-1 pb-8 transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+    <div className={`flex-1 bg-[#f5f8ff] dark:bg-slate-950 pb-8 transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
       {/* ── Hero Card ── */}
       <div className="relative overflow-hidden bg-blue-700 mx-4 mt-4 rounded-3xl shadow-xl shadow-blue-900/20">
         <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-[0.07] pointer-events-none select-none">
@@ -195,7 +196,7 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
             ...(wallet_enabled ? [{ icon: Wallet, label: 'Wallet', color: 'text-violet-600', bg: 'bg-violet-50', action: () => setActiveModal('wallet') as any }] : []),
             { icon: Heart, label: 'Favorites', color: 'text-rose-500', bg: 'bg-rose-50', action: () => setActiveModal('favorites') },
           ].map(({ icon: Icon, label, color, bg, action }) => (
-            <button key={label} onClick={action} className="flex flex-col items-center gap-2 active:scale-90 transition-transform">
+            <button key={label} onClick={action} className="flex flex-col items-center gap-2 min-h-[72px] active:scale-90 transition-transform">
               <div className={`w-14 h-14 ${bg} rounded-2xl flex items-center justify-center shadow-sm`}>
                 <Icon className={`w-6 h-6 ${color}`} strokeWidth={1.75} />
               </div>
@@ -376,7 +377,8 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
 
       {/* ── Delete Account Modal ── */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+        <Portal>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm animate-scaleIn overflow-hidden">
             <div className="px-6 pt-6 pb-2 flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-900">Delete Account</h3>
@@ -431,6 +433,7 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

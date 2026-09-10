@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { Portal } from '../lib/portal';
 
 interface ReferralRow {
   id: string;
@@ -327,7 +328,8 @@ export function ReferralModal({ open, onClose }: { open: boolean; onClose: () =>
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+    <Portal>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-[fadeInUp_0.2s_ease-out]"
@@ -358,5 +360,6 @@ export function ReferralModal({ open, onClose }: { open: boolean; onClose: () =>
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

@@ -202,7 +202,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-gray-50 dark:bg-slate-950 black:bg-black no-tap-highlight pb-8">
+    <div className="flex-1 flex flex-col bg-[#f5f8ff] dark:bg-slate-950 black:bg-black no-tap-highlight pb-8">
       {/* Wallet strip */}
       {wallet_enabled && (
       <div
@@ -265,7 +265,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all active:scale-95 ${
+            className={`flex items-center gap-1.5 px-3.5 min-h-[40px] py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all active:scale-95 ${
                 active
                   ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-md'
                   : 'bg-white dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 text-slate-600 border border-slate-200 hover:border-slate-300'
