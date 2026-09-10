@@ -54,6 +54,33 @@ export async function reverseGeocode(
   return results[0] || null;
 }
 
+export interface DrivingRoute {
+  coordinates: [number, number][];
+  distanceMeters: number;
+  durationSeconds: number;
+}
+
+export async function getDrivingRoute(
+  from: { latitude: number; longitude: number },
+  to: { latitude: number; longitude: number },
+): Promise<DrivingRoute | null> {
+  const url = new URL(searchUrl());
+  url.searchParams.set('from_lat', String(from.latitude));
+  url.searchParams.set('from_lon', String(from.longitude));
+  url.searchParams.set('to_lat', String(to.latitude));
+  url.searchParams.set('to_lon', String(to.longitude));
+
+  const res = await fetch(url.toString(), { headers: authHeaders() });
+  if (!res.ok) throw new Error('Directions failed');
+  const data = await res.json();
+  if (!data?.route?.coordinates?.length) return null;
+  return {
+    coordinates: data.route.coordinates as [number, number][],
+    distanceMeters: Number(data.route.distance_meters) || 0,
+    durationSeconds: Number(data.route.duration_seconds) || 0,
+  };
+}
+
 export function formatSuggestion(s: AddressSuggestion): string {
   return [s.address_line, s.city, s.region].filter(Boolean).join(', ') || s.display_name;
 }

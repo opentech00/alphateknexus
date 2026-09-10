@@ -33,8 +33,11 @@ A multi-service business management platform with client portal, employee portal
 The `.env` file is already configured with all API credentials:
 - `VITE_SUPABASE_URL` — your Supabase project URL
 - `VITE_SUPABASE_ANON_KEY` — your Supabase anonymous key
+- `VITE_MAPBOX_ACCESS_TOKEN` — Mapbox public token (pk.) for maps. Restrict it by URL in the Mapbox dashboard. Also set `MAPBOX_ACCESS_TOKEN` as a Supabase Edge Function secret so address search and driving directions use Mapbox.
 
 No additional API setup is required. The database, authentication, edge functions, and file storage are all hosted on Supabase and ready to use.
+
+Production is deployed on **Vercel**. See [docs/vercel-production.md](docs/vercel-production.md) for env vars and pretty URLs (`/admin`, `/employee`, `/field`).
 
 ## App Entry Points
 
@@ -89,4 +92,5 @@ To build the Android APK:
 - **Frontend:** React 18, TypeScript, Tailwind CSS, Vite
 - **Icons:** lucide-react
 - **Backend:** Supabase (PostgreSQL, Auth, Edge Functions, Storage)
+- **Hosting:** Vercel
 - **Mobile:** Capacitor 8 (Android)

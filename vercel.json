@@ -1,4 +1,14 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/admin/:path*", "destination": "/admin.html" },
+    { "source": "/employee", "destination": "/employee.html" },
+    { "source": "/employee/:path*", "destination": "/employee.html" },
+    { "source": "/field", "destination": "/field.html" },
+    { "source": "/field/:path*", "destination": "/field.html" },
+    { "source": "/((?!admin(?:\\.html|/)|employee(?:\\.html|/)|field(?:\\.html|/)).*)", "destination": "/index.html" }
+  ]
 }
-

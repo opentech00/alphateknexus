@@ -1,6 +1,11 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard, Card, EmptyState, Spinner, ErrorBanner } from '../components/ui';
+import { LiveDispatchMap } from '../../components/map/LiveDispatchMap';
+import { RouteReplayMap } from '../../components/map/RouteReplayMap';
+import { AddressPickerMap } from '../../components/map/AddressPickerMap';
+import { LocationAutocomplete } from '../../components/LocationAutocomplete';
+import { searchAddresses } from '../../lib/addressSearch';
 import {
   MapPin, Users, Briefcase, Award, Navigation, Calendar, Clock,
   Plus, X, Loader2, CheckCircle2, AlertCircle, Truck, Zap, Star,
@@ -47,6 +52,8 @@ interface AdminBooking {
   address: string;
   status: string;
   service_id: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 interface LocationPing {
@@ -173,7 +180,7 @@ export function FieldDispatchPage() {
       ] = await Promise.all([
         supabase.from('employees').select('id, full_name, position, photo_url, service_id, performance_score, jobs_completed, status').eq('status', 'active'),
         supabase.from('field_assignments').select('*').order('scheduled_date', { ascending: true }),
-        supabase.from('bookings').select('id, service_id, contact_name, location, status, services(name)').in('status', ['pending', 'approved', 'confirmed', 'in_progress']).limit(50),
+        supabase.from('bookings').select('id, service_id, contact_name, location, latitude, longitude, status, services(name)').in('status', ['pending', 'approved', 'confirmed', 'in_progress']).limit(50),
         supabase.from('field_location_pings').select('*').order('created_at', { ascending: false }).limit(100),
         supabase.from('field_job_scores').select('*').order('scored_at', { ascending: false }),
         supabase.from('field_job_events').select('*').order('created_at', { ascending: false }).limit(200),
@@ -203,6 +210,8 @@ export function FieldDispatchPage() {
         customer_name: b.contact_name || 'Customer',
         address: b.location || '',
         status: b.status,
+        latitude: b.latitude ?? null,
+        longitude: b.longitude ?? null,
       })));
       setLocationPings(pingData || []);
       setJobScores(scoreData || []);
@@ -604,7 +613,7 @@ function JobTimelineView({ assignment, events, worker, onBack }: {
 // ============================================================
 // MAP VIEW — Feature 1: Live GPS tracking map with worker pins & job markers
 // ============================================================
-function MapView({ workers, pings, assignments, geofenceEvents }: {
+function MapView({ workers, pings: _pings, assignments, geofenceEvents }: {
   workers: (AdminEmployee & { activeJobCount: number; latestPing?: LocationPing })[];
   pings: LocationPing[];
   assignments: AdminAssignment[];
@@ -618,75 +627,36 @@ function MapView({ workers, pings, assignments, geofenceEvents }: {
     return <EmptyState icon={MapPin} title="No live locations" description="Worker GPS pings and job markers will appear here when jobs are in progress" />;
   }
 
-  const allLats = [...workersWithLocation.map(w => w.latestPing!.latitude), ...jobMarkers.map(a => a.latitude!)];
-  const allLngs = [...workersWithLocation.map(w => w.latestPing!.longitude), ...jobMarkers.map(a => a.longitude!)];
-  const minLat = Math.min(...allLats), maxLat = Math.max(...allLats);
-  const minLng = Math.min(...allLngs), maxLng = Math.max(...allLngs);
-  const latRange = Math.max(maxLat - minLat, 0.01);
-  const lngRange = Math.max(maxLng - minLng, 0.01);
-
-  const MAP_SIZE = 440;
-  const PADDING = 50;
-
-  const projectX = (lng: number) => PADDING + ((lng - minLng) / lngRange) * (MAP_SIZE - PADDING * 2);
-  const projectY = (lat: number) => MAP_SIZE - PADDING - ((lat - minLat) / latRange) * (MAP_SIZE - PADDING * 2);
-
   return (
     <div>
       <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
         <Radar className="w-4 h-4 text-emerald-600" /> Live GPS Tracking
       </h3>
       <Card className="p-4">
-        <div className="relative bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl overflow-hidden" style={{ height: MAP_SIZE }}>
-          {/* Grid lines */}
-          <div className="absolute inset-0 opacity-30">
-            {[...Array(10)].map((_, i) => (
-              <div key={`h${i}`} className="absolute left-0 right-0 border-t border-slate-200" style={{ top: `${(i / 10) * 100}%` }} />
-            ))}
-            {[...Array(10)].map((_, i) => (
-              <div key={`v${i}`} className="absolute top-0 bottom-0 border-l border-slate-200" style={{ left: `${(i / 10) * 100}%` }} />
-            ))}
-          </div>
-
-          {/* Job markers */}
-          {jobMarkers.map(a => {
-            const x = projectX(a.longitude!);
-            const y = projectY(a.latitude!);
-            return (
-              <div key={a.id} className="absolute -translate-x-1/2 -translate-y-1/2 group" style={{ left: x, top: y }}>
-                <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md ring-2 ring-orange-300 border border-orange-200">
-                  <MapPin className="w-3 h-3 text-orange-500" />
-                </div>
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 px-2 py-1 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                  <p className="font-semibold text-slate-900">{a.service_name}</p>
-                  <p className="text-slate-400">{a.customer_name}</p>
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Worker pins */}
-          {workersWithLocation.map(w => {
-            const x = projectX(w.latestPing!.longitude);
-            const y = projectY(w.latestPing!.latitude);
-            return (
-              <div key={w.id} className="absolute -translate-x-1/2 -translate-y-1/2 group" style={{ left: x, top: y }}>
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg ring-2 ring-white transition-transform group-hover:scale-110 ${
-                  w.activeJobCount > 0 ? 'bg-emerald-600' : 'bg-slate-400'
-                }`}>
-                  {w.full_name?.[0]?.toUpperCase()}
-                </div>
-                {w.activeJobCount > 0 && <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full animate-pulse ring-2 ring-white" />}
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 px-2 py-1 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                  <p className="font-semibold text-slate-900">{w.full_name}</p>
-                  <p className="text-slate-400">{w.activeJobCount} active · {timeAgo(w.latestPing!.created_at)}</p>
-                  {w.latestPing!.battery_level != null && <p className="text-slate-400">Battery: {w.latestPing!.battery_level}%</p>}
-                  {w.latestPing!.speed != null && <p className="text-slate-400">Speed: {w.latestPing!.speed.toFixed(0)} km/h</p>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <LiveDispatchMap
+          height={440}
+          workers={workersWithLocation.map(w => ({
+            id: w.id,
+            name: w.full_name,
+            latitude: w.latestPing!.latitude,
+            longitude: w.latestPing!.longitude,
+            active: w.activeJobCount > 0,
+            subtitle: [
+              w.activeJobCount > 0 ? `${w.activeJobCount} active` : 'Available',
+              timeAgo(w.latestPing!.created_at),
+              w.latestPing!.battery_level != null ? `Battery ${w.latestPing!.battery_level}%` : null,
+              w.latestPing!.speed != null ? `${w.latestPing!.speed.toFixed(0)} km/h` : null,
+            ].filter(Boolean).join(' · '),
+          }))}
+          jobs={jobMarkers.map(a => ({
+            id: a.id,
+            label: a.service_name,
+            latitude: a.latitude!,
+            longitude: a.longitude!,
+            radiusMeters: a.geofence_radius,
+            subtitle: a.customer_name,
+          }))}
+        />
 
         {/* Geofence event alerts */}
         {recentGeofenceEvents.length > 0 && (
@@ -1300,8 +1270,18 @@ function AssignModal({ employees, bookings, assignments, onClose, onCreated }: {
   const [amount, setAmount] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [jobAddress, setJobAddress] = useState('');
+  const [jobLat, setJobLat] = useState<number | null>(null);
+  const [jobLng, setJobLng] = useState<number | null>(null);
 
   const selectedBooking = bookings.find(b => b.id === bookingId);
+
+  useEffect(() => {
+    if (!selectedBooking) return;
+    setJobAddress(selectedBooking.address || '');
+    setJobLat(selectedBooking.latitude);
+    setJobLng(selectedBooking.longitude);
+  }, [selectedBooking]);
 
   // Auto-recommend best worker — uses actual workload from assignments
   const recommendedWorker = useMemo(() => {
@@ -1325,17 +1305,31 @@ function AssignModal({ employees, bookings, assignments, onClose, onCreated }: {
     setSaving(true);
     setError('');
     try {
+      let latitude = jobLat;
+      let longitude = jobLng;
+      if ((latitude == null || longitude == null) && jobAddress.trim().length >= 3) {
+        try {
+          const found = await searchAddresses(jobAddress);
+          if (found[0]?.latitude != null && found[0]?.longitude != null) {
+            latitude = found[0].latitude;
+            longitude = found[0].longitude;
+          }
+        } catch { /* optional geocode */ }
+      }
       const payload: Record<string, unknown> = {
         employee_id: employeeId,
         service_name: selectedBooking?.service_name || 'General Service',
         customer_name: selectedBooking?.customer_name || 'Walk-in Customer',
-        address: selectedBooking?.address || '',
+        address: jobAddress || selectedBooking?.address || '',
         scheduled_date: scheduledDate,
         scheduled_time: scheduledTime,
         instructions: instructions || null,
         amount: amount ? parseFloat(amount) : null,
         status: 'assigned',
         booking_id: bookingId || null,
+        latitude,
+        longitude,
+        geofence_radius: latitude != null ? 100 : null,
       };
       const { data: newAssign, error: insertErr } = await supabase.from('field_assignments').insert(payload).select().single();
       if (insertErr) throw insertErr;
@@ -1398,6 +1392,34 @@ function AssignModal({ employees, bookings, assignments, onClose, onCreated }: {
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Time</label>
             <input type="time" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Job site</label>
+          <LocationAutocomplete
+            value={jobAddress}
+            onChange={setJobAddress}
+            onSelect={(s) => {
+              setJobAddress(s.display_name);
+              setJobLat(s.latitude);
+              setJobLng(s.longitude);
+            }}
+            showLocate
+            placeholder="Search or drop a pin on the map"
+            inputClassName="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+          <div className="mt-2">
+            <AddressPickerMap
+              latitude={jobLat}
+              longitude={jobLng}
+              height={180}
+              onChange={(lat, lng, suggestion) => {
+                setJobLat(lat);
+                setJobLng(lng);
+                if (suggestion) setJobAddress(suggestion.display_name);
+              }}
+            />
           </div>
         </div>
 
@@ -1606,8 +1628,16 @@ function RouteReplayView({ workers, pings, assignments, geofenceEvents }: {
             </div>
 
             {/* Mini map visualization */}
-            <div className="relative bg-slate-900 rounded-xl overflow-hidden h-64 mb-4">
-              <RouteCanvas pings={routePings} currentIdx={playbackIdx} geofenceEvents={jobGeofenceEvents} assignment={selectedAssignment} />
+            <div className="relative rounded-xl overflow-hidden h-64 mb-4">
+              <RouteReplayMap
+                pings={routePings}
+                currentIdx={playbackIdx}
+                siteLat={selectedAssignment?.latitude}
+                siteLng={selectedAssignment?.longitude}
+                radiusMeters={selectedAssignment?.geofence_radius}
+                events={jobGeofenceEvents.map(e => ({ latitude: e.latitude, longitude: e.longitude, type: e.event_type }))}
+                height={256}
+              />
               {/* Overlay info */}
               <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm rounded-lg px-2.5 py-1.5 text-xs text-white">
                 <span className="font-semibold">{selectedWorker?.full_name || 'Worker'}</span>

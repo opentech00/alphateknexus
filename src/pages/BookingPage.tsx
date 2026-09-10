@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import {
   ArrowLeft, Calendar, MapPin, Clock, CheckCircle2,
   ChevronRight, CreditCard, Wallet, Smartphone, ShieldCheck,
@@ -11,6 +11,9 @@ const SERVICE_FEE = 25;
 import { SchedulingCalendar } from '../components/SchedulingCalendar';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { LocationAutocomplete } from '../components/LocationAutocomplete';
+const AddressPickerMap = lazy(() =>
+  import('../components/map/AddressPickerMap').then((m) => ({ default: m.AddressPickerMap })),
+);
 import { ClearingForwardingForm } from '../components/ClearingForwardingForm';
 import { ClearingForwardingQuoteForm } from '../components/ClearingForwardingQuoteForm';
 import { SmartSortPickupForm } from '../components/SmartSortPickupForm';
@@ -41,6 +44,8 @@ interface RebookData {
   notes: string | null;
   scheduled_date?: string | null;
   scheduled_time?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 interface BookingPageProps {
@@ -336,6 +341,8 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
     scheduled_time: '',
     location: '',
     notes: '',
+    latitude: null as number | null,
+    longitude: null as number | null,
   });
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<Step>('form');
@@ -354,6 +361,8 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
         scheduled_time: rebookData.scheduled_time || '',
         location: rebookData.location || '',
         notes: rebookData.notes || '',
+        latitude: rebookData.latitude ?? null,
+        longitude: rebookData.longitude ?? null,
       });
     }
   }, [rebookData]);
@@ -515,6 +524,8 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
         scheduled_date: formData.scheduled_date,
         scheduled_time: formData.scheduled_time || null,
         location: formData.location || null,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
         notes: formData.notes || null,
         status: 'pending_review',
         payment_method: isCash ? 'cash' : 'monime',
@@ -854,10 +865,30 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
               <LocationAutocomplete
                 value={formData.location}
                 onChange={(v) => setFormData({ ...formData, location: v })}
+                onSelect={(s) => setFormData({
+                  ...formData,
+                  location: s.display_name,
+                  latitude: s.latitude,
+                  longitude: s.longitude,
+                })}
                 showLocate
                 placeholder="Service location or address"
                 inputClassName="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
               />
+              <div className="mt-3">
+                <Suspense fallback={<div className="h-[200px] rounded-xl bg-slate-50 border border-slate-100 animate-pulse" />}>
+                  <AddressPickerMap
+                    latitude={formData.latitude}
+                    longitude={formData.longitude}
+                    onChange={(lat, lng, suggestion) => setFormData({
+                      ...formData,
+                      latitude: lat,
+                      longitude: lng,
+                      location: suggestion?.display_name || formData.location,
+                    })}
+                  />
+                </Suspense>
+              </div>
             </div>
 
             <div>

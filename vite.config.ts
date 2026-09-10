@@ -94,10 +94,14 @@ export default defineConfig({
           'react-vendor': ['react', 'react-dom'],
           'supabase': ['@supabase/supabase-js'],
           'icons': ['lucide-react'],
+          'mapbox': ['mapbox-gl'],
         },
       },
     },
     chunkSizeWarningLimit: 600,
     assetsInlineLimit: 4096,
+  },
+  optimizeDeps: {
+    include: ['mapbox-gl'],
   },
 });

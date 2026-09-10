@@ -36,11 +36,11 @@ SuggestedFilesToCreate: |
 ExamplePrompts: |
   - "Setup Supabase for local dev: add `.env.example`, install Supabase JS client, and scaffold a migration to create `users` table."
   - "Help me connect this repo to an existing Supabase project and add migration scripts for the initial schema."
-  - "Generate a `supabase` CLI script to run migrations and seed data for CI." 
+  - "Generate a `supabase` CLI script to run migrations and seed data." 
 
 ClarifyingQuestions: |
   - Do you want to use the Supabase cloud project or run a local Supabase emulator (Docker)?
-  - Where should secrets be stored for CI (GitHub Actions secrets, Azure Key Vault, etc.)?
+  - Where should production env vars live (Vercel project settings)?
 
 FollowUp: |
   - After you confirm the questions above I will: 1) add `.env.example`, 2) install and configure the Supabase client in `src/` with a minimal usage example, 3) add a `scripts/supabase-init.sh` for local setup, and 4) create a migration stub under `db/migrations/`.

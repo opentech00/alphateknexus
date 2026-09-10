@@ -10,7 +10,10 @@ import { STATUS_META } from '../types';
 import { supabase } from '../../lib/supabase';
 import { useElapsedTimer } from '../useElapsedTimer';
 import { SignaturePad } from '../components/SignaturePad';
-import { watchPosition, isInsideGeofence, getBatteryLevel, type Coords } from '../geo';
+import { watchPosition, isInsideGeofence, getBatteryLevel, getCurrentPosition, type Coords } from '../geo';
+import { JobSiteMap } from '../../../components/map/JobSiteMap';
+import { getDrivingRoute } from '../../../lib/addressSearch';
+import { formatDuration, formatMeters, openExternalDirections } from '../../../lib/mapbox';
 
 const AUTO_CHECKOUT_HOURS = 10;
 
@@ -45,6 +48,9 @@ export function JobDetailScreen({ assignmentId, onBack }: {
   const [activeTab, setActiveTab] = useState<'checklist' | 'chat' | 'notes'>('checklist');
   const [currentLocation, setCurrentLocation] = useState<Coords | null>(null);
   const [insideGeofence, setInsideGeofence] = useState<boolean | null>(null);
+  const [routeCoords, setRouteCoords] = useState<[number, number][] | null>(null);
+  const [routeMeta, setRouteMeta] = useState<{ distanceMeters: number; durationSeconds: number } | null>(null);
+  const [routing, setRouting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const stopWatchRef = useRef<(() => void) | null>(null);
 
@@ -182,6 +188,33 @@ export function JobDetailScreen({ assignmentId, onBack }: {
     setPauseReason('');
   };
 
+  const handleNavigate = async () => {
+    if (!assignment?.latitude || !assignment?.longitude) {
+      if (assignment?.address) {
+        window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(assignment.address)}`, '_blank');
+      }
+      return;
+    }
+    openExternalDirections(assignment.latitude, assignment.longitude);
+    setRouting(true);
+    try {
+      const origin = currentLocation || await getCurrentPosition();
+      if (!origin) return;
+      const route = await getDrivingRoute(
+        { latitude: origin.lat, longitude: origin.lng },
+        { latitude: assignment.latitude, longitude: assignment.longitude },
+      );
+      if (route) {
+        setRouteCoords(route.coordinates);
+        setRouteMeta({ distanceMeters: route.distanceMeters, durationSeconds: route.durationSeconds });
+      }
+    } catch {
+      /* external maps already opened */
+    } finally {
+      setRouting(false);
+    }
+  };
+
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -267,6 +300,24 @@ export function JobDetailScreen({ assignmentId, onBack }: {
           )}
         </div>
 
+        {assignment.latitude != null && assignment.longitude != null && (
+          <div className="space-y-2">
+            <JobSiteMap
+              latitude={assignment.latitude}
+              longitude={assignment.longitude}
+              radiusMeters={assignment.geofence_radius}
+              userLat={currentLocation?.lat}
+              userLng={currentLocation?.lng}
+              route={routeCoords}
+            />
+            {routeMeta && (
+              <p className="text-xs text-slate-500 px-1">
+                Drive {formatMeters(routeMeta.distanceMeters)} · about {formatDuration(routeMeta.durationSeconds)}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Geofence status */}
         {assignment.status === 'in_progress' && assignment.latitude && assignment.longitude && (
           <div className={`rounded-2xl p-4 flex items-center gap-3 border ${
@@ -320,12 +371,24 @@ export function JobDetailScreen({ assignmentId, onBack }: {
 
         {/* Start */}
         {assignment.status === 'accepted' && (
-          <button
-            onClick={handleStart}
-            className="w-full flex items-center justify-center gap-2 bg-amber-500 text-white text-sm font-semibold rounded-xl py-3 hover:bg-amber-600 transition-colors"
-          >
-            <Play className="w-4 h-4" /> Start Job & Check In
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={handleStart}
+              className="w-full flex items-center justify-center gap-2 bg-amber-500 text-white text-sm font-semibold rounded-xl py-3 hover:bg-amber-600 transition-colors"
+            >
+              <Play className="w-4 h-4" /> Start Job & Check In
+            </button>
+            {(assignment.address || (assignment.latitude && assignment.longitude)) && (
+              <button
+                onClick={handleNavigate}
+                disabled={routing}
+                className="w-full flex items-center justify-center gap-2 bg-blue-50 border border-blue-200 text-blue-600 text-sm font-semibold rounded-xl py-3 hover:bg-blue-100 transition-colors disabled:opacity-50"
+              >
+                {routing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+                {routing ? 'Routing…' : 'Navigate to site'}
+              </button>
+            )}
+          </div>
         )}
 
         {/* In progress actions */}
@@ -353,12 +416,14 @@ export function JobDetailScreen({ assignmentId, onBack }: {
 
             {/* Navigate + Pause */}
             <div className="flex gap-2">
-              {assignment.address && (
+              {(assignment.address || (assignment.latitude && assignment.longitude)) && (
                 <button
-                  onClick={() => window.open(`https://maps.google.com/?q=${encodeURIComponent(assignment.address)}`, '_blank')}
-                  className="flex-1 flex items-center justify-center gap-2 bg-blue-50 border border-blue-200 text-blue-600 text-sm font-semibold rounded-xl py-3 hover:bg-blue-100 transition-colors"
+                  onClick={handleNavigate}
+                  disabled={routing}
+                  className="flex-1 flex items-center justify-center gap-2 bg-blue-50 border border-blue-200 text-blue-600 text-sm font-semibold rounded-xl py-3 hover:bg-blue-100 transition-colors disabled:opacity-50"
                 >
-                  <Navigation className="w-4 h-4" /> Navigate
+                  {routing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+                  {routing ? 'Routing…' : 'Navigate'}
                 </button>
               )}
               <button

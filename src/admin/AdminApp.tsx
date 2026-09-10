@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { ShieldCheck, Lock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AdminNotificationsProvider } from './contexts/AdminNotificationsContext';
@@ -36,7 +36,9 @@ import { HrDocumentsPage } from './pages/HrDocumentsPage';
 import { BackupPage } from './pages/BackupPage';
 import { UsersManagementPage } from './pages/UsersManagementPage';
 import { BundlesManagementPage } from './pages/BundlesManagementPage';
-import { FieldDispatchPage } from './pages/FieldDispatchPage';
+const FieldDispatchPage = lazy(() =>
+  import('./pages/FieldDispatchPage').then((m) => ({ default: m.FieldDispatchPage })),
+);
 import { BookingReviewPage } from './pages/BookingReviewPage';
 import { MessagesPage } from './pages/MessagesPage';
 import { FieldJobReviewPage } from './pages/FieldJobReviewPage';
@@ -149,7 +151,11 @@ function AdminContent() {
       case 'division-procurement':
         return <ProcurementPage />;
       case 'field-dispatch':
-        return <FieldDispatchPage />;
+        return (
+          <Suspense fallback={<div className="py-16 flex justify-center text-sm text-slate-400">Loading map…</div>}>
+            <FieldDispatchPage />
+          </Suspense>
+        );
       case 'field-job-review':
         return <FieldJobReviewPage />;
       case 'field-incidents':

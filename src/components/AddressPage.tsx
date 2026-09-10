@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import {
   MapPin, Home, Building2, Plus, Trash2, Star, Loader2, X,
   CheckCircle2, ChevronRight,
@@ -7,7 +7,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Portal } from '../lib/portal';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { StaticMapPreview } from './map/StaticMapPreview';
 import type { AddressSuggestion } from '../lib/addressSearch';
+
+const AddressPickerMap = lazy(() =>
+  import('./map/AddressPickerMap').then((m) => ({ default: m.AddressPickerMap })),
+);
 
 export interface SavedAddress {
   id: string;
@@ -235,6 +240,7 @@ export function AddressPage() {
                       {[a.city, a.region, a.postal_code, a.country].filter(Boolean).join(', ')}
                     </p>
                   )}
+                  <StaticMapPreview latitude={a.latitude} longitude={a.longitude} alt={a.label} className="mt-2" />
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {!a.is_default && (
@@ -327,6 +333,18 @@ export function AddressPage() {
                   placeholder="Start typing your address…"
                 />
               </div>
+
+              <Suspense fallback={<div className="h-[200px] rounded-xl bg-slate-50 border border-slate-100 animate-pulse" />}>
+                <AddressPickerMap
+                  latitude={lat}
+                  longitude={lng}
+                  onChange={(nextLat, nextLng, suggestion) => {
+                    setLat(nextLat);
+                    setLng(nextLng);
+                    if (suggestion) selectResult({ ...suggestion, latitude: nextLat, longitude: nextLng });
+                  }}
+                />
+              </Suspense>
 
               {/* Manual fields */}
               <div>

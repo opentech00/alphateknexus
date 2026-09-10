@@ -1,6 +1,8 @@
 # Supabase Local Setup (Quickstart)
 
-This document explains how to set up Supabase for local development and link to the Supabase cloud project used by CI.
+This document explains how to set up Supabase for local development and link to the cloud project.
+
+Prerequisites
 
 Prerequisites
 
@@ -48,7 +50,7 @@ powershell -ExecutionPolicy Bypass -File scripts\validate-supabase-token.ps1
 
 The script will return a non-zero exit code if the token is missing, malformed, or rejected by the CLI.
 
-If you need CI guidance, add the token to your repository secrets as `SUPABASE_ACCESS_TOKEN` and the GitHub workflow will use it for `supabase login --token "$SUPABASE_ACCESS_TOKEN"`.
+If you need automation guidance, keep `SUPABASE_ACCESS_TOKEN` in your local `.env` (never commit it) and use `supabase login --token "$SUPABASE_ACCESS_TOKEN"`.
 
 
 # link this workspace to the cloud project
@@ -72,8 +74,8 @@ npm run dev
 Notes & best practices
 
 - Never commit real secrets. Keep `.env` in `.gitignore` (this repo already uses `.env.example`).
-- For CI, add secrets in GitHub repository Settings → Secrets → Actions as described in `docs/supabase-github-actions.md`.
-- Use `SUPABASE_SERVICE_ROLE_KEY` only in server/CI contexts. Do not reference it from client code.
+- Production is Vercel. Set `VITE_*` build variables there as described in `docs/vercel-production.md`.
+- Use `SUPABASE_SERVICE_ROLE_KEY` only on your machine or in Supabase itself. Do not add it to Vercel or client code.
 
 Optional: Running Supabase locally
 
