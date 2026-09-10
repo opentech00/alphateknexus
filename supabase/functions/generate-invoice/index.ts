@@ -187,8 +187,10 @@ Deno.serve(async (req: Request) => {
         error_message: emailError,
       });
 
-      // Mark as sent
-      await supabase.from('invoices').update({ status: 'sent' }).eq('id', invoiceId);
+      // Mark draft invoices as sent; keep overdue/paid/cancelled as-is
+      if (invoice.status === 'draft') {
+        await supabase.from('invoices').update({ status: 'sent' }).eq('id', invoiceId);
+      }
 
       return new Response(JSON.stringify({
         success: true,

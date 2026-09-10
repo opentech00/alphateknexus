@@ -1,13 +1,14 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Wallet, ArrowDownCircle, ArrowUpCircle, Search, Loader2, X,
-  Plus, TrendingUp, Users, Filter, CheckCircle2, CreditCard,
+  Plus, TrendingUp, Filter, CheckCircle2, CreditCard,
   RefreshCw, Smartphone, Landmark, Receipt as ReceiptIcon,
-  Mail, Clock, Download, Send, Building2, Banknote,
-  BarChart3, FileText, Shield,
+  Mail, Clock, Download, Send, Banknote,
+  BarChart3, FileText, Shield, LayoutDashboard,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard } from '../components/ui';
+import { OverviewTab } from './finance/OverviewTab';
 import { InvoicesTab } from './finance/InvoicesTab';
 import { AnalyticsTab } from './finance/AnalyticsTab';
 import { FxRatesTab } from './finance/FxRatesTab';
@@ -15,8 +16,9 @@ import { PayoutsTab } from './finance/PayoutsTab';
 import { PermissionsTab } from './finance/PermissionsTab';
 import { ReportsTab } from './finance/ReportsTab';
 import { CashPaymentsTab } from './finance/CashPaymentsTab';
+import { downloadCsv } from './finance/financeCsv';
 
-type Tab = 'wallet' | 'mobile-money' | 'debit-card' | 'bank-receipt' | 'analytics' | 'invoices' | 'fx-rates' | 'payouts' | 'cash-payments' | 'permissions' | 'reports';
+type Tab = 'overview' | 'wallet' | 'mobile-money' | 'debit-card' | 'bank-receipt' | 'analytics' | 'invoices' | 'fx-rates' | 'payouts' | 'cash-payments' | 'permissions' | 'reports';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null };
@@ -32,9 +34,10 @@ function formatDate(d: string) {
 }
 
 export function FinancePage() {
-  const [tab, setTab] = useState<Tab>('wallet');
+  const [tab, setTab] = useState<Tab>('overview');
 
   const tabs: { id: Tab; label: string; icon: typeof Wallet }[] = [
+    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'wallet', label: 'Wallet', icon: Wallet },
     { id: 'mobile-money', label: 'Mobile Money', icon: Smartphone },
     { id: 'debit-card', label: 'Debit Card', icon: CreditCard },
@@ -75,6 +78,7 @@ export function FinancePage() {
       </div>
 
       <div className="animate-[fadeInUp_0.25s_ease]">
+        {tab === 'overview' && <OverviewTab onOpenTab={(next) => setTab(next)} />}
         {tab === 'wallet' && <WalletTab />}
         {tab === 'mobile-money' && <MobileMoneyTab />}
         {tab === 'debit-card' && <DebitCardTab />}
@@ -135,7 +139,10 @@ function WalletTab() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const [addUserId, setAddUserId] = useState('');
   const [addType, setAddType] = useState('topup');
@@ -169,14 +176,18 @@ function WalletTab() {
   }, []);
 
   useEffect(() => { loadTransactions(); }, [loadTransactions]);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id || null));
+  }, []);
 
   const stats = useMemo(() => {
     const completed = transactions.filter(t => t.status === 'completed');
+    const pending = transactions.filter(t => t.status === 'pending');
     const balance = completed.reduce((s, t) => s + Number(t.amount_sle), 0);
     const topUps = completed.filter(t => t.type === 'topup').reduce((s, t) => s + Number(t.amount_sle), 0);
     const payments = completed.filter(t => t.type === 'payment').reduce((s, t) => s + Math.abs(Number(t.amount_sle)), 0);
     const wallets = new Set(completed.map(t => t.user_id)).size;
-    return { totalBalance: balance, totalTopUps: topUps, totalPayments: payments, activeWallets: wallets };
+    return { totalBalance: balance, totalTopUps: topUps, totalPayments: payments, activeWallets: wallets, pendingCount: pending.length };
   }, [transactions]);
 
   const searchUsers = async (q: string) => {
@@ -197,12 +208,14 @@ function WalletTab() {
     if (!addUserId) { setAddError('Select a user'); return; }
     if (!amt || amt <= 0) { setAddError('Enter a valid amount'); return; }
     setAddSubmitting(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setAddError('You must be signed in'); setAddSubmitting(false); return; }
     const sign = (addType === 'payment') ? -Math.abs(amt) : amt;
     const { error: err } = await supabase.from('wallet_transactions').insert({
       user_id: addUserId, type: addType, amount_sle: sign, method: addMethod,
       reference: addReference.trim() || null,
       description: addDescription.trim() || `${TYPE_META[addType]?.label || addType} by admin`,
-      status: 'completed', recorded_by: 'admin',
+      status: 'pending', recorded_by: user.id,
     });
     setAddSubmitting(false);
     if (err) { setAddError(err.message); return; }
@@ -213,6 +226,7 @@ function WalletTab() {
 
   const filtered = transactions.filter(t => {
     if (typeFilter !== 'all' && t.type !== typeFilter) return false;
+    if (statusFilter !== 'all' && t.status !== statusFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       const name = t.profiles?.full_name || '';
@@ -221,6 +235,22 @@ function WalletTab() {
     }
     return true;
   });
+
+  const canApprove = (t: WalletTxn) =>
+    t.status === 'pending' && !!currentUserId && t.recorded_by !== currentUserId;
+
+  const handleReviewTxn = async (t: WalletTxn, next: 'completed' | 'failed') => {
+    if (t.status !== 'pending') return;
+    if (t.recorded_by === currentUserId) {
+      setLoadError('Another admin must approve this wallet adjustment (dual control).');
+      return;
+    }
+    setActionLoading(t.id);
+    const { error } = await supabase.from('wallet_transactions').update({ status: next }).eq('id', t.id).eq('status', 'pending');
+    if (error) setLoadError(error.message);
+    setActionLoading(null);
+    loadTransactions();
+  };
 
   return (
     <>
@@ -234,7 +264,7 @@ function WalletTab() {
         <StatCard label="TOTAL WALLET BALANCE" value={fmtMoney(stats.totalBalance)} icon={Wallet} color="text-emerald-500" accent="bg-emerald-50" />
         <StatCard label="TOTAL TOP-UPS" value={fmtMoney(stats.totalTopUps)} icon={ArrowDownCircle} color="text-blue-500" accent="bg-blue-50" />
         <StatCard label="TOTAL PAYMENTS" value={fmtMoney(stats.totalPayments)} icon={ArrowUpCircle} color="text-teal-500" accent="bg-teal-50" />
-        <StatCard label="ACTIVE WALLETS" value={String(stats.activeWallets)} icon={Users} color="text-amber-500" accent="bg-amber-50" />
+        <StatCard label="PENDING APPROVAL" value={String(stats.pendingCount)} icon={Clock} color="text-amber-500" accent="bg-amber-50" />
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -254,7 +284,21 @@ function WalletTab() {
             <option value="refund">Refunds</option>
             <option value="adjustment">Adjustments</option>
           </select>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+          </select>
         </div>
+        <button onClick={() => downloadCsv('wallet-transactions.csv', filtered.map(t => ({
+          client: t.profiles?.full_name || '', email: t.profiles?.email || '', type: t.type,
+          amount_sle: t.amount_sle, method: t.method, reference: t.reference, status: t.status, date: t.created_at,
+        })))}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm whitespace-nowrap">
+          <Download className="w-4 h-4" /> Export CSV
+        </button>
         <button onClick={() => setShowAddModal(true)}
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors text-sm whitespace-nowrap">
           <Plus className="w-4 h-4" /> Add Transaction
@@ -272,6 +316,7 @@ function WalletTab() {
             <Th className="hidden sm:table-cell">Method</Th>
             <Th className="hidden md:table-cell">Reference</Th>
             <Th className="hidden lg:table-cell">Date</Th><Th align="center">Status</Th>
+            <Th align="center">Actions</Th>
           </>
         }
       >
@@ -291,7 +336,9 @@ function WalletTab() {
                     <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
                   </div>
                   <span className="font-medium text-slate-700">{meta.label}</span>
-                  {t.recorded_by === 'admin' && <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium">admin</span>}
+                  {(t.recorded_by === 'admin' || (t.recorded_by && t.recorded_by.length > 10)) && (
+                    <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium">admin</span>
+                  )}
                 </div>
               </td>
               <td className={`px-5 py-3 text-right font-bold ${isCredit ? 'text-emerald-600' : 'text-slate-700'}`}>
@@ -302,6 +349,26 @@ function WalletTab() {
               <td className="px-5 py-3 hidden lg:table-cell text-slate-400 text-xs">{formatDate(t.created_at)}</td>
               <td className="px-5 py-3 text-center">
                 <StatusBadge status={t.status} />
+              </td>
+              <td className="px-5 py-3">
+                <div className="flex items-center justify-center gap-1.5">
+                  {t.status === 'pending' && canApprove(t) && (
+                    <>
+                      <button onClick={() => handleReviewTxn(t, 'completed')} disabled={actionLoading === t.id} title="Approve"
+                        className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50">
+                        {actionLoading === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      </button>
+                      <button onClick={() => handleReviewTxn(t, 'failed')} disabled={actionLoading === t.id} title="Reject"
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                  {t.status === 'pending' && !canApprove(t) && (
+                    <span className="text-[10px] text-amber-600 font-medium">Awaiting another admin</span>
+                  )}
+                  {t.status !== 'pending' && <span className="text-xs text-slate-300">—</span>}
+                </div>
               </td>
             </tr>
           );
@@ -351,10 +418,13 @@ function WalletTab() {
             </div>
             <LabeledInput label="Reference (optional)" value={addReference} onChange={setAddReference} placeholder="Receipt or transaction number" />
             <LabeledInput label="Description (optional)" value={addDescription} onChange={setAddDescription} placeholder="Note for this transaction" />
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+              A second admin must approve this before it posts to the wallet.
+            </p>
             <button type="submit" disabled={addSubmitting}
               className="w-full py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
               {addSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-              {addSubmitting ? 'Saving…' : 'Confirm Transaction'}
+              {addSubmitting ? 'Saving…' : 'Submit for approval'}
             </button>
           </form>
         </Modal>
@@ -457,6 +527,13 @@ function MobileMoneyTab() {
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
+        <button onClick={() => downloadCsv('monime-payments.csv', filtered.map(p => ({
+          client: p.profile?.full_name || '', email: p.profile?.email || '', reference: p.reference,
+          purpose: p.purpose, amount_sle: p.amount_sle, status: p.status, date: p.created_at,
+        })))}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm whitespace-nowrap">
+          <Download className="w-4 h-4" /> Export CSV
+        </button>
         <button onClick={loadPayments}
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm whitespace-nowrap">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
@@ -562,6 +639,13 @@ function DebitCardTab() {
             placeholder="Search by client, receipt no, or reference…"
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none" />
         </div>
+        <button onClick={() => downloadCsv('debit-card-payments.csv', filtered.map(p => ({
+          receipt_number: p.receipt_number, client: p.profile?.full_name || '', email: p.profile?.email || '',
+          purpose: p.purpose, amount_sle: p.amount_sle, reference: p.reference, date: p.paid_at,
+        })))}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm whitespace-nowrap">
+          <Download className="w-4 h-4" /> Export CSV
+        </button>
         <button onClick={loadPayments}
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm whitespace-nowrap">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
@@ -718,6 +802,13 @@ function BankReceiptTab() {
           <option value="sent">Email Sent</option>
           <option value="pending">Email Pending</option>
         </select>
+        <button onClick={() => downloadCsv('bank-receipts.csv', filtered.map(r => ({
+          receipt_number: r.receipt_number, client: r.profile?.full_name || '', email: r.profile?.email || '',
+          purpose: r.purpose, amount_sle: r.amount_sle, reference: r.reference, email_sent: r.email_sent ? 'yes' : 'no', date: r.paid_at,
+        })))}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm whitespace-nowrap">
+          <Download className="w-4 h-4" /> Export CSV
+        </button>
         <button onClick={loadReceipts}
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm whitespace-nowrap">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh

@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Banknote, Search, Loader2, X, CheckCircle2, XCircle, Clock,
-  Filter, ArrowUpCircle, Smartphone, Landmark, RefreshCw, Send, Wallet,
+  Filter, Smartphone, Landmark, RefreshCw, Send, Wallet, Download,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import { downloadCsv } from './financeCsv';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null };
@@ -96,6 +97,7 @@ export function PayoutsTab() {
   const [adminNote, setAdminNote] = useState('');
   const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | 'complete' | null>(null);
   const [payoutResult, setPayoutResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -119,26 +121,33 @@ export function PayoutsTab() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id || null));
+  }, []);
 
   const stats = useMemo(() => {
     const pending = withdrawals.filter(w => w.status === 'pending').length;
     const approved = withdrawals.filter(w => w.status === 'approved').length;
     const completed = withdrawals.filter(w => w.status === 'completed');
+    const failed = withdrawals.filter(w => w.payout_status === 'failed').length;
     const totalAmount = completed.reduce((s, w) => s + Number(w.amount_sle), 0);
-    const pendingAmount = withdrawals.filter(w => w.status === 'pending').reduce((s, w) => s + Number(w.amount_sle), 0);
-    return { pending, approved, completed: completed.length, totalAmount, pendingAmount };
+    return { pending, approved, completed: completed.length, totalAmount, failed };
   }, [withdrawals]);
 
   const filtered = withdrawals.filter(w => {
+    if (statusFilter === 'failed_payout') return w.payout_status === 'failed';
     if (statusFilter !== 'all' && w.status !== statusFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       const name = w.profile?.full_name || '';
       const email = w.profile?.email || '';
-      return name.toLowerCase().includes(q) || email.toLowerCase().includes(q);
+      return name.toLowerCase().includes(q) || email.toLowerCase().includes(q) || (w.reference || '').toLowerCase().includes(q) || (w.monime_payout_id || '').toLowerCase().includes(q);
     }
     return true;
   });
+
+  const isSameApprover = (w: Withdrawal) => !!currentUserId && !!w.reviewed_by && w.reviewed_by === currentUserId;
+  const canDisburse = (w: Withdrawal) => w.status === 'approved' && !isSameApprover(w) && w.payout_status !== 'sent';
 
   const openReview = (w: Withdrawal, action: 'approve' | 'reject' | 'complete') => {
     setReviewModal(w);
@@ -152,6 +161,11 @@ export function PayoutsTab() {
     setActionLoading(reviewModal.id);
 
     if (reviewAction === 'complete') {
+      if (isSameApprover(reviewModal)) {
+        setPayoutResult({ success: false, message: 'A different admin must send this payout (dual control).' });
+        setActionLoading(null);
+        return;
+      }
       if (reviewModal.payout_method === 'mobile_money') {
         setPayoutResult(null);
         const { data: payoutData, error: payoutErr } = await supabase.functions.invoke('process-monime-payout', {
@@ -236,9 +250,9 @@ export function PayoutsTab() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatBox label="PENDING" value={String(stats.pending)} icon={Clock} color="text-amber-500" accent="bg-amber-50" />
-        <StatBox label="APPROVED" value={String(stats.approved)} icon={CheckCircle2} color="text-blue-500" accent="bg-blue-50" />
+        <StatBox label="APPROVED / QUEUED" value={String(stats.approved)} icon={CheckCircle2} color="text-blue-500" accent="bg-blue-50" />
         <StatBox label="COMPLETED" value={String(stats.completed)} icon={Banknote} color="text-emerald-500" accent="bg-emerald-50" />
-        <StatBox label="PENDING AMOUNT" value={fmtMoney(stats.pendingAmount)} icon={ArrowUpCircle} color="text-red-500" accent="bg-red-50" />
+        <StatBox label="FAILED PAYOUTS" value={String(stats.failed)} icon={XCircle} color="text-red-500" accent="bg-red-50" />
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -258,7 +272,16 @@ export function PayoutsTab() {
             <option value="rejected">Rejected</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
+            <option value="failed_payout">Failed payouts</option>
           </select>
+          <button onClick={() => downloadCsv('payouts.csv', filtered.map(w => ({
+            client: w.profile?.full_name || '', email: w.profile?.email || '', amount_sle: w.amount_sle,
+            method: w.payout_method, status: w.status, payout_status: w.payout_status, reference: w.reference,
+            monime_payout_id: w.monime_payout_id, date: w.created_at,
+          })))}
+            className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm">
+            <Download className="w-4 h-4" /> CSV
+          </button>
           <button onClick={load}
             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -353,12 +376,21 @@ export function PayoutsTab() {
                               </button>
                             </>
                           )}
-                          {w.status === 'approved' && (
+                          {w.status === 'approved' && canDisburse(w) && (
                             <button onClick={() => openReview(w, 'complete')} disabled={actionLoading === w.id}
-                              title={w.payout_method === 'mobile_money' ? 'Send Monime payout' : 'Mark completed'}
+                              title={w.payout_status === 'failed' ? 'Retry payout' : w.payout_method === 'mobile_money' ? 'Send Monime payout' : 'Mark completed'}
                               className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50">
                               {w.payout_method === 'mobile_money' ? <Send className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                              {w.payout_method === 'mobile_money' ? 'Send Payout' : 'Complete'}
+                              {w.payout_status === 'failed' ? 'Retry' : w.payout_method === 'mobile_money' ? 'Send Payout' : 'Complete'}
+                            </button>
+                          )}
+                          {w.status === 'approved' && isSameApprover(w) && w.payout_status !== 'sent' && (
+                            <span className="text-[10px] text-amber-600 font-medium">Needs another admin</span>
+                          )}
+                          {w.status === 'approved' && w.payout_status === 'sent' && (
+                            <button onClick={load} title="Refresh payout status"
+                              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                              <RefreshCw className="w-3 h-3" /> Refresh
                             </button>
                           )}
                           {(w.status === 'rejected' || w.status === 'completed' || w.status === 'cancelled') && (
@@ -386,7 +418,7 @@ export function PayoutsTab() {
                 <h2 className="text-lg font-bold text-slate-900">
                   {reviewAction === 'approve' && 'Approve Withdrawal'}
                   {reviewAction === 'reject' && 'Reject Withdrawal'}
-                  {reviewAction === 'complete' && 'Complete Payout'}
+                  {reviewAction === 'complete' && (reviewModal.payout_status === 'failed' ? 'Retry Payout' : 'Complete Payout')}
                 </h2>
               </div>
               <button onClick={() => setReviewModal(null)} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"><X className="w-5 h-5 text-slate-500" /></button>
@@ -413,6 +445,18 @@ export function PayoutsTab() {
                 )}
               </div>
 
+              {reviewAction === 'complete' && isSameApprover(reviewModal) && (
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5 mb-4 text-xs text-amber-700">
+                  You approved this request. A different admin must send or complete the payout.
+                </div>
+              )}
+
+              {reviewAction === 'complete' && reviewModal.payout_status === 'failed' && (
+                <div className="bg-red-50 border border-red-100 rounded-xl p-3.5 mb-4 text-xs text-red-700">
+                  The last Monime attempt failed. Retrying will send a new payout. Confirm the destination details first.
+                </div>
+              )}
+
               {reviewAction === 'complete' && reviewModal.payout_method === 'mobile_money' && (
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3.5 mb-4 flex items-start gap-3">
                   <Send className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
@@ -433,14 +477,14 @@ export function PayoutsTab() {
                 placeholder={reviewAction === 'reject' ? 'Reason for rejection…' : 'Note for the client…'}
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none mb-4" />
 
-              <button onClick={handleReview} disabled={actionLoading === reviewModal.id}
+              <button onClick={handleReview} disabled={actionLoading === reviewModal.id || (reviewAction === 'complete' && isSameApprover(reviewModal))}
                 className={`w-full py-3.5 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${
                   reviewAction === 'reject' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
                 }`}>
                 {actionLoading === reviewModal.id ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
                 {reviewAction === 'approve' && 'Approve Request'}
                 {reviewAction === 'reject' && 'Reject Request'}
-                {reviewAction === 'complete' && (reviewModal.payout_method === 'mobile_money' ? 'Send Payout' : 'Mark as Completed')}
+                {reviewAction === 'complete' && (reviewModal.payout_status === 'failed' ? 'Retry Payout' : reviewModal.payout_method === 'mobile_money' ? 'Send Payout' : 'Mark as Completed')}
               </button>
             </div>
           </div>

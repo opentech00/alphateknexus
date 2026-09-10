@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Banknote, Search, Loader2, X, CheckCircle2, XCircle, Clock,
-  Filter, RefreshCw, ArrowUpCircle, FileText,
+  Filter, RefreshCw, ArrowUpCircle, Download,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import { downloadCsv } from './financeCsv';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null };
@@ -156,6 +157,22 @@ export function CashPaymentsTab() {
       if (action === 'confirm' && payment.payable_type === 'booking' && payment.payable_id) {
         await supabase.from('bookings').update({ payment_status: 'paid' }).eq('id', payment.payable_id);
       }
+      if (action === 'confirm' && payment.payable_type === 'invoice' && payment.payable_id) {
+        const { data: inv } = await supabase
+          .from('invoices')
+          .select('total, amount_paid, status')
+          .eq('id', payment.payable_id)
+          .maybeSingle();
+        if (inv) {
+          const paid = Number(inv.amount_paid) + Number(payment.amount_sle);
+          const fullyPaid = paid >= Number(inv.total);
+          await supabase.from('invoices').update({
+            amount_paid: paid,
+            payment_method: 'cash',
+            ...(fullyPaid ? { status: 'paid', paid_at: new Date().toISOString() } : {}),
+          }).eq('id', payment.payable_id);
+        }
+      }
       setConfirmModal(null);
       setDepositRef('');
       setAdminNote('');
@@ -199,6 +216,14 @@ export function CashPaymentsTab() {
             <option value="cancelled">Cancelled</option>
             <option value="failed">Failed</option>
           </select>
+          <button onClick={() => downloadCsv('cash-payments.csv', filtered.map(p => ({
+            client: p.profile?.full_name || '', email: p.profile?.email || '', payable_type: p.payable_type,
+            amount_sle: p.amount_sle, reference: p.reference, status: p.status,
+            collector: p.collector?.full_name || '', date: p.created_at,
+          })))}
+            className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm">
+            <Download className="w-4 h-4" /> CSV
+          </button>
           <button onClick={load}
             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />

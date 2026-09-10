@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   FileText, Search, Loader2, Plus, X, CheckCircle2, Download, Send,
-  Trash2, Clock, AlertCircle, DollarSign, Calendar, Filter,
+  Trash2, Clock, AlertCircle, DollarSign, Filter, Mail,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import { daysPastDue, downloadCsv } from './financeCsv';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null; phone: string | null };
@@ -76,6 +77,12 @@ export function InvoicesTab() {
       .limit(200);
     if (error) { setLoadError(error.message); setInvoices([]); setLoading(false); return; }
     const rows = (data || []) as any[];
+    const today = new Date().toISOString().split('T')[0];
+    const overdueIds = rows.filter((r) => r.status === 'sent' && r.due_date && r.due_date < today).map((r: any) => r.id);
+    if (overdueIds.length > 0) {
+      await supabase.from('invoices').update({ status: 'overdue' }).in('id', overdueIds);
+      rows.forEach((r) => { if (overdueIds.includes(r.id)) r.status = 'overdue'; });
+    }
     const profileMap = await loadProfiles(rows.map(r => r.user_id).filter(Boolean));
     const enriched: Invoice[] = rows.map(r => ({
       ...r, profile: profileMap[r.user_id] || { full_name: null, email: null, phone: null },
@@ -94,6 +101,21 @@ export function InvoicesTab() {
       .reduce((s, i) => s + (Number(i.total) - Number(i.amount_paid)), 0);
     const overdue = invoices.filter(i => i.status === 'overdue').length;
     return { total, totalAmount, paid, outstanding, overdue };
+  }, [invoices]);
+
+  const aging = useMemo(() => {
+    const unpaid = invoices.filter((i) => i.status === 'sent' || i.status === 'overdue');
+    const buckets = { current: 0, d30: 0, d60: 0, d90: 0, older: 0 };
+    unpaid.forEach((inv) => {
+      const days = daysPastDue(inv.due_date);
+      const bal = Number(inv.total) - Number(inv.amount_paid);
+      if (days <= 0) buckets.current += bal;
+      else if (days <= 30) buckets.d30 += bal;
+      else if (days <= 60) buckets.d60 += bal;
+      else if (days <= 90) buckets.d90 += bal;
+      else buckets.older += bal;
+    });
+    return buckets;
   }, [invoices]);
 
   const filtered = invoices.filter(inv => {
@@ -142,12 +164,42 @@ export function InvoicesTab() {
 
   const handleMarkPaid = async (inv: Invoice) => {
     setActionLoading(inv.id);
+    const now = new Date().toISOString();
+    const { data: { user } } = await supabase.auth.getUser();
+    const balance = Number(inv.total) - Number(inv.amount_paid);
     const { error } = await supabase
       .from('invoices')
-      .update({ status: 'paid', amount_paid: inv.total, paid_at: new Date().toISOString() })
+      .update({ status: 'paid', amount_paid: inv.total, paid_at: now })
       .eq('id', inv.id);
+    if (!error && balance > 0) {
+      await supabase.from('payments').insert({
+        user_id: inv.user_id,
+        payable_type: 'invoice',
+        payable_id: inv.id,
+        amount_sle: balance,
+        method: 'bank_transfer',
+        status: 'confirmed',
+        confirmed_by: user?.id || null,
+        confirmed_at: now,
+        notes: `Invoice ${inv.invoice_number} marked paid in finance`,
+      });
+    }
     if (!error) loadInvoices();
     setActionLoading(null);
+  };
+
+  const handleRemindOverdue = async () => {
+    const overdue = invoices.filter((i) => i.status === 'overdue');
+    if (overdue.length === 0) return;
+    if (!confirm(`Send a reminder email for ${overdue.length} overdue invoice${overdue.length === 1 ? '' : 's'}?`)) return;
+    setActionLoading('remind-all');
+    for (const inv of overdue) {
+      await supabase.functions.invoke('generate-invoice', {
+        body: { action: 'send-email', invoiceId: inv.id },
+      });
+    }
+    setActionLoading(null);
+    loadInvoices();
   };
 
   const handleDelete = async (inv: Invoice) => {
@@ -173,6 +225,14 @@ export function InvoicesTab() {
         <StatBox label="OVERDUE" value={String(stats.overdue)} icon={AlertCircle} color="text-red-500" accent="bg-red-50" />
       </div>
 
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <AgingChip label="Current" value={fmtMoney(aging.current)} />
+        <AgingChip label="1–30 days" value={fmtMoney(aging.d30)} />
+        <AgingChip label="31–60 days" value={fmtMoney(aging.d60)} />
+        <AgingChip label="61–90 days" value={fmtMoney(aging.d90)} />
+        <AgingChip label="90+ days" value={fmtMoney(aging.older)} warn />
+      </div>
+
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -192,6 +252,21 @@ export function InvoicesTab() {
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
+        <button onClick={() => downloadCsv('invoices.csv', filtered.map(inv => ({
+          invoice_number: inv.invoice_number, client: inv.profile?.full_name || '', email: inv.profile?.email || '',
+          status: inv.status, total: inv.total, amount_paid: inv.amount_paid,
+          balance: Number(inv.total) - Number(inv.amount_paid), due_date: inv.due_date, issue_date: inv.issue_date,
+        })))}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm whitespace-nowrap">
+          <Download className="w-4 h-4" /> Export CSV
+        </button>
+        {stats.overdue > 0 && (
+          <button onClick={handleRemindOverdue} disabled={actionLoading === 'remind-all'}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-amber-200 text-amber-700 font-semibold rounded-xl hover:bg-amber-50 transition-colors text-sm whitespace-nowrap disabled:opacity-50">
+            {actionLoading === 'remind-all' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+            Remind overdue
+          </button>
+        )}
         <button onClick={() => setShowCreateModal(true)}
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors text-sm whitespace-nowrap">
           <Plus className="w-4 h-4" /> Create Invoice
@@ -236,7 +311,14 @@ export function InvoicesTab() {
                         <p className="text-xs text-slate-400">{inv.profile?.email || ''}</p>
                       </td>
                       <td className="px-5 py-3 hidden sm:table-cell text-slate-500 text-xs">{formatDate(inv.issue_date)}</td>
-                      <td className="px-5 py-3 hidden md:table-cell text-slate-500 text-xs">{formatDate(inv.due_date)}</td>
+                      <td className="px-5 py-3 hidden md:table-cell text-slate-500 text-xs">
+                        <span className={inv.status === 'overdue' || daysPastDue(inv.due_date) > 0 ? 'text-red-600 font-medium' : ''}>
+                          {formatDate(inv.due_date)}
+                          {(inv.status === 'sent' || inv.status === 'overdue') && daysPastDue(inv.due_date) > 0 && (
+                            <span className="block text-[10px]">{daysPastDue(inv.due_date)}d overdue</span>
+                          )}
+                        </span>
+                      </td>
                       <td className="px-5 py-3 text-right font-bold text-slate-800">{fmtMoney(Number(inv.total), inv.currency)}</td>
                       <td className="px-5 py-3 text-center">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${meta.cls}`}>{meta.label}</span>
@@ -247,7 +329,7 @@ export function InvoicesTab() {
                             className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50">
                             {actionLoading === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                           </button>
-                          <button onClick={() => handleSendEmail(inv)} disabled={actionLoading === inv.id} title="Send to client"
+                          <button onClick={() => handleSendEmail(inv)} disabled={actionLoading === inv.id} title={inv.status === 'overdue' ? 'Send reminder' : 'Send to client'}
                             className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50">
                             <Send className="w-4 h-4" />
                           </button>
@@ -473,6 +555,15 @@ function CreateInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCre
           </form>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AgingChip({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
+  return (
+    <div className={`rounded-xl border px-3 py-2.5 ${warn ? 'bg-red-50 border-red-100' : 'bg-white border-slate-200'}`}>
+      <p className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">{label}</p>
+      <p className={`text-sm font-bold mt-0.5 ${warn ? 'text-red-700' : 'text-slate-800'}`}>{value}</p>
     </div>
   );
 }

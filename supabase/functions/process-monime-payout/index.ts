@@ -77,6 +77,14 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    if (withdrawal.reviewed_by && withdrawal.reviewed_by === user.id) {
+      return new Response(JSON.stringify({
+        error: "A different admin must send this payout (dual control)",
+      }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Must be approved before payout
     if (withdrawal.status !== "approved") {
       return new Response(JSON.stringify({ error: "Withdrawal must be approved before processing payout" }), {
