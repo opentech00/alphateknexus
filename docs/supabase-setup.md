@@ -77,6 +77,29 @@ Notes & best practices
 - Production is Vercel. Set `VITE_*` build variables there as described in `docs/vercel-production.md`.
 - Use `SUPABASE_SERVICE_ROLE_KEY` only on your machine or in Supabase itself. Do not add it to Vercel or client code.
 
+Monime.io (wallet top-ups and mobile-money payouts)
+
+Set these as **Supabase Edge Function secrets** (Dashboard → Edge Functions → Secrets), not as Vite/`VITE_*` variables:
+
+- `MONIME_ACCESS_KEY` — API bearer token
+- `MONIME_SPACE_ID` — `Monime-Space-Id` header
+- `MONIME_WEBHOOK_SECRET` — HMAC secret for inbound webhooks (required; the webhook fails closed if missing)
+
+In the Monime dashboard, register the webhook URL:
+
+```
+https://<your-project-ref>.supabase.co/functions/v1/monime-webhook
+```
+
+After changing fulfillment or payout functions:
+
+```bash
+supabase functions deploy create-monime-checkout
+supabase functions deploy verify-monime-payment
+supabase functions deploy monime-webhook
+supabase functions deploy process-monime-payout
+```
+
 Optional: Running Supabase locally
 
 Supabase provides a local emulator for some workflows; consult Supabase docs if you prefer a fully local stack.

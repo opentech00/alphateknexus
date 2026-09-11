@@ -27,6 +27,110 @@ async function verifySignature(payload: string, signature: string, secret: strin
   }
 }
 
+async function fulfillMonimePayment(
+  supabase: any,
+  monimePayment: any,
+  reference: string,
+  paymentId: string,
+) {
+  if (monimePayment.purpose === "wallet_topup") {
+    const { data: existingTxn } = await supabase
+      .from("wallet_transactions")
+      .select("id")
+      .eq("monime_payment_id", monimePayment.id)
+      .maybeSingle();
+
+    if (!existingTxn) {
+      const { data: walletTx } = await supabase
+        .from("wallet_transactions")
+        .insert({
+          user_id: monimePayment.user_id,
+          type: "topup",
+          amount_sle: monimePayment.amount_sle,
+          method: "monime",
+          reference,
+          description: `Top-up via Monime (${paymentId})`,
+          status: "completed",
+          recorded_by: "monime_webhook",
+          monime_payment_id: monimePayment.id,
+        })
+        .select("id")
+        .maybeSingle();
+
+      if (walletTx && !monimePayment.related_id) {
+        await supabase.from("monime_payments").update({ related_id: walletTx.id }).eq("id", monimePayment.id);
+      }
+    }
+  } else if (monimePayment.purpose === "invoice" && monimePayment.related_id) {
+    const { data: existingPay } = await supabase
+      .from("smart_sort_payments")
+      .select("id")
+      .eq("monime_payment_id", monimePayment.id)
+      .maybeSingle();
+
+    if (!existingPay) {
+      await supabase.from("smart_sort_payments").insert({
+        invoice_id: monimePayment.related_id,
+        user_id: monimePayment.user_id,
+        amount_sle: monimePayment.amount_sle,
+        method: "monime",
+        reference,
+        status: "confirmed",
+        monime_payment_id: monimePayment.id,
+      });
+      const { error: rpcErr } = await supabase.rpc("increment_invoice_paid", {
+        p_invoice_id: monimePayment.related_id,
+        p_amount: Math.round(Number(monimePayment.amount_sle)),
+      });
+      if (rpcErr) console.error("Failed to update invoice paid amount:", rpcErr.message);
+    }
+  } else if (monimePayment.purpose === "booking" && monimePayment.related_id) {
+    await supabase.from("bookings").update({
+      payment_status: "paid",
+      payment_method: "monime",
+    }).eq("id", monimePayment.related_id);
+
+    const { data: existingPay } = await supabase
+      .from("payments")
+      .select("id")
+      .eq("payable_type", "booking")
+      .eq("payable_id", monimePayment.related_id)
+      .maybeSingle();
+
+    if (!existingPay) {
+      await supabase.from("payments").insert({
+        user_id: monimePayment.user_id,
+        payable_type: "booking",
+        payable_id: monimePayment.related_id,
+        amount_sle: monimePayment.amount_sle,
+        method: "monime",
+        status: "confirmed",
+        reference,
+      });
+    }
+  } else if (monimePayment.purpose === "subscription" && monimePayment.related_id) {
+    const { data: existingTxn } = await supabase
+      .from("wallet_transactions")
+      .select("id")
+      .eq("monime_payment_id", monimePayment.id)
+      .maybeSingle();
+
+    if (!existingTxn) {
+      await supabase.from("wallet_transactions").insert({
+        user_id: monimePayment.user_id,
+        type: "payment",
+        amount_sle: -monimePayment.amount_sle,
+        method: "monime",
+        reference,
+        description: `Subscription payment via Monime (${paymentId})`,
+        status: "completed",
+        recorded_by: "monime_webhook",
+        monime_payment_id: monimePayment.id,
+      });
+    }
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -108,8 +212,8 @@ Deno.serve(async (req: Request) => {
       status === "canceled";
 
     if (isCompleted) {
-      // Idempotency guard: only process if currently pending
       if (monimePayment.status === "completed") {
+        await fulfillMonimePayment(supabase, monimePayment, reference, paymentId);
         return new Response(JSON.stringify({ received: true, already: true }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -130,101 +234,14 @@ Deno.serve(async (req: Request) => {
         .select("id")
         .maybeSingle();
 
-      // If no row was updated, another worker already processed it
       if (updErr || !updated) {
+        await fulfillMonimePayment(supabase, monimePayment, reference, paymentId);
         return new Response(JSON.stringify({ received: true, already: true }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Process based on purpose — each with idempotency checks
-      if (monimePayment.purpose === "wallet_topup") {
-        // Check for existing wallet transaction (idempotency)
-        const { data: existingTxn } = await supabase
-          .from("wallet_transactions")
-          .select("id")
-          .eq("monime_payment_id", monimePayment.id)
-          .maybeSingle();
-
-        if (!existingTxn) {
-          const { data: walletTx } = await supabase
-            .from("wallet_transactions")
-            .insert({
-              user_id: monimePayment.user_id,
-              type: "topup",
-              amount_sle: monimePayment.amount_sle,
-              method: "monime",
-              reference: reference,
-              description: `Top-up via Monime (${paymentId})`,
-              status: "completed",
-              recorded_by: "monime_webhook",
-              monime_payment_id: monimePayment.id,
-            })
-            .select("id")
-            .maybeSingle();
-
-          if (walletTx) {
-            await supabase
-              .from("monime_payments")
-              .update({ related_id: walletTx.id })
-              .eq("id", monimePayment.id);
-          }
-        }
-      } else if (monimePayment.purpose === "invoice" && monimePayment.related_id) {
-        // Check for existing payment record (idempotency)
-        const { data: existingPay } = await supabase
-          .from("smart_sort_payments")
-          .select("id")
-          .eq("monime_payment_id", monimePayment.id)
-          .maybeSingle();
-
-        if (!existingPay) {
-          await supabase
-            .from("smart_sort_payments")
-            .insert({
-              invoice_id: monimePayment.related_id,
-              user_id: monimePayment.user_id,
-              amount_sle: monimePayment.amount_sle,
-              method: "monime",
-              reference: reference,
-              status: "confirmed",
-              monime_payment_id: monimePayment.id,
-            });
-
-          // Atomic increment of amount_paid_sle using RPC to avoid lost updates
-          const { error: rpcErr } = await supabase.rpc("increment_invoice_paid", {
-            p_invoice_id: monimePayment.related_id,
-            p_amount: monimePayment.amount_sle,
-          });
-
-          if (rpcErr) {
-            console.error("Failed to update invoice paid amount:", rpcErr.message);
-          }
-        }
-      } else if (monimePayment.purpose === "subscription" && monimePayment.related_id) {
-        // Check for existing transaction (idempotency)
-        const { data: existingTxn } = await supabase
-          .from("wallet_transactions")
-          .select("id")
-          .eq("monime_payment_id", monimePayment.id)
-          .maybeSingle();
-
-        if (!existingTxn) {
-          await supabase
-            .from("wallet_transactions")
-            .insert({
-              user_id: monimePayment.user_id,
-              type: "payment",
-              amount_sle: -monimePayment.amount_sle,
-              method: "monime",
-              reference: reference,
-              description: `Subscription payment via Monime (${paymentId})`,
-              status: "completed",
-              recorded_by: "monime_webhook",
-              monime_payment_id: monimePayment.id,
-            });
-        }
-      }
+      await fulfillMonimePayment(supabase, monimePayment, reference, paymentId);
 
       // Generate a payment receipt (idempotent — checks for existing receipt first)
       const { data: existingReceipt } = await supabase
@@ -252,6 +269,8 @@ Deno.serve(async (req: Request) => {
                 ? "Wallet top-up via Monime"
                 : monimePayment.purpose === "invoice"
                 ? "Smart Sort invoice payment"
+                : monimePayment.purpose === "booking"
+                ? "Booking payment via Monime"
                 : "Subscription payment via Monime",
               payment_method: "monime",
               payment_id: paymentId,

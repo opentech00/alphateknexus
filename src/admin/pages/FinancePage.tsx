@@ -445,7 +445,7 @@ interface MonimePayment {
 }
 
 const PURPOSE_LABELS: Record<string, string> = {
-  wallet_topup: 'Wallet Top-Up', invoice: 'Invoice Payment', subscription: 'Subscription',
+  wallet_topup: 'Wallet Top-Up', invoice: 'Invoice Payment', subscription: 'Subscription', booking: 'Booking Payment',
 };
 
 function MobileMoneyTab() {

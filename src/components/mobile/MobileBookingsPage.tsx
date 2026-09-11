@@ -11,6 +11,8 @@ import { ReviewModal } from '../ReviewModal';
 import { BookingTracker } from '../BookingTracker';
 import { SubscriptionLifecycle } from '../SubscriptionLifecycle';
 import { CancelDeleteBookingModal } from '../CancelDeleteBookingModal';
+import { BookingPayNowModal } from '../BookingPayNowModal';
+import { bookingNeedsPayment, bookingPayAmount } from '../../lib/bookingPay';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { useHaptics } from '../../hooks/useHaptics';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
@@ -33,6 +35,8 @@ interface Booking {
   details: Record<string, any> | null;
   deleted_at: string | null;
   cancellation_reason: string | null;
+  payment_status?: string | null;
+  payment_method?: string | null;
   services: { name: string; icon: string; slug: string };
 }
 
@@ -86,11 +90,12 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [fetchError, setFetchError] = useState('');
   const [cancelDeleteModal, setCancelDeleteModal] = useState<{ bookingId: string; status: string; serviceName: string } | null>(null);
+  const [payBooking, setPayBooking] = useState<Booking | null>(null);
 
   const fetchBookings = useCallback(async () => {
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, notes, created_at, service_id, details, deleted_at, cancellation_reason, services(name, icon, slug)')
+      .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, notes, created_at, service_id, details, deleted_at, cancellation_reason, payment_status, payment_method, services(name, icon, slug)')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -502,6 +507,14 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                         </div>
 
                         <div className="px-4 pb-3 flex flex-wrap justify-end gap-2">
+                          {bookingNeedsPayment(booking) && (
+                            <button
+                              onClick={() => setPayBooking(booking)}
+                              className="h-8 px-3 rounded-lg text-[11px] font-semibold text-white bg-emerald-600 active:scale-95 transition-transform"
+                            >
+                              Pay now
+                            </button>
+                          )}
                           {(isCompleted || booking.status === 'cancelled') && (
                             <button
                               onClick={() => setCancelDeleteModal({ bookingId: booking.id, status: booking.status, serviceName: booking.services.name })}
@@ -561,6 +574,17 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
             setReviewModal(null);
             fetchReviews();
           }}
+        />
+      )}
+
+      {payBooking && (
+        <BookingPayNowModal
+          bookingId={payBooking.id}
+          amount={bookingPayAmount(payBooking)}
+          serviceName={payBooking.services.name}
+          serviceSlug={payBooking.services.slug}
+          onClose={() => setPayBooking(null)}
+          onPaid={() => { setPayBooking(null); fetchBookings(); }}
         />
       )}
 

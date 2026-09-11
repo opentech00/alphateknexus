@@ -88,6 +88,7 @@ Deno.serve(async (req: Request) => {
 
     const idempotencyKey = crypto.randomUUID();
     const finalRef = reference || `ATN-${purpose.toUpperCase()}-${Date.now()}`;
+    const amountSle = Math.round(Number(amount) * 100) / 100;
 
     const monimeRes = await fetch("https://api.monime.io/v1/checkout-sessions", {
       method: "POST",
@@ -102,7 +103,7 @@ Deno.serve(async (req: Request) => {
         description: finalRef,
         lineItems: [{
           name: finalRef,
-          price: { currency: "SLE", value: Math.round(amount * 100) },
+          price: { currency: "SLE", value: Math.round(amountSle * 100) },
           type: "custom",
           quantity: 1,
           reference: finalRef,
@@ -141,7 +142,7 @@ Deno.serve(async (req: Request) => {
       user_id: user.id,
       checkout_session_id: sessionId,
       reference: finalRef,
-      amount_sle: Math.round(amount),
+      amount_sle: amountSle,
       status: "pending",
       purpose,
       related_id: related_id || null,

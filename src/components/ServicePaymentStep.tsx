@@ -447,7 +447,7 @@ export function ServicePaymentStep({
 
         <button
           onClick={handlePay}
-          disabled={paying || (selected === 'bank' && !bankFile)}
+          disabled={paying || (selected === 'bank' && !bankFile) || (selected === 'wallet' && insufficientWallet)}
           className="w-full py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
         >
           {paying ? (

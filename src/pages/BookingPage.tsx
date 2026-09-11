@@ -514,6 +514,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
       }
 
       const isCash = methodId === 'cash';
+      const isWallet = methodId === 'wallet';
 
       const { data: bookingData, error: insertError } = await supabase.from('bookings').insert({
         service_id: service.id,
@@ -527,8 +528,9 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
         latitude: formData.latitude,
         longitude: formData.longitude,
         notes: formData.notes || null,
+        details: { total_sle: SERVICE_FEE },
         status: 'pending_review',
-        payment_method: isCash ? 'cash' : 'monime',
+        payment_method: isCash ? 'cash' : isWallet ? 'wallet' : 'monime',
         payment_status: isCash ? 'pending_cash' : 'pending',
       }).select('id').single();
 
@@ -566,6 +568,25 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
           return;
         }
         setPayReference('');
+        setStep('success');
+        return;
+      }
+
+      if (isWallet) {
+        const { data: walletResult, error: walletErr } = await supabase.rpc('pay_booking_from_wallet', {
+          p_booking_id: bookingData.id,
+          p_amount: SERVICE_FEE,
+        });
+        if (walletErr || !walletResult?.success) {
+          setPaymentError(
+            walletResult?.error === 'Insufficient wallet balance.'
+              ? `Insufficient wallet balance. You have SLE ${Number(walletResult?.balance ?? 0).toLocaleString()} but need SLE ${SERVICE_FEE.toLocaleString()}.`
+              : walletResult?.error || walletErr?.message || 'Wallet payment could not be completed.',
+          );
+          setStep('payment_failed');
+          return;
+        }
+        setPayReference(bookingData.id.slice(0, 8));
         setStep('success');
         return;
       }

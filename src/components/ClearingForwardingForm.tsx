@@ -222,6 +222,7 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
       city,
       payment_method: paymentMethod,
       po_number: poNumber,
+      total_sle: 25,
     };
 
     const { data: bookingRow, error: insertError } = await supabase.from('bookings').insert({
@@ -247,6 +248,30 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
       setStep('payment');
     }
   };
+
+  if (step === 'payment') {
+    return (
+      <ServicePaymentStep
+        amount={25}
+        bookingId={bookingId}
+        serviceName={service.name}
+        serviceSlug={service.slug}
+        onBack={() => setStep('review')}
+        onSuccess={(method, ref) => { setPayMethod(method); setPayRef(ref || ''); setStep('success'); }}
+        onFail={(msg) => { setPayError(msg); setStep('payment_failed'); }}
+      />
+    );
+  }
+
+  if (step === 'payment_failed') {
+    return (
+      <PaymentFailedScreen
+        message={payError}
+        onRetry={() => setStep('payment')}
+        onViewBookings={onSuccess}
+      />
+    );
+  }
 
   if (step === 'success') {
     return (

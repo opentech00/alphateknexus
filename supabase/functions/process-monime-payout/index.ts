@@ -12,7 +12,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { withdrawal_id } = await req.json();
+    const { withdrawal_id, action } = await req.json();
 
     if (!withdrawal_id) {
       return new Response(JSON.stringify({ error: "Missing withdrawal_id" }), {
@@ -63,6 +63,48 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: "Only an admin can process payouts" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (action === "status") {
+      if (!withdrawal.monime_payout_id) {
+        return new Response(JSON.stringify({
+          success: true,
+          payout_status: withdrawal.payout_status || "pending",
+          message: "No Monime payout id yet",
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const monimeKey = Deno.env.get("MONIME_ACCESS_KEY");
+      const spaceId = Deno.env.get("MONIME_SPACE_ID");
+      if (!monimeKey || !spaceId) {
+        return new Response(JSON.stringify({ error: "Monime not configured" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const statusRes = await fetch(`https://api.monime.io/v1/payouts/${withdrawal.monime_payout_id}`, {
+        headers: {
+          "Authorization": `Bearer ${monimeKey}`,
+          "Monime-Space-Id": spaceId,
+          "Content-Type": "application/json",
+        },
+      });
+      const statusText = await statusRes.text();
+      let statusData: any = {};
+      try { statusData = JSON.parse(statusText); } catch { statusData = { raw: statusText }; }
+      const payout = statusData.result || statusData;
+      const raw = String(payout?.status || "").toLowerCase();
+      let mapped = withdrawal.payout_status || "sent";
+      if (["completed", "succeeded", "paid", "successful"].includes(raw)) mapped = "completed";
+      else if (["failed", "rejected", "cancelled", "canceled"].includes(raw)) mapped = "failed";
+      else if (["pending", "processing", "sent"].includes(raw)) mapped = "sent";
+      await supabase.from("withdrawal_requests").update({
+        payout_status: mapped,
+        admin_note: `Monime payout ${withdrawal.monime_payout_id} - status: ${raw || mapped}`,
+      }).eq("id", withdrawal_id);
+      return new Response(JSON.stringify({
+        success: true,
+        payout_id: withdrawal.monime_payout_id,
+        payout_status: mapped,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Idempotency: if already has a payout id, don't send again

@@ -98,6 +98,8 @@ export function PayoutsTab() {
   const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | 'complete' | null>(null);
   const [payoutResult, setPayoutResult] = useState<{ success: boolean; message: string } | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [canManagePayouts, setCanManagePayouts] = useState(false);
+  const [reconcileModal, setReconcileModal] = useState<Withdrawal | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,6 +125,9 @@ export function PayoutsTab() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id || null));
+    supabase.rpc('has_finance_permission', { perm: 'can_approve_withdrawals' }).then(({ data }) => {
+      setCanManagePayouts(data === true);
+    });
   }, []);
 
   const stats = useMemo(() => {
@@ -236,15 +241,62 @@ export function PayoutsTab() {
     if (reviewAction === 'approve') updates.status = 'approved';
     if (reviewAction === 'reject') updates.status = 'rejected';
     const { error } = await supabase.from('withdrawal_requests').update(updates).eq('id', reviewModal.id);
-    if (!error) { setReviewModal(null); load(); }
+    if (error) {
+      setPayoutResult({ success: false, message: error.message });
+      setActionLoading(null);
+      return;
+    }
+    setReviewModal(null);
+    load();
     setActionLoading(null);
+  };
+
+  const handleRefreshStatus = async (w: Withdrawal) => {
+    setActionLoading(w.id);
+    const { data, error } = await supabase.functions.invoke('process-monime-payout', {
+      body: { withdrawal_id: w.id, action: 'status' },
+    });
+    if (error || data?.error) {
+      setLoadError(data?.error || error?.message || 'Could not refresh payout status');
+    }
+    setActionLoading(null);
+    load();
+  };
+
+  const handleReconcile = async (w: Withdrawal, outcome: 'delivered' | 'failed') => {
+    setActionLoading(w.id);
+    if (outcome === 'failed') {
+      const { error } = await supabase.from('withdrawal_requests').update({
+        payout_status: 'failed',
+        admin_note: adminNote.trim() || 'Marked failed during reconciliation (no Monime payout id).',
+      }).eq('id', w.id);
+      if (error) setLoadError(error.message);
+    } else {
+      const { data, error } = await supabase.rpc('process_withdrawal_completion', {
+        p_withdrawal_id: w.id,
+      });
+      if (error || !(data as any)?.success) {
+        setLoadError((data as any)?.error || error?.message || 'Could not confirm delivery');
+        setActionLoading(null);
+        return;
+      }
+    }
+    setReconcileModal(null);
+    setAdminNote('');
+    setActionLoading(null);
+    load();
   };
 
   return (
     <>
       {loadError && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-          Failed to load withdrawals: {loadError}
+          {loadError}
+        </div>
+      )}
+      {!canManagePayouts && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+          You can view payouts but cannot approve or send them.
         </div>
       )}
 
@@ -364,7 +416,7 @@ export function PayoutsTab() {
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center justify-center gap-1.5">
-                          {w.status === 'pending' && (
+                          {w.status === 'pending' && canManagePayouts && (
                             <>
                               <button onClick={() => openReview(w, 'approve')} disabled={actionLoading === w.id} title="Approve"
                                 className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50">
@@ -376,7 +428,7 @@ export function PayoutsTab() {
                               </button>
                             </>
                           )}
-                          {w.status === 'approved' && canDisburse(w) && (
+                          {w.status === 'approved' && canDisburse(w) && canManagePayouts && (
                             <button onClick={() => openReview(w, 'complete')} disabled={actionLoading === w.id}
                               title={w.payout_status === 'failed' ? 'Retry payout' : w.payout_method === 'mobile_money' ? 'Send Monime payout' : 'Mark completed'}
                               className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50">
@@ -387,10 +439,16 @@ export function PayoutsTab() {
                           {w.status === 'approved' && isSameApprover(w) && w.payout_status !== 'sent' && (
                             <span className="text-[10px] text-amber-600 font-medium">Needs another admin</span>
                           )}
-                          {w.status === 'approved' && w.payout_status === 'sent' && (
-                            <button onClick={load} title="Refresh payout status"
-                              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-                              <RefreshCw className="w-3 h-3" /> Refresh
+                          {w.status === 'approved' && w.payout_status === 'sent' && !w.monime_payout_id && canManagePayouts && (
+                            <button onClick={() => { setReconcileModal(w); setAdminNote(''); }} title="Reconcile stuck payout"
+                              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-800 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
+                              Reconcile
+                            </button>
+                          )}
+                          {w.status === 'approved' && w.payout_status === 'sent' && !!w.monime_payout_id && (
+                            <button onClick={() => handleRefreshStatus(w)} disabled={actionLoading === w.id} title="Refresh payout status from Monime"
+                              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50">
+                              <RefreshCw className={`w-3 h-3 ${actionLoading === w.id ? 'animate-spin' : ''}`} /> Refresh
                             </button>
                           )}
                           {(w.status === 'rejected' || w.status === 'completed' || w.status === 'cancelled') && (
@@ -486,6 +544,31 @@ export function PayoutsTab() {
                 {reviewAction === 'reject' && 'Reject Request'}
                 {reviewAction === 'complete' && (reviewModal.payout_status === 'failed' ? 'Retry Payout' : reviewModal.payout_method === 'mobile_money' ? 'Send Payout' : 'Mark as Completed')}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reconcileModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md p-5">
+            <h2 className="text-lg font-bold text-slate-900 mb-2">Reconcile stuck payout</h2>
+            <p className="text-sm text-slate-600 mb-4">
+              This payout is marked sent but has no Monime payout id. Confirm it was delivered offline, or mark it failed so another admin can retry.
+            </p>
+            <div className="bg-slate-50 rounded-xl p-3 text-sm mb-4">
+              <div className="flex justify-between"><span className="text-slate-500">Client</span><span className="font-semibold">{reconcileModal.profile?.full_name || 'Unknown'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Amount</span><span className="font-semibold">{fmtMoney(Number(reconcileModal.amount_sle))}</span></div>
+            </div>
+            <textarea value={adminNote} onChange={e => setAdminNote(e.target.value)} rows={2}
+              placeholder="Reconciliation note…"
+              className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none mb-4" />
+            <div className="flex gap-2">
+              <button onClick={() => setReconcileModal(null)} className="flex-1 py-3 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600">Cancel</button>
+              <button onClick={() => handleReconcile(reconcileModal, 'failed')} disabled={actionLoading === reconcileModal.id}
+                className="flex-1 py-3 bg-red-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50">Mark failed</button>
+              <button onClick={() => handleReconcile(reconcileModal, 'delivered')} disabled={actionLoading === reconcileModal.id}
+                className="flex-1 py-3 bg-emerald-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50">Confirm delivered</button>
             </div>
           </div>
         </div>

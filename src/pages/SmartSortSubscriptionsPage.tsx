@@ -2,12 +2,13 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   ArrowLeft, Recycle, Calendar, Clock, MapPin, Loader2, AlertCircle,
   ChevronRight, FileText, Trash2, Pause, Play, XCircle, CalendarClock,
-  CheckCircle2, X, ChevronDown, Bell, Receipt, CreditCard, TrendingUp,
+  CheckCircle2, X, ChevronDown, Bell, Receipt, CreditCard, TrendingUp, Wallet,
   Package, Plus,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
 import { Portal } from '../lib/portal';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 interface SmartSortSubscriptionsPageProps {
   onNavigate: (page: string) => void;
@@ -123,6 +124,7 @@ function formatTime(d: string) {
 type Tab = 'pickups' | 'subscriptions' | 'billing';
 
 export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscriptionsPageProps) {
+  const { wallet_enabled } = useFeatureFlags();
   const [tab, setTab] = useState<Tab>('pickups');
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [pickups, setPickups] = useState<Pickup[]>([]);
@@ -290,6 +292,25 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
       }
     } catch (err: any) {
       setActionMsg({ type: 'error', text: err.message || 'Failed to start payment. Please try again.' });
+    } finally {
+      setPayingInvoice(null);
+    }
+  };
+
+  const handlePayInvoiceWallet = async (invoice: ClientInvoice) => {
+    setPayingInvoice(invoice.id);
+    try {
+      const { data, error } = await supabase.rpc('pay_invoice_from_wallet', {
+        p_invoice_id: invoice.id,
+        p_source: 'smart_sort',
+      });
+      if (error || !data?.success) {
+        throw new Error(data?.error || error?.message || 'Wallet payment failed');
+      }
+      setActionMsg({ type: 'success', text: 'Invoice paid from your wallet.' });
+      loadData();
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err.message || 'Wallet payment failed.' });
     } finally {
       setPayingInvoice(null);
     }
@@ -558,14 +579,26 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
                         </div>
                       </div>
                       {canPay && (
-                        <button
-                          onClick={() => handlePayInvoice(inv)}
-                          disabled={payingInvoice === inv.id}
-                          className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm flex-shrink-0"
-                        >
-                          {payingInvoice === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                          {payingInvoice === inv.id ? 'Redirecting…' : 'Pay Now'}
-                        </button>
+                        <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
+                          {wallet_enabled && (
+                          <button
+                            onClick={() => handlePayInvoiceWallet(inv)}
+                            disabled={payingInvoice === inv.id}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-900 transition-colors disabled:opacity-50 text-sm"
+                          >
+                            {payingInvoice === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
+                            Pay with wallet
+                          </button>
+                          )}
+                          <button
+                            onClick={() => handlePayInvoice(inv)}
+                            disabled={payingInvoice === inv.id}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm"
+                          >
+                            {payingInvoice === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                            {payingInvoice === inv.id ? 'Redirecting…' : 'Pay with Monime'}
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>

@@ -15,6 +15,8 @@ import { SubscriptionLifecycle } from '../components/SubscriptionLifecycle';
 import { UnifiedCalendar } from '../components/UnifiedCalendar';
 import { BookingTrackingPage } from '../components/BookingTrackingPage';
 import { CancelDeleteBookingModal } from '../components/CancelDeleteBookingModal';
+import { BookingPayNowModal } from '../components/BookingPayNowModal';
+import { bookingNeedsPayment, bookingPayAmount } from '../lib/bookingPay';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useServiceBrandingImages, fallbackServiceImage } from '../lib/media';
 
@@ -33,6 +35,8 @@ interface Booking {
   details: Record<string, any> | null;
   deleted_at: string | null;
   cancellation_reason: string | null;
+  payment_status?: string | null;
+  payment_method?: string | null;
   services: { name: string; icon: string; slug: string };
 }
 
@@ -97,6 +101,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [trackingBookingId, setTrackingBookingId] = useState<string | null>(null);
   const [cancelDeleteModal, setCancelDeleteModal] = useState<{ bookingId: string; status: string; serviceName: string } | null>(null);
+  const [payBooking, setPayBooking] = useState<Booking | null>(null);
   const [animateIn, setAnimateIn] = useState(false);
   const [fetchError, setFetchError] = useState('');
 
@@ -104,7 +109,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
     setLoadProgress(p => Math.max(p, 10));
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, notes, created_at, service_id, details, deleted_at, cancellation_reason, services(name, icon, slug)')
+      .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, notes, created_at, service_id, details, deleted_at, cancellation_reason, payment_status, payment_method, services(name, icon, slug)')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -513,6 +518,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
                   onCancelDelete={(b) => setCancelDeleteModal({ bookingId: b.id, status: b.status, serviceName: b.services.name })}
                   onReview={(b) => setReviewModal({ bookingId: b.id, serviceId: b.service_id, serviceName: b.services.name })}
                   onTrack={(id) => setTrackingBookingId(id)}
+                  onPayNow={(b) => setPayBooking(b)}
                   hasReview={reviewedBookings.has(selectedBooking.id)}
                   detailTab={detailTab}
                   setDetailTab={setDetailTab}
@@ -533,6 +539,17 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
         />
       )}
 
+      {payBooking && (
+        <BookingPayNowModal
+          bookingId={payBooking.id}
+          amount={bookingPayAmount(payBooking)}
+          serviceName={payBooking.services.name}
+          serviceSlug={payBooking.services.slug}
+          onClose={() => setPayBooking(null)}
+          onPaid={() => { setPayBooking(null); fetchBookings(); }}
+        />
+      )}
+
       {cancelDeleteModal && (
         <CancelDeleteBookingModal
           bookingId={cancelDeleteModal.bookingId}
@@ -548,7 +565,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
 
 // ── Booking Detail Panel (right side of split layout) ──
 function BookingDetailPanel({
-  booking, onBack, onRebook, onCancelDelete, onReview, onTrack, hasReview, detailTab, setDetailTab,
+  booking, onBack, onRebook, onCancelDelete, onReview, onTrack, onPayNow, hasReview, detailTab, setDetailTab,
 }: {
   booking: Booking;
   onBack: () => void;
@@ -556,6 +573,7 @@ function BookingDetailPanel({
   onCancelDelete: (b: Booking) => void;
   onReview: (b: Booking) => void;
   onTrack: (id: string) => void;
+  onPayNow: (b: Booking) => void;
   hasReview: boolean;
   detailTab: 'overview' | 'tracker' | 'messages' | 'documents';
   setDetailTab: (t: 'overview' | 'tracker' | 'messages' | 'documents') => void;
@@ -655,6 +673,11 @@ function BookingDetailPanel({
 
             {/* Action buttons */}
             <div className="flex flex-wrap gap-2 pt-2">
+              {bookingNeedsPayment(booking) && (
+                <button onClick={() => onPayNow(booking)} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors">
+                  <Wallet className="w-3.5 h-3.5" /> Pay now
+                </button>
+              )}
               {!isCompleted && !isCancelled && (
                 <button onClick={() => onTrack(booking.id)} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors">
                   <Truck className="w-3.5 h-3.5" /> Track

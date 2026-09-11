@@ -77,6 +77,8 @@ export function CancelDeleteBookingModal({
       return;
     }
 
+    await supabase.rpc('refund_booking_to_wallet', { p_booking_id: bookingId });
+
     await supabase.from('notifications').insert({
       title: 'Booking Cancelled',
       body: `Your ${serviceName} booking has been cancelled. Reason: ${finalReason}`,

@@ -1196,7 +1196,7 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<'mobile_money' | 'bank_transfer' | 'cash'>('mobile_money');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [momoProvider, setMomoProvider] = useState<'m17' | 'm18'>('m17');
+  const [momoProvider, setMomoProvider] = useState<'m17' | 'm18' | 'qmoney'>('m17');
   const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [accountName, setAccountName] = useState('');
@@ -1259,7 +1259,7 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
       if (method === 'mobile_money') {
         payoutDetails.phone = phoneNumber.trim();
         payoutDetails.provider_id = momoProvider;
-        payoutDetails.provider_name = momoProvider === 'm17' ? 'Orange Money' : 'Africell Money';
+        payoutDetails.provider_name = momoProvider === 'm17' ? 'Orange Money' : momoProvider === 'm18' ? 'Africell Money' : 'QMoney';
       }
       if (method === 'bank_transfer') {
         payoutDetails.bank_name = bankName.trim();
@@ -1267,15 +1267,17 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
         payoutDetails.account_name = accountName.trim();
       }
 
-      const { error: err } = await supabase.from('withdrawal_requests').insert({
-        amount_sle: amt,
-        payout_method: method,
-        payout_details: payoutDetails,
-        status: 'pending',
+      const { data: result, error: err } = await supabase.rpc('request_withdrawal', {
+        p_amount: amt,
+        p_payout_method: method,
+        p_payout_details: payoutDetails,
       });
 
       setVerifying(false);
-      if (err) { setOtpError('We could not process your withdrawal. Please try again.'); return; }
+      if (err || !result?.success) {
+        setOtpError(result?.error || 'We could not process your withdrawal. Please try again.');
+        return;
+      }
       setSuccess(true);
       setTimeout(onSubmitted, 2000);
     } catch {
@@ -1472,10 +1474,11 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-800 mb-2">Mobile Money Provider</label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {([
                       { id: 'm17', label: 'Orange Money' },
                       { id: 'm18', label: 'Africell Money' },
+                      { id: 'qmoney', label: 'QMoney' },
                     ] as const).map(opt => (
                       <button key={opt.id} type="button" onClick={() => setMomoProvider(opt.id)}
                         className={`py-2.5 rounded-xl text-xs font-semibold transition-all border-2 ${
