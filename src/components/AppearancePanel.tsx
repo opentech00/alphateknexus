@@ -1,5 +1,8 @@
 import { useTheme, ThemeMode, AccentColor } from '../contexts/ThemeContext';
-import { Sun, Moon, Monitor, Contrast, Sparkles, Zap, BellOff, Layout } from 'lucide-react';
+import { Sun, Moon, Monitor, Contrast, Sparkles, Zap, BellOff, Layout, Coins } from 'lucide-react';
+import { CurrencySwitcher } from './CurrencySwitcher';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
+import { CURRENCY_META } from '../lib/currency';
 
 const THEMES: { id: ThemeMode; label: string; icon: typeof Sun; desc: string }[] = [
   { id: 'light', label: 'Light', icon: Sun, desc: 'Bright & clean' },
@@ -22,9 +25,21 @@ export function AppearancePanel() {
     theme, accentColor, reducedMotion, compactMode,
     resolvedTheme, setTheme, setAccentColor, setReducedMotion, setCompactMode,
   } = useTheme();
+  const { currency, setCurrency } = useDisplayCurrency();
 
   return (
     <div className="space-y-6">
+      <section>
+        <div className="flex items-center gap-2 mb-3">
+          <Coins className="w-4 h-4 text-slate-500" />
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Display currency</h3>
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+          Prices are shown in {CURRENCY_META[currency].name}. Wallet charges still settle in SLE.
+        </p>
+        <CurrencySwitcher value={currency} onChange={(code) => { void setCurrency(code); }} />
+      </section>
+
       {/* Theme picker */}
       <section>
         <div className="flex items-center gap-2 mb-3">

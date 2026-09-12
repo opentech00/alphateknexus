@@ -13,7 +13,6 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { ServiceCardSkeleton, BookingMiniSkeleton } from './Skeleton';
 import { NotificationsPanel } from '../NotificationsPanel';
 import { useDisplayCurrency } from '../../hooks/useDisplayCurrency';
-import { CurrencySwitcher } from '../CurrencySwitcher';
 import { ExploreServicesCarousel } from '../ExploreServicesCarousel';
 
 interface Props {
@@ -176,7 +175,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
   const { url: logoUrl } = useAppLogo();
   const { profile } = useAuth();
   const { vibrate } = useHaptics();
-  const { currency, setCurrency, format } = useDisplayCurrency();
+  const { format } = useDisplayCurrency();
   const [services, setServices] = useState<Service[]>([]);
   const [bookings, setBookings] = useState<HomeBooking[]>([]);
   const [search, setSearch] = useState('');
@@ -273,7 +272,6 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
             <p className="text-sm font-bold text-[#173362] dark:text-slate-100 truncate">Hello, {firstName}</p>
           </div>
           <div className="flex items-center gap-1.5">
-            <CurrencySwitcher value={currency} onChange={(code) => { void setCurrency(code); }} compact />
             <NotificationsPanel />
           </div>
         </div>
@@ -303,7 +301,6 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            <CurrencySwitcher value={currency} onChange={(code) => { void setCurrency(code); }} compact />
             <NotificationsPanel />
             <button
               onClick={() => onNavigate('account')}
