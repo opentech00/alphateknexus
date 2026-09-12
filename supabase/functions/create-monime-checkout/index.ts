@@ -14,17 +14,7 @@ Deno.serve(async (req: Request) => {
   try {
     const { amount, purpose, related_id, reference, app_origin } = await req.json();
 
-    let appOrigin = req.headers.get("Origin") || "https://atnapp.vercel.app";
-    try {
-      if (app_origin) {
-        const parsed = new URL(app_origin);
-        if (parsed.protocol === "https:" || parsed.protocol === "http:") {
-          appOrigin = parsed.origin;
-        }
-      }
-    } catch {
-      /* keep fallback */
-    }
+    const appOrigin = app_origin || req.headers.get("Origin") || "https://alphateknexus.app";
 
     if (!amount || amount <= 0) {
       return new Response(JSON.stringify({ error: "Invalid amount" }), {
@@ -119,8 +109,8 @@ Deno.serve(async (req: Request) => {
           reference: finalRef,
           description: `${purpose} payment`,
         }],
-        successUrl: `${appOrigin}/payment-return.html?status=success&ref=${encodeURIComponent(finalRef)}&purpose=${encodeURIComponent(purpose)}`,
-        cancelUrl: `${appOrigin}/payment-return.html?status=cancel&ref=${encodeURIComponent(finalRef)}&purpose=${encodeURIComponent(purpose)}`,
+        successUrl: `${appOrigin}/?payment=success&ref=${finalRef}`,
+        cancelUrl: `${appOrigin}/?payment=cancel&ref=${finalRef}`,
         reference: finalRef,
         metadata: {
           user_id: user.id,
