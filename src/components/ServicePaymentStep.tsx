@@ -6,7 +6,7 @@ import {
   AlertTriangle, Plus, ArrowUpRight,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
+import { startMonimePayment, pollPaymentStatus } from '../lib/monime';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 export const PAYMENT_METHODS = [
@@ -208,16 +208,10 @@ export function ServicePaymentStep({
         payment_status: 'pending',
       }).eq('id', bookingId);
 
-      const result = await createMonimeCheckout(amount, 'booking', bookingId, `BK-${bookingId.slice(0, 8)}`);
-      const popup = window.open(result.checkoutUrl, '_blank', 'width=500,height=700,scrollbars=yes');
-      if (!popup) {
-        onFail('Popup was blocked. Please allow popups and try again.');
-        setPaying(false);
-        return;
-      }
+      const result = await startMonimePayment(amount, 'booking', bookingId, `BK-${bookingId.slice(0, 8)}`);
+      if (result.mode === 'redirect') return;
 
       const pollResult = await pollPaymentStatus(result.reference);
-      if (!popup.closed) popup.close();
 
       if (pollResult.status !== 'completed') {
         onFail(

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Home, CalendarDays, Wallet, UserCircle, ChevronLeft,
 } from 'lucide-react';
@@ -12,6 +12,7 @@ import { MobileServicesPage } from './MobileServicesPage';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { useHaptics } from '../../hooks/useHaptics';
 import { useAuth } from '../../contexts/AuthContext';
+import { resumeTarget } from '../../lib/monime';
 
 type MobilePage = 'home' | 'bookings' | 'wallet' | 'profile' | 'services';
 
@@ -43,9 +44,20 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
   const { url: logoUrl } = useAppLogo();
   const { profile } = useAuth();
   const { vibrate } = useHaptics();
-  const [mobilePage, setMobilePage] = useState<MobilePage>('home');
+  const [mobilePage, setMobilePage] = useState<MobilePage>(() => {
+    const target = resumeTarget();
+    if (target === 'wallet') return 'wallet';
+    if (target === 'booking') return 'bookings';
+    return 'home';
+  });
   const [pageKey, setPageKey] = useState(0);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (resumeTarget() === 'invoice') onNavigate('smart-sort-subs');
+    // Intentionally once on mount so a new onNavigate identity cannot loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Edge swipe-to-back gesture tracking
   const touchStartX = useRef(0);

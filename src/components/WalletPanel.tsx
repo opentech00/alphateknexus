@@ -7,7 +7,15 @@ import {
   Search, Download, Filter, Calendar, Settings, Bell, MessageSquare, Zap,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
+import {
+  startMonimePayment,
+  openMonimeCheckout,
+  pollPaymentStatus,
+  consumePaymentReturnQuery,
+  consumeStoredReturn,
+  readPendingMonime,
+  clearPendingMonime,
+} from '../lib/monime';
 import { ReceiptModal } from './ReceiptModal';
 import { WalletSettings } from './WalletSettings';
 import { DisputeModal } from './DisputeModal';
@@ -138,6 +146,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
   const [payReference, setPayReference] = useState('');
+  const [checkoutUrl, setCheckoutUrl] = useState('');
   const [pollAttempt, setPollAttempt] = useState(0);
   const [failReason, setFailReason] = useState('');
   const [successProgress, setSuccessProgress] = useState(0);
@@ -155,6 +164,8 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
   const [txDateTo, setTxDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const pollCancelledRef = useRef(false);
+  const verifyingRef = useRef(false);
+  const resumedRef = useRef(false);
   const [showSettings, setShowSettings] = useState(false);
   const [disputeTransaction, setDisputeTransaction] = useState<Transaction | null>(null);
   const [walletPrefs, setWalletPrefs] = useState<{ low_balance_threshold: number; auto_topup_enabled: boolean; auto_topup_amount: number; monthly_budget: number; auto_topup_method_id?: string | null } | null>(null);
@@ -368,66 +379,26 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
 
     setPayState('opening');
     try {
-      const result = await createMonimeCheckout(amt, 'wallet_topup');
+      const result = await startMonimePayment(amt, 'wallet_topup');
       setPayReference(result.reference);
-
-      const popup = window.open(result.checkoutUrl, '_blank', 'width=500,height=700,scrollbars=yes');
-      if (!popup) {
-        throw new Error('Popup blocked. Please allow popups for this site and try again.');
-      }
-      popupRef.current = popup;
-
+      setCheckoutUrl(result.checkoutUrl);
       setPayState('waiting');
       setPollAttempt(0);
       pollCancelledRef.current = false;
 
-      const pollResult = await pollPaymentStatus(
-        result.reference,
-        (_status, attempt) => setPollAttempt(attempt),
-      );
+      if (result.mode === 'redirect') return;
 
-      if (pollCancelledRef.current) return;
-
-      if (popupRef.current && !popupRef.current.closed) {
-        popupRef.current.close();
-      }
-
-      if (pollResult.status === 'completed') {
-        setPayState('success');
-        setRetriesLeft(3);
-        await loadTransactions();
-        // Safety net: re-load after 3s in case the insert was still in-flight
-        setTimeout(() => loadTransactions(), 3000);
-      } else if (pollResult.status === 'failed' || pollResult.status === 'cancelled') {
-        setFailReason(pollResult.reason || 'Payment was not completed.');
-        setPayState('failed');
-      } else {
-        setFailReason('Payment is still pending. Click retry to check again, or view your wallet if it was already credited.');
-        setPayState('failed');
-      }
+      await verifyAndFinish(result.reference);
     } catch (err: any) {
       setError(err.message || 'Failed to initiate payment. Please try again.');
       setPayState('form');
     }
   };
 
-  const handleRetry = async () => {
-    if (retriesLeft <= 0 || !payReference) return;
-    setRetrying(true);
-    setRetriesLeft(prev => prev - 1);
-    setPayState('waiting');
-    setPollAttempt(0);
-    pollCancelledRef.current = false;
-
-    const pollResult = await pollPaymentStatus(
-      payReference,
-      (_status, attempt) => setPollAttempt(attempt),
-    );
-
+  const applyPollResult = useCallback(async (pollResult: { status: string; reason?: string }) => {
     if (pollCancelledRef.current) return;
-    setRetrying(false);
-
     if (pollResult.status === 'completed') {
+      clearPendingMonime();
       setPayState('success');
       setRetriesLeft(3);
       await loadTransactions();
@@ -436,9 +407,35 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
       setFailReason(pollResult.reason || 'Payment was not completed.');
       setPayState('failed');
     } else {
-      setFailReason('Payment is still pending. Click retry to check again, or view your wallet if it was already credited.');
+      setFailReason('Payment is still pending. Dial the Monime short code, enter your PIN, then tap Check again.');
       setPayState('failed');
     }
+  }, [loadTransactions]);
+
+  const verifyAndFinish = useCallback(async (reference: string) => {
+    if (!reference || verifyingRef.current) return;
+    verifyingRef.current = true;
+    setPayReference(reference);
+    setPayState('waiting');
+    setPollAttempt(0);
+    pollCancelledRef.current = false;
+    try {
+      const pollResult = await pollPaymentStatus(
+        reference,
+        (_status, attempt) => setPollAttempt(attempt),
+      );
+      setRetrying(false);
+      await applyPollResult(pollResult);
+    } finally {
+      verifyingRef.current = false;
+    }
+  }, [applyPollResult]);
+
+  const handleRetry = async () => {
+    if (retriesLeft <= 0 || !payReference) return;
+    setRetrying(true);
+    setRetriesLeft(prev => prev - 1);
+    await verifyAndFinish(payReference);
   };
 
   const handleClosePayment = () => {
@@ -446,11 +443,13 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
     if (popupRef.current && !popupRef.current.closed) {
       popupRef.current.close();
     }
+    clearPendingMonime();
     setPayState('idle');
     setTopupMethod('monime');
     setAmount('');
     setError('');
     setPayReference('');
+    setCheckoutUrl('');
     setFailReason('');
     setSuccessProgress(0);
     setAnimDone(false);
@@ -458,6 +457,56 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
     setReceiptRef('');
     setRetriesLeft(3);
   };
+
+  useEffect(() => {
+    if (resumedRef.current) return;
+    resumedRef.current = true;
+    const returned = consumePaymentReturnQuery() || consumeStoredReturn();
+    const pending = readPendingMonime();
+    if (pending?.purpose && pending.purpose !== 'wallet_topup') return;
+    const ref = returned?.ref || pending?.reference || '';
+    const status = (returned?.status || pending?.status || '').toLowerCase();
+    if (!returned && !pending) return;
+    if (!ref && !status) return;
+    if (pending?.amount) setAmount(String(pending.amount));
+    if (pending?.checkoutUrl) setCheckoutUrl(pending.checkoutUrl);
+    if (ref) setPayReference(ref);
+    if (status === 'cancel' || status === 'cancelled' || status === 'failed') {
+      setFailReason('Payment was not completed. You can try again.');
+      setPayState('failed');
+      return;
+    }
+    if (ref) void verifyAndFinish(ref);
+  }, [verifyAndFinish]);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type !== 'atn-monime-return') return;
+      const ref = String(event.data.ref || payReference || readPendingMonime()?.reference || '');
+      const status = String(event.data.status || '').toLowerCase();
+      if (status === 'cancel' || status === 'cancelled' || status === 'failed') {
+        if (ref) setPayReference(ref);
+        setFailReason('Payment was not completed. You can try again.');
+        setPayState('failed');
+        return;
+      }
+      if (ref) void verifyAndFinish(ref);
+    };
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      const pending = readPendingMonime();
+      if (!pending?.reference) return;
+      if (payState === 'waiting' || payState === 'opening') {
+        void verifyAndFinish(pending.reference);
+      }
+    };
+    window.addEventListener('message', onMessage);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('message', onMessage);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [payState, payReference, verifyAndFinish]);
 
   const handleDeleteHistory = async () => {
     setDeleting(true);
@@ -860,7 +909,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
                     <div className="bg-slate-50 rounded-xl p-3.5 flex items-start gap-3 text-sm text-slate-600">
                       <Smartphone className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
                       <span className="text-xs leading-relaxed">
-                        A secure Monime checkout window will open. Complete your payment there -- your wallet will be credited automatically here once confirmed.
+                        We will open Monime checkout. Dial the short code they show, enter your PIN, then we bring you back here and credit your wallet automatically.
                       </span>
                     </div>
                   ) : (
@@ -904,30 +953,57 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
 
             {/* Waiting / Polling State */}
             {payState === 'waiting' && (
-              <div className="p-10 text-center">
+              <div className="p-8 text-center">
                 <div className="relative w-24 h-24 mx-auto mb-6">
                   <div className="absolute inset-0 rounded-full border-4 border-slate-100" />
                   <div className="absolute inset-0 rounded-full border-4 border-t-emerald-500 animate-spin" />
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <ExternalLink className="w-7 h-7 text-emerald-500" />
+                    <Smartphone className="w-7 h-7 text-emerald-500" />
                   </div>
                 </div>
                 <h2 className="text-xl font-bold text-slate-900 mb-2">
-                  {retrying ? 'Retrying Verification...' : 'Waiting for Payment'}
+                  {retrying ? 'Confirming your payment...' : 'Complete payment on your phone'}
                 </h2>
                 <p className="text-sm text-slate-500 leading-relaxed mb-4">
-                  Complete your payment in the Monime window. We'll detect it automatically.
+                  Dial the Monime short code, enter your PIN, then stay on this screen. We credit your wallet as soon as the payment is confirmed.
                 </p>
                 <div className="flex items-center justify-center gap-2 mb-4">
                   <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
                   <span className="text-xs text-slate-400">
-                    Checking... (attempt {pollAttempt})
+                    Listening for confirmation{pollAttempt > 0 ? ` (check ${pollAttempt})` : ''}
                   </span>
                 </div>
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-6">
-                  <p className="text-xs text-amber-700">
-                    If the Monime window didn't open, check your popup blocker. Keep this page open while paying.
-                  </p>
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 mb-4 text-left">
+                  <ol className="text-xs text-emerald-800 space-y-1.5 list-decimal pl-4">
+                    <li>Open the Monime checkout if it is not already showing.</li>
+                    <li>Dial the short code they give you and enter your PIN.</li>
+                    <li>Return here — we take you to your wallet automatically.</li>
+                  </ol>
+                </div>
+                <div className="space-y-2 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => { if (payReference) void verifyAndFinish(payReference); }}
+                    className="w-full py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
+                  >
+                    I have entered my PIN
+                  </button>
+                  {checkoutUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        openMonimeCheckout(checkoutUrl, {
+                          reference: payReference,
+                          amount: parseFloat(amount) || undefined,
+                          purpose: 'wallet_topup',
+                          checkoutUrl,
+                        });
+                      }}
+                      className="w-full py-3 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+                    >
+                      Reopen checkout
+                    </button>
+                  )}
                 </div>
                 <button
                   onClick={handleClosePayment}
@@ -1033,7 +1109,9 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
                 <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6 animate-shakeX">
                   <XCircle className="w-9 h-9 text-red-500" />
                 </div>
-                <h1 className="text-2xl font-bold text-slate-900 mb-3">Payment Failed</h1>
+                <h1 className="text-2xl font-bold text-slate-900 mb-3">
+                  {failReason.toLowerCase().includes('pending') ? 'Still confirming' : 'Payment not completed'}
+                </h1>
                 <p className="text-sm text-slate-500 leading-relaxed mb-4">{failReason}</p>
 
                 <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6">
@@ -1056,7 +1134,24 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
                       onClick={handleRetry}
                       className="w-full py-3.5 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                     >
-                      <RefreshCw className="w-4 h-4" /> Retry Verification ({retriesLeft})
+                      <RefreshCw className="w-4 h-4" /> Check payment again ({retriesLeft})
+                    </button>
+                  )}
+                  {checkoutUrl && (
+                    <button
+                      onClick={() => {
+                        openMonimeCheckout(checkoutUrl, {
+                          reference: payReference,
+                          amount: parseFloat(amount) || undefined,
+                          purpose: 'wallet_topup',
+                          checkoutUrl,
+                        });
+                        setPayState('waiting');
+                        if (payReference) void verifyAndFinish(payReference);
+                      }}
+                      className="w-full py-3.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                    >
+                      <ExternalLink className="w-4 h-4" /> Reopen Monime checkout
                     </button>
                   )}
                   <button

@@ -6,7 +6,7 @@ import {
   Package, Plus,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
+import { startMonimePayment, pollPaymentStatus } from '../lib/monime';
 import { Portal } from '../lib/portal';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
@@ -297,12 +297,9 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
     const balance = invoice.amount_sle - invoice.amount_paid_sle;
     setPayingInvoice(invoice.id);
     try {
-      const result = await createMonimeCheckout(balance, 'invoice', invoice.id, invoice.invoice_number);
-      const popup = window.open(result.checkoutUrl, '_blank', 'width=500,height=700,scrollbars=yes');
-      if (!popup) {
-        throw new Error('Popup blocked. Please allow popups for this site.');
-      }
-      setActionMsg({ type: 'success', text: 'Complete your payment in the Monime window. We\'ll update your invoice automatically once confirmed.' });
+      const result = await startMonimePayment(balance, 'invoice', invoice.id, invoice.invoice_number);
+      if (result.mode === 'redirect') return;
+      setActionMsg({ type: 'success', text: 'Dial the Monime short code and enter your PIN. We will update your invoice automatically once confirmed.' });
       const pollResult = await pollPaymentStatus(result.reference);
       if (pollResult.status === 'completed') {
         setActionMsg({ type: 'success', text: 'Payment confirmed! Invoice updated.' });

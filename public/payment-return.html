@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>Confirming payment — AlphaTek Nexus</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: Inter, system-ui, sans-serif;
+      background: #0f172a;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      width: min(420px, 100%);
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 24px;
+      padding: 32px 24px;
+      text-align: center;
+    }
+    .spin {
+      width: 56px; height: 56px; margin: 0 auto 20px;
+      border: 4px solid #334155; border-top-color: #10b981;
+      border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    .ok {
+      width: 56px; height: 56px; margin: 0 auto 20px;
+      background: #064e3b; color: #6ee7b7; border-radius: 50%;
+      display: none; align-items: center; justify-content: center;
+      font-size: 28px; font-weight: 700;
+    }
+    .fail {
+      width: 56px; height: 56px; margin: 0 auto 20px;
+      background: #7f1d1d; color: #fecaca; border-radius: 50%;
+      display: none; align-items: center; justify-content: center;
+      font-size: 28px; font-weight: 700;
+    }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    p { margin: 0; color: #cbd5e1; font-size: 14px; line-height: 1.5; }
+    .ref { margin-top: 16px; font-size: 12px; color: #94a3b8; font-family: ui-monospace, monospace; }
+    a { color: #6ee7b7; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spin" id="spin"></div>
+    <div class="ok" id="ok">✓</div>
+    <div class="fail" id="fail">!</div>
+    <h1 id="title">Confirming your payment</h1>
+    <p id="body">Please wait — we are taking you back to your wallet. After you dialled the Monime short code and entered your PIN, this should only take a moment.</p>
+    <p class="ref" id="ref"></p>
+  </div>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var status = (params.get('status') || params.get('payment') || 'success').toLowerCase();
+      var ref = params.get('ref') || '';
+      var purposeFromUrl = params.get('purpose') || '';
+      var payload = { type: 'atn-monime-return', status: status, ref: ref, t: Date.now() };
+      var purpose = purposeFromUrl || 'wallet_topup';
+      try {
+        var existing = JSON.parse(sessionStorage.getItem('atn-pending-monime') || 'null');
+        if (!purposeFromUrl && existing && existing.purpose) purpose = existing.purpose;
+        sessionStorage.setItem('atn-pending-monime', JSON.stringify({
+          reference: ref || (existing && existing.reference) || '',
+          status: status,
+          purpose: purpose,
+          relatedId: existing && existing.relatedId,
+          amount: existing && existing.amount,
+          checkoutUrl: existing && existing.checkoutUrl,
+          t: Date.now()
+        }));
+        localStorage.setItem('atn-monime-return', JSON.stringify(payload));
+      } catch (e) {}
+
+      var destQuery = 'payment=' + encodeURIComponent(status) + (ref ? '&ref=' + encodeURIComponent(ref) : '');
+      var dest = purpose === 'booking'
+        ? '/?resume_booking=1&' + destQuery
+        : (purpose === 'invoice' || purpose === 'subscription')
+          ? '/?resume_invoice=1&' + destQuery
+          : '/?resume_wallet=1&' + destQuery;
+      document.getElementById('ref').textContent = ref ? ('Ref: ' + ref) : '';
+
+      function goApp() {
+        window.location.replace(dest);
+      }
+
+      if (status === 'cancel' || status === 'cancelled' || status === 'failed') {
+        document.getElementById('spin').style.display = 'none';
+        document.getElementById('fail').style.display = 'flex';
+        document.getElementById('title').textContent = 'Payment not completed';
+        document.getElementById('body').textContent = 'No charge was taken. Returning you to your wallet so you can try again.';
+      } else {
+        document.getElementById('spin').style.display = 'none';
+        document.getElementById('ok').style.display = 'flex';
+        document.getElementById('title').textContent = 'Payment received';
+        document.getElementById('body').textContent = 'Taking you back to your wallet to credit the balance.';
+      }
+
+      if (window.opener && !window.opener.closed) {
+        try { window.opener.postMessage(payload, '*'); } catch (e) {}
+        setTimeout(function () {
+          try { window.close(); } catch (e) {}
+          setTimeout(goApp, 250);
+        }, 600);
+        return;
+      }
+
+      setTimeout(goApp, 700);
+    })();
+  </script>
+</body>
+</html>

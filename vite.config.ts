@@ -14,6 +14,7 @@ export default defineConfig({
         'icons/pwa-512-maskable.png',
         'icons/apple-touch-icon.png',
         'offline.html',
+        'payment-return.html',
       ],
       manifest: {
         id: '/',
@@ -48,6 +49,7 @@ export default defineConfig({
           /^\/admin(?:\.html|\/)/,
           /^\/employee(?:\.html|\/)/,
           /^\/field(?:\.html|\/)/,
+          /^\/payment-return(?:\.html)?/,
         ],
         runtimeCaching: [
           {

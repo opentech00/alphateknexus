@@ -5,7 +5,7 @@ import {
   Loader2, Lock, Receipt as ReceiptIcon, XCircle, Banknote,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
+import { startMonimePayment, pollPaymentStatus } from '../lib/monime';
 
 const SERVICE_FEE = 25;
 import { SchedulingCalendar } from '../components/SchedulingCalendar';
@@ -592,16 +592,10 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
       }
 
       // Online payment methods route through Monime checkout
-      const result = await createMonimeCheckout(SERVICE_FEE, 'booking', bookingData.id, `BK-${bookingData.id.slice(0, 8)}`);
+      const result = await startMonimePayment(SERVICE_FEE, 'booking', bookingData.id, `BK-${bookingData.id.slice(0, 8)}`);
       setPayReference(result.reference);
-      const popup = window.open(result.checkoutUrl, '_blank', 'width=500,height=700,scrollbars=yes');
-      if (!popup) {
-        setPaymentError('Popup was blocked. Please allow popups and try again. Your booking was created — you can complete payment from your bookings page.');
-        setStep('payment_failed');
-        return;
-      }
+      if (result.mode === 'redirect') return;
       const pollResult = await pollPaymentStatus(result.reference);
-      if (!popup.closed) popup.close();
       if (pollResult.status !== 'completed') {
         setPaymentError(
           pollResult.status === 'failed' ? 'Payment was declined or failed.' :

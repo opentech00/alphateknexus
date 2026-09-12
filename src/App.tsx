@@ -21,6 +21,7 @@ import { SplashScreen } from './components/mobile/SplashScreen';
 import { FinanceToastContainer } from './components/FinanceToast';
 import { IdleWarningModal } from './components/IdleWarningModal';
 import { PwaProvider } from './components/pwa/PwaProvider';
+import { resumeTarget } from './lib/monime';
 
 
 function FailedLoginBanner() {
@@ -67,7 +68,13 @@ function IdleWarningWrapper() {
 
 function PortalContent() {
   const { user, loading, needs2FA, needsEmailVerification, pending2FAEmail, pending2FAPassword, clear2FA, refreshVerification, signOut } = useAuth();
-  const [page, setPage] = useState('home');
+  const [page, setPage] = useState(() => {
+    const target = resumeTarget();
+    if (target === 'wallet') return 'account';
+    if (target === 'booking') return 'bookings';
+    if (target === 'invoice') return 'smart-sort-subs';
+    return 'home';
+  });
   const [authView, setAuthView] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
   const [devAdmin] = useState(false);
   const [bookingService, setBookingService] = useState<any>(null);
@@ -93,6 +100,7 @@ function PortalContent() {
 
   const [showSplash, setShowSplash] = useState(() => {
     try {
+      if (resumeTarget()) return false;
       return isMobile && localStorage.getItem('atn-onboarded') !== '1';
     } catch { return false; }
   });

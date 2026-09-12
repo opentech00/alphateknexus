@@ -9,6 +9,6 @@
     { "source": "/employee/:path*", "destination": "/employee.html" },
     { "source": "/field", "destination": "/field.html" },
     { "source": "/field/:path*", "destination": "/field.html" },
-    { "source": "/((?!admin(?:\\.html|/)|employee(?:\\.html|/)|field(?:\\.html|/)).*)", "destination": "/index.html" }
+    { "source": "/((?!admin(?:\\.html|/)|employee(?:\\.html|/)|field(?:\\.html|/)|payment-return\\.html).*)", "destination": "/index.html" }
   ]
 }

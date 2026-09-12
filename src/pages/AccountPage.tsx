@@ -23,6 +23,7 @@ import { SpendingDashboard } from '../components/SpendingDashboard';
 import { ReceiptsPanel } from '../components/ReceiptsPanel';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { Portal } from '../lib/portal';
+import { shouldResumeWallet } from '../lib/monime';
 
 interface AccountPageProps {
   onNavigate: (page: string) => void;
@@ -610,7 +611,7 @@ function ComingSoon({ label }: { label: string }) {
 export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
   const { profile, user, signOut } = useAuth();
   const { referral_enabled, wallet_enabled } = useFeatureFlags();
-  const [tab, setTab] = useState<AccountTab>('overview');
+  const [tab, setTab] = useState<AccountTab>(() => shouldResumeWallet() ? 'wallet' : 'overview');
   const [modal, setModal] = useState<ModalKind>(null);
   const [referralOpen, setReferralOpen] = useState(false);
 
