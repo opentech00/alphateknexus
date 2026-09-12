@@ -28,7 +28,7 @@ interface Props {
   onSuccess: () => void;
 }
 
-const CURRENCIES = ['USD', 'SLE', 'GBP', 'EUR', 'NGN', 'GHS'];
+const CURRENCIES = ['SLE', 'USD', 'EUR'];
 
 function newItem(): Item {
   return { description: '', qty: 1, unit: 'unit', specs: '' };

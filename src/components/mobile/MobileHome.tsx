@@ -12,6 +12,9 @@ import { useHaptics } from '../../hooks/useHaptics';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { ServiceCardSkeleton, BookingMiniSkeleton } from './Skeleton';
 import { NotificationsPanel } from '../NotificationsPanel';
+import { useDisplayCurrency } from '../../hooks/useDisplayCurrency';
+import { CurrencySwitcher } from '../CurrencySwitcher';
+import { ExploreServicesCarousel } from '../ExploreServicesCarousel';
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -79,16 +82,17 @@ function ServiceGridCard({
   index,
   wide = false,
   onViewDetails,
+  priceText,
 }: {
   meta: ServiceMeta;
   service?: Service;
   index: number;
   wide?: boolean;
   onViewDetails: (svc: Service) => void;
+  priceText: string;
 }) {
   const { vibrate } = useHaptics();
   const colors = SERVICE_COLORS[meta.slug] || { chip: 'bg-slate-100', text: 'text-slate-600', price: 'text-slate-600', ring: 'ring-slate-200' };
-  const priceText = service?.price_range?.trim() || meta.priceHint;
 
   return (
     <div
@@ -172,11 +176,13 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
   const { url: logoUrl } = useAppLogo();
   const { profile } = useAuth();
   const { vibrate } = useHaptics();
+  const { currency, setCurrency, format } = useDisplayCurrency();
   const [services, setServices] = useState<Service[]>([]);
   const [bookings, setBookings] = useState<HomeBooking[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [detailService, setDetailService] = useState<Service | null>(null);
+  const [showFloatHeader, setShowFloatHeader] = useState(false);
 
   const fetchServices = useCallback(async () => {
     const { data } = await supabase.from('services').select('*').eq('is_active', true).order('created_at');
@@ -205,6 +211,20 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
     onRefresh: handleRefresh,
   });
 
+  useEffect(() => {
+    const scroller = (scrollRef.current?.closest('main') as HTMLElement | null) || scrollRef.current;
+    if (!scroller) return;
+    let lastY = scroller.scrollTop;
+    const onScroll = () => {
+      const y = scroller.scrollTop;
+      const goingUp = y < lastY - 4;
+      setShowFloatHeader(y > 72 && goingUp);
+      lastY = y;
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => scroller.removeEventListener('scroll', onScroll);
+  }, [scrollRef]);
+
   const firstName = profile?.full_name?.split(' ')[0] || 'there';
   const initials = (profile?.full_name || profile?.email || 'U').trim().charAt(0).toUpperCase();
 
@@ -225,8 +245,41 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
 
   const pullIndicatorHeight = refreshing ? 40 : pulling ? Math.round(progress * 40) : 0;
 
+  const priceLabel = (raw: string) => {
+    const match = raw.match(/([\d,]+(?:\.\d+)?)/);
+    if (!match) return raw;
+    return `From ${format(Number(match[1].replace(/,/g, '')), { compact: true })}`;
+  };
+
+  const exploreSlides = SERVICE_META.map((meta) => {
+    const svc = services.find(s => s.slug === meta.slug);
+    return {
+      slug: meta.slug,
+      title: meta.label,
+      blurb: meta.blurb,
+      image: serviceImages[meta.slug] || meta.image,
+      priceLabel: priceLabel(svc?.price_range?.trim() || meta.priceHint),
+      cta: 'Explore',
+    };
+  });
+
   return (
     <div ref={scrollRef} className="flex flex-col min-h-full bg-[#f5f8ff] dark:bg-slate-950 black:bg-black no-tap-highlight pb-8">
+      <div className="home-float-wrap">
+      <div className={`home-float-header ${showFloatHeader ? 'is-visible' : ''}`}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <img src={logoUrl} alt="Alphatek Nexus" className="h-7 w-auto object-contain flex-shrink-0" />
+            <p className="text-sm font-bold text-[#173362] dark:text-slate-100 truncate">Hello, {firstName}</p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <CurrencySwitcher value={currency} onChange={(code) => { void setCurrency(code); }} compact />
+            <NotificationsPanel />
+          </div>
+        </div>
+      </div>
+      </div>
+
       {/* Pull-to-refresh indicator */}
       <div
         className="flex items-center justify-center overflow-hidden transition-all duration-200"
@@ -238,7 +291,6 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
         />
       </div>
 
-      {/* Header + Greeting — sticky, padded for notch / status bar */}
       <div className="home-safe-header pb-3" style={{ animation: 'fadeInUp 0.4s ease-out both' }}>
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -251,6 +303,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            <CurrencySwitcher value={currency} onChange={(code) => { void setCurrency(code); }} compact />
             <NotificationsPanel />
             <button
               onClick={() => onNavigate('account')}
@@ -289,54 +342,17 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
         </div>
       </div>
 
-      {/* Hero Banner */}
       {search === '' && (
         <div className="mx-5 mb-5" style={{ animation: 'fadeInUp 0.5s ease-out 0.15s both' }}>
-          <div className="relative rounded-3xl overflow-hidden shadow-lg shadow-blue-900/20">
-            <img
-              src={serviceImages['private-security'] || fallbackServiceImage('private-security')}
-              alt="Essential services"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#0c3486]/90 via-[#1158d4]/75 to-[#2f8bf0]/45" />
-            <div className="relative p-4 min-h-[188px] flex">
-              <div className="flex-1 pr-2">
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-400 text-white">
-                  Trusted &amp; Professional
-                </span>
-                <h3 className="mt-3 text-3xl leading-8 font-extrabold text-white">
-                  Your One-Stop Solution
-                  <br />
-                  for <span className="text-emerald-300">Essential Services</span>
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-blue-100">
-                  Book, manage and get your services
-                  <br />
-                  done with ease.
-                </p>
-                <button
-                  onClick={() => onNavigate('services')}
-                  className="mt-4 inline-flex items-center gap-2 bg-white text-[#103871] text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-blue-50 transition-colors active:scale-95 shadow-sm no-select"
-                >
-                  Explore Services <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="hidden min-[390px]:flex flex-col justify-center gap-2.5 ml-1">
-                {['Safe', 'Reliable', 'Professional'].map((item) => (
-                  <span key={item} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-sm text-white text-[11px] font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-emerald-300" />
-                    {item}
-                  </span>
-                ))}
-              </div>
-              <div className="absolute right-4 bottom-3 flex gap-1.5">
-                <span className="w-4 h-1.5 rounded-full bg-white" />
-                <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
-                <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
-                <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
-              </div>
-            </div>
-          </div>
+          <ExploreServicesCarousel
+            slides={exploreSlides}
+            onViewAll={() => onNavigate('services')}
+            onSelect={(slug) => {
+              const svc = services.find(s => s.slug === slug);
+              if (svc) handleViewDetails(svc);
+              else onNavigate('services');
+            }}
+          />
         </div>
       )}
 
@@ -373,6 +389,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
                   index={idx}
                   wide={meta.slug === 'procurement'}
                   onViewDetails={handleViewDetails}
+                  priceText={priceLabel(svc?.price_range?.trim() || meta.priceHint)}
                 />
               );
             })}

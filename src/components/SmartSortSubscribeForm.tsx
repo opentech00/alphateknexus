@@ -262,6 +262,9 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
     const newVal = !sub.auto_pay;
     setSubs(prev => prev.map(s => s.id === sub.id ? { ...s, auto_pay: newVal } : s));
     await supabase.from('smart_sort_subscriptions').update({ auto_pay: newVal }).eq('id', sub.id);
+    if (newVal) {
+      await supabase.rpc('process_smart_sort_auto_pay_for_user');
+    }
   };
 
   const handlePause = async (sub: Subscription, months: number) => {

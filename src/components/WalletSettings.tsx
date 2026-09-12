@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Settings, Bell, Zap, Target, Loader2, CheckCircle2,
-  AlertTriangle, CreditCard, Smartphone, X,
+  CreditCard, Smartphone, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Portal } from '../lib/portal';
@@ -154,7 +154,7 @@ export function WalletSettings({ onClose }: { onClose: () => void }) {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-800">Auto Top-Up</p>
-                    <p className="text-xs text-slate-400">Automatically top up when balance is low</p>
+                    <p className="text-xs text-slate-400">We notify you when balance is low so you can confirm a Monime top-up</p>
                   </div>
                 </div>
                 <button
@@ -197,9 +197,13 @@ export function WalletSettings({ onClose }: { onClose: () => void }) {
                     </div>
                   </div>
 
+                  <p className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-xl p-3">
+                    Orange Money, Africell, and QMoney still need your confirmation in the Monime window. We cannot charge your phone without that step.
+                  </p>
+
                   {methods.length > 0 ? (
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Payment method</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Preferred method (optional)</label>
                       <div className="space-y-2">
                         {methods.map(m => (
                           <button
@@ -225,10 +229,7 @@ export function WalletSettings({ onClose }: { onClose: () => void }) {
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-amber-50 rounded-xl p-3 flex items-start gap-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-amber-700">No saved payment methods. Add one in your Account settings to enable auto top-up.</p>
-                    </div>
+                    <p className="text-xs text-slate-400">Optional: save a payment method in Account for a preferred label. Auto top-up still uses Monime checkout.</p>
                   )}
                 </div>
               )}

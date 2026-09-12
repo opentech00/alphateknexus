@@ -12,6 +12,8 @@ import { ReceiptModal } from './ReceiptModal';
 import { WalletSettings } from './WalletSettings';
 import { DisputeModal } from './DisputeModal';
 import { Portal } from '../lib/portal';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
+import { CurrencySwitcher } from './CurrencySwitcher';
 
 interface Transaction {
   id: string;
@@ -122,12 +124,12 @@ interface WalletPanelProps {
 }
 
 export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
+  const { currency, setCurrency, format } = useDisplayCurrency();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [fxRates, setFxRates] = useState<{currency_code:string;symbol:string;rate_to_sle:number}[]>([]);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
 
@@ -155,7 +157,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
   const pollCancelledRef = useRef(false);
   const [showSettings, setShowSettings] = useState(false);
   const [disputeTransaction, setDisputeTransaction] = useState<Transaction | null>(null);
-  const [walletPrefs, setWalletPrefs] = useState<{ low_balance_threshold: number; auto_topup_enabled: boolean; auto_topup_amount: number; monthly_budget: number } | null>(null);
+  const [walletPrefs, setWalletPrefs] = useState<{ low_balance_threshold: number; auto_topup_enabled: boolean; auto_topup_amount: number; monthly_budget: number; auto_topup_method_id?: string | null } | null>(null);
   const [savedMethods, setSavedMethods] = useState<{ id: string; type: string; provider: string; label: string; detail: string; is_default: boolean }[]>([]);
 
   const loadTransactions = useCallback(async () => {
@@ -174,11 +176,6 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
       setTransactions((data as Transaction[]) || []);
     }
     setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    supabase.from('fx_rates').select('currency_code, symbol, rate_to_sle').eq('is_active', true).neq('currency_code', 'SLE')
-      .then(({ data }: { data: {currency_code:string;symbol:string;rate_to_sle:number}[] | null }) => setFxRates(data || []));
   }, []);
 
   useEffect(() => {
@@ -206,7 +203,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const [prefRes, methodRes] = await Promise.all([
-      supabase.from('user_preferences').select('low_balance_threshold, auto_topup_enabled, auto_topup_amount, monthly_budget').eq('user_id', user.id).maybeSingle(),
+      supabase.from('user_preferences').select('low_balance_threshold, auto_topup_enabled, auto_topup_amount, auto_topup_method_id, monthly_budget').eq('user_id', user.id).maybeSingle(),
       supabase.from('payment_methods').select('id, type, provider, label, detail, is_default').eq('user_id', user.id).order('is_default', { ascending: false }),
     ]);
     if (prefRes.data) setWalletPrefs(prefRes.data as any);
@@ -344,14 +341,16 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
     };
   }, []);
 
-  const handleStartPayment = async () => {
+  const handleStartPayment = async (overrideAmount?: number, method: TopupMethod = topupMethod) => {
     setError('');
-    const amt = parseFloat(amount);
+    const amt = overrideAmount ?? parseFloat(amount);
     if (!amt || amt <= 0) { setError('Enter a valid amount'); return; }
     if (amt < 5) { setError('Minimum top-up is SLE 5.00'); return; }
     if (amt > 10000) { setError('Maximum top-up is SLE 10,000.00'); return; }
+    if (overrideAmount != null) setAmount(String(overrideAmount));
+    setTopupMethod(method);
 
-    if (topupMethod === 'cash') {
+    if (method === 'cash') {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setError('Please sign in to request a cash top-up.'); return; }
       const { error: payErr } = await supabase.from('payments').insert({
@@ -492,21 +491,18 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
           <div className="flex items-start justify-between mb-6">
             <div>
               <p className="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-1">Available Balance</p>
-              <p className={`text-4xl font-bold tracking-tight transition-all duration-500 ${balancePulse ? 'scale-110 text-emerald-300' : 'scale-100'}`}>{fmtMoney(availableBalance)}</p>
+              <p className={`text-4xl font-bold tracking-tight transition-all duration-500 ${balancePulse ? 'scale-110 text-emerald-300' : 'scale-100'}`}>{format(availableBalance)}</p>
+              {currency !== 'SLE' && (
+                <p className="text-xs text-slate-400 mt-1">{fmtMoney(availableBalance)} ledger</p>
+              )}
               {pendingWithdrawalTotal > 0 && (
                 <p className="text-xs text-amber-400 mt-1">
-                  {fmtMoney(pendingWithdrawalTotal)} in pending withdrawals
+                  {format(pendingWithdrawalTotal)} in pending withdrawals
                 </p>
               )}
-              {fxRates.length > 0 && availableBalance > 0 && (
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                  {fxRates.slice(0, 3).map(r => (
-                    <span key={r.currency_code} className="text-xs text-slate-400">
-                      ≈ {r.symbol}{(availableBalance / r.rate_to_sle).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {r.currency_code}
-                    </span>
-                  ))}
-                </div>
-              )}
+              <div className="mt-3">
+                <CurrencySwitcher value={currency} onChange={(code) => { void setCurrency(code); }} compact />
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -550,9 +546,15 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
             <p className="text-xs text-amber-600">Your balance is below {fmtMoney(walletPrefs.low_balance_threshold)}</p>
           </div>
           {walletPrefs.auto_topup_enabled ? (
-            <div className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 px-2.5 py-1.5 rounded-lg font-medium flex-shrink-0">
-              <Zap className="w-3 h-3" /> Auto top-up on
-            </div>
+            <button
+              onClick={() => {
+                const amt = Math.max(5, Math.min(10000, Number(walletPrefs.auto_topup_amount) || 200));
+                void handleStartPayment(amt, 'monime');
+              }}
+              className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 bg-emerald-100 hover:bg-emerald-200 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0 inline-flex items-center gap-1.5"
+            >
+              <Zap className="w-3 h-3" /> Complete auto top-up · {fmtMoney(Math.max(5, Math.min(10000, Number(walletPrefs.auto_topup_amount) || 200)))}
+            </button>
           ) : (
             <button
               onClick={() => { setPayState('form'); setError(''); }}
@@ -870,7 +872,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
                     </div>
                   )}
                   <button
-                    onClick={handleStartPayment}
+                    onClick={() => { void handleStartPayment(); }}
                     className={`w-full py-4 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg ${
                       topupMethod === 'cash'
                         ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-amber-500/20'

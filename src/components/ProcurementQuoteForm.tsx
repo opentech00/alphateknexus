@@ -27,7 +27,7 @@ interface Props {
   onSuccess: () => void;
 }
 
-const CURRENCIES = ['USD', 'SLE', 'GBP', 'EUR', 'NGN', 'GHS'];
+const CURRENCIES = ['SLE', 'USD', 'EUR'];
 const BUDGET_RANGES = [
   'Under $1,000',
   '$1,000 – $5,000',

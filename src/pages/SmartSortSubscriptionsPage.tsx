@@ -246,6 +246,28 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
     loadData();
   };
 
+  const toggleAutoPay = async (sub: Subscription) => {
+    const newVal = !sub.auto_pay;
+    setSubscriptions(prev => prev.map(s => s.id === sub.id ? { ...s, auto_pay: newVal } : s));
+    const { error: err } = await supabase
+      .from('smart_sort_subscriptions')
+      .update({ auto_pay: newVal })
+      .eq('id', sub.id);
+    if (err) {
+      setSubscriptions(prev => prev.map(s => s.id === sub.id ? { ...s, auto_pay: sub.auto_pay } : s));
+      setActionMsg({ type: 'error', text: err.message });
+      return;
+    }
+    if (newVal) {
+      await supabase.rpc('process_smart_sort_auto_pay_for_user');
+      loadData();
+    }
+    setActionMsg({
+      type: 'success',
+      text: newVal ? 'Auto-pay on — unpaid invoices will be charged from your wallet.' : 'Auto-pay turned off.',
+    });
+  };
+
   const cancelSubscription = async (sub: Subscription) => {
     if (!confirm('Cancel this subscription? This cannot be undone.')) return;
     const { error: err } = await supabase
@@ -675,6 +697,19 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
+                    {wallet_enabled && sub.status !== 'cancelled' && (
+                      <button
+                        onClick={() => toggleAutoPay(sub)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                          sub.auto_pay
+                            ? 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                            : 'text-slate-600 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        <Wallet className="w-3.5 h-3.5" />
+                        {sub.auto_pay ? 'Auto-pay on' : 'Auto-pay off'}
+                      </button>
+                    )}
                     {sub.status === 'active' && (
                       <button
                         onClick={() => toggleSubscriptionStatus(sub)}

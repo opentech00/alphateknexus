@@ -53,6 +53,7 @@ const METHOD_META: Record<string, { label: string; icon: typeof Wallet }> = {
   africell_money: { label: 'Africell Money', icon: Smartphone },
   orange_money: { label: 'Orange Money', icon: Smartphone },
   qmoney: { label: 'QMoney', icon: Smartphone },
+  wallet: { label: 'Wallet', icon: Wallet },
   other: { label: 'Other', icon: Wallet },
 };
 
@@ -87,7 +88,7 @@ export function SmartSortBillingTab() {
   const [payMethod, setPayMethod] = useState('cash');
   const [payReference, setPayReference] = useState('');
   const [recordingPayment, setRecordingPayment] = useState(false);
-  const [activeSubs, setActiveSubs] = useState<{ id: string; label: string }[]>([]);
+  const [activeSubs, setActiveSubs] = useState<{ id: string; label: string; auto_pay: boolean }[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -108,13 +109,14 @@ export function SmartSortBillingTab() {
   const loadActiveSubs = async () => {
     const { data } = await supabase
       .from('smart_sort_subscriptions')
-      .select('id, plan_name, plan_price_sle, address, profiles(full_name, email)')
+      .select('id, plan_name, plan_price_sle, address, auto_pay, profiles(full_name, email)')
       .eq('status', 'active')
       .order('created_at', { ascending: false });
     if (data) {
       setActiveSubs((data as any[]).map(s => ({
         id: s.id,
-        label: `${s.profiles?.full_name || 'Client'} — ${s.plan_name || 'Custom'} (${fmtMoney(s.plan_price_sle || 0)})`,
+        auto_pay: !!s.auto_pay,
+        label: `${s.profiles?.full_name || 'Client'} — ${s.plan_name || 'Custom'} (${fmtMoney(s.plan_price_sle || 0)})${s.auto_pay ? ' · wallet auto-pay' : ''}`,
       })));
     }
   };
@@ -569,6 +571,12 @@ export function SmartSortBillingTab() {
                 <Send className="w-4 h-4 text-slate-400" />
                 Invoice will be auto-numbered ({generateInvoiceNumber()}) and marked as sent.
               </div>
+              {activeSubs.find(s => s.id === genSubId)?.auto_pay && (
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-2 text-sm text-emerald-800">
+                  <Wallet className="w-4 h-4 text-emerald-600" />
+                  This subscription has wallet auto-pay. The invoice will be charged from the client wallet if funds are available.
+                </div>
+              )}
               {genError && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{genError}</div>}
             </div>
             <div className="px-5 pb-5 pt-3 border-t border-slate-100 flex-shrink-0 flex gap-3">

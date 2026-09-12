@@ -13,6 +13,10 @@ import type { Service } from '../types';
 import { QuickBookModal } from '../components/QuickBookModal';
 import { AppReviewModal } from '../components/AppReviewModal';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
+import { CurrencySwitcher } from '../components/CurrencySwitcher';
+import { ExploreServicesCarousel } from '../components/ExploreServicesCarousel';
+import { fallbackServiceImage, useServiceBrandingImages } from '../lib/media';
 
 interface DashboardPageProps {
   onNavigate?: (page: string) => void;
@@ -209,6 +213,8 @@ function StatusTimeline({ status }: { status: string }) {
 export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: DashboardPageProps) {
   const { profile } = useAuth();
   const { wallet_enabled } = useFeatureFlags();
+  const { currency, setCurrency, format } = useDisplayCurrency();
+  const { images: serviceImages } = useServiceBrandingImages();
   const [services, setServices]         = useState<Service[]>([]);
   const [bookings, setBookings]         = useState<BookingRow[]>([]);
   const [walletBalance, setWalletBalance] = useState(0);
@@ -327,6 +333,9 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                 <span className="text-xs text-emerald-400 font-bold uppercase tracking-widest">Client Portal Overview</span>
               </div>
+              <div className="flex flex-wrap items-center gap-3 mb-3">
+                <CurrencySwitcher value={currency} onChange={(code) => { void setCurrency(code); }} />
+              </div>
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight mt-1">
                 Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">{firstName}</span>
               </h1>
@@ -365,7 +374,7 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
       <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 transition-all duration-700 delay-100 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'}`}>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[
-            ...(wallet_enabled ? [{ label: 'Wallet Balance', value: `SLE ${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: Wallet,       color: 'emerald', page: 'account' }] : []),
+            ...(wallet_enabled ? [{ label: 'Wallet Balance', value: format(walletBalance), icon: Wallet,       color: 'emerald', page: 'account' }] : []),
             { label: 'Active Bookings', value: String(activeBookings),  icon: Clock,         color: 'blue',    page: 'bookings' },
             { label: 'Completed',       value: String(completedCount),  icon: CheckCircle2,  color: 'teal',    page: 'bookings' },
             { label: 'Services Available', value: String(services.length), icon: Briefcase,     color: 'amber',   page: 'services' },
@@ -422,6 +431,24 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
             </button>
           ))}
         </div>
+      </section>
+
+      <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 transition-all duration-700 delay-200 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'}`}>
+        <ExploreServicesCarousel
+          slides={serviceLinks.map((s) => ({
+            slug: s.slug,
+            title: s.label,
+            blurb: 'Book, manage and get this service done with ease.',
+            image: serviceImages[s.slug] || fallbackServiceImage(s.slug),
+            priceLabel: 'Explore this division',
+            cta: 'Explore',
+          }))}
+          onViewAll={() => onNavigate?.('services')}
+          onSelect={(slug) => {
+            const link = serviceLinks.find(s => s.slug === slug);
+            handleServiceClick(slug, link?.mode);
+          }}
+        />
       </section>
 
       {/* ── Bottom section ────────────────────────────────── */}
@@ -577,7 +604,7 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
                   </div>
                   <div className="min-w-0">
                     <p className="text-[10px] text-emerald-100 font-semibold uppercase tracking-wide">Wallet</p>
-                    <p className="text-sm font-bold text-white truncate">SLE {walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    <p className="text-sm font-bold text-white truncate">{format(walletBalance)}</p>
                   </div>
                 </div>
                 <p className="text-[11px] text-emerald-100/80 leading-relaxed flex-1">Pay for any service with your wallet balance.</p>

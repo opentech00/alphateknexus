@@ -21,6 +21,8 @@ import { MobilePaymentMethodModal } from './MobilePaymentMethodModal';
 import { MobileServiceHistoryModal } from './MobileServiceHistoryModal';
 import { Portal } from '../../lib/portal';
 import { LocationAutocomplete } from '../LocationAutocomplete';
+import { useDisplayCurrency } from '../../hooks/useDisplayCurrency';
+import { CurrencySwitcher } from '../CurrencySwitcher';
 
 type ModalType = null | 'wallet' | 'favorites' | 'appearance' | 'edit-profile' | 'address' | 'benefits' | 'payment' | 'history' | 'notifications' | 'help';
 
@@ -43,6 +45,7 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
   const { profile, user, isAdmin, signOut } = useAuth();
   const { url: logoUrl } = useAppLogo();
   const { referral_enabled, wallet_enabled } = useFeatureFlags();
+  const { currency, setCurrency, format } = useDisplayCurrency();
   const [stats, setStats] = useState<Stats>({
     total: 0, completed: 0,
     memberYear: new Date().getFullYear(),
@@ -138,10 +141,7 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
     }
   };
 
-  const fmtBalance = (n: number) => {
-    const sign = n < 0 ? '-' : '';
-    return `${sign}SLE ${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
+  const fmtBalance = (n: number) => format(n);
 
   return (
     <div className={`flex-1 bg-[#f5f8ff] dark:bg-slate-950 pb-8 transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
@@ -177,6 +177,9 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
                 Premium Client
               </span>
             </div>
+          </div>
+          <div className="mb-3">
+            <CurrencySwitcher value={currency} onChange={(code) => { void setCurrency(code); }} compact />
           </div>
           <div className="flex items-center bg-blue-600/60 backdrop-blur-sm rounded-2xl divide-x divide-blue-500/50">
             <StatCell icon={<CalendarDays className="w-4 h-4 text-blue-200" />} label="Total Bookings" value={String(stats.total)} />
