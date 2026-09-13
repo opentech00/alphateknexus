@@ -14,10 +14,12 @@ export function ExploreServicesCarousel({
   slides,
   onSelect,
   onViewAll,
+  contentClassName,
 }: {
   slides: ExploreSlide[];
   onSelect: (slug: string) => void;
   onViewAll?: () => void;
+  contentClassName?: string;
 }) {
   const [index, setIndex] = useState(0);
   const touchStartX = useRef(0);
@@ -56,7 +58,7 @@ export function ExploreServicesCarousel({
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-black/45" />
       <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/25 to-transparent" />
-      <div className="relative p-4 min-h-[200px] flex flex-col justify-between">
+      <div className={`relative p-4 min-h-[200px] flex flex-col justify-between ${contentClassName ?? ''}`}>
         <div>
           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500 text-white">
             Explore Services

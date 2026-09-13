@@ -36,23 +36,14 @@ interface BookingRow {
   services: { name: string; slug: string } | null;
 }
 
-const iconMap: Record<string, React.ReactNode> = {
-  Trash2: <Trash2 className="w-5 h-5" />,
-  Shield: <Shield className="w-5 h-5" />,
-  Ship: <Ship className="w-5 h-5" />,
-  Sparkles: <Sparkles className="w-5 h-5" />,
-  ShoppingCart: <ShoppingCart className="w-5 h-5" />,
-};
-
 const serviceLinks: {
-  slug: string; label: string; icon: string;
-  gradient: string; mode?: 'hire' | 'quote' | 'pickup' | 'subscribe';
+  slug: string; label: string; mode?: 'hire' | 'quote' | 'pickup' | 'subscribe';
 }[] = [
-  { slug: 'clearing-forwarding', label: 'Clearing & Forwarding', icon: 'Ship',         gradient: 'from-blue-500 to-blue-600',     mode: 'hire' },
-  { slug: 'waste-management',    label: 'Smart Sort Waste',       icon: 'Trash2',       gradient: 'from-emerald-500 to-teal-600', mode: 'pickup' },
-  { slug: 'private-security',    label: 'Private Security',       icon: 'Shield',       gradient: 'from-slate-700 to-slate-900',  mode: 'hire' },
-  { slug: 'cleaning-janitorial', label: 'Cleaning & Janitorial',  icon: 'Sparkles',     gradient: 'from-cyan-500 to-blue-500',    mode: 'hire' },
-  { slug: 'procurement',         label: 'Procurement',            icon: 'ShoppingCart', gradient: 'from-amber-500 to-orange-600', mode: 'quote' },
+  { slug: 'clearing-forwarding', label: 'Clearing & Forwarding', mode: 'hire' },
+  { slug: 'waste-management',    label: 'Smart Sort Waste',      mode: 'pickup' },
+  { slug: 'private-security',    label: 'Private Security',      mode: 'hire' },
+  { slug: 'cleaning-janitorial', label: 'Cleaning & Janitorial', mode: 'hire' },
+  { slug: 'procurement',         label: 'Procurement',           mode: 'quote' },
 ];
 
 function statusMeta(status: string) {
@@ -340,24 +331,18 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
                 Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">{firstName}</span>
               </h1>
               <p className="text-slate-300 mt-3 max-w-lg text-sm sm:text-base leading-relaxed">
-                Streamline your operations, track real-time bookings, and request logistics, cleaning, security, and procurement services in seconds.
+                Book a service in seconds, then track active work, wallet, and recent activity from one place.
               </p>
-              <div className="flex flex-wrap gap-3 mt-6">
+              <div className="flex flex-wrap items-center gap-3 mt-6">
                 <button
                   onClick={() => setShowQuickBook(true)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-semibold rounded-xl hover:from-emerald-600 hover:to-teal-700 transition-all active:scale-[0.98] shadow-lg shadow-emerald-950/50 hover:shadow-emerald-900/60"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-semibold rounded-xl hover:from-emerald-600 hover:to-teal-700 transition-all active:scale-[0.98] shadow-lg shadow-emerald-950/50 hover:shadow-emerald-900/60"
                 >
                   <Zap className="w-4 h-4 fill-white" /> Quick Book
                 </button>
                 <button
-                  onClick={() => onNavigate?.('services')}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/10 border border-white/20 backdrop-blur-md text-white text-sm font-semibold rounded-xl hover:bg-white/20 transition-all active:scale-[0.98]"
-                >
-                  <Briefcase className="w-4 h-4 text-emerald-400" /> Browse Services
-                </button>
-                <button
                   onClick={() => onNavigate?.('bookings')}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/10 border border-white/20 backdrop-blur-md text-white text-sm font-semibold rounded-xl hover:bg-white/20 transition-all active:scale-[0.98]"
+                  className="inline-flex items-center gap-2 px-5 py-3 bg-white/10 border border-white/20 backdrop-blur-md text-white text-sm font-semibold rounded-xl hover:bg-white/20 transition-all active:scale-[0.98]"
                 >
                   <CalendarDays className="w-4 h-4 text-blue-400" /> My Bookings
                 </button>
@@ -399,42 +384,9 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
         </div>
       </section>
 
-      {/* ── Quick Actions ─────────────────────────────────── */}
       <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 transition-all duration-700 delay-150 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'}`}>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">Quick Actions</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Select a division to initiate a new booking or quote request</p>
-          </div>
-          <button
-            onClick={() => onNavigate?.('services')}
-            className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1 group"
-          >
-            View all <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-          </button>
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-          {serviceLinks.map((s, i) => (
-            <button
-              key={s.slug}
-              onClick={() => handleServiceClick(s.slug, s.mode)}
-              style={{ transitionDelay: `${160 + i * 55}ms` }}
-              className={`group glass-card glass-card-hover rounded-2xl p-5 text-left ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
-            >
-              <div className={`w-12 h-12 bg-gradient-to-br ${s.gradient} rounded-2xl flex items-center justify-center text-white mb-3 group-hover:scale-110 transition-transform shadow-md`}>
-                {iconMap[s.icon]}
-              </div>
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 leading-snug">{s.label}</p>
-              <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 font-semibold transition-colors">
-                Book now <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-              </p>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 transition-all duration-700 delay-200 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'}`}>
         <ExploreServicesCarousel
+          contentClassName="p-6 sm:p-8 min-h-[280px]"
           slides={serviceLinks.map((s) => ({
             slug: s.slug,
             title: s.label,
