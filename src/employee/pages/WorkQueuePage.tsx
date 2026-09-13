@@ -162,12 +162,13 @@ export function WorkQueuePage({ onOpenCash }: { onOpenCash: () => void }) {
     setBusyId(null);
   };
 
-  const tabs: { id: Tab; label: string; count: number; show: boolean }[] = [
+  const allTabs: { id: Tab; label: string; count: number; show: boolean }[] = [
     { id: 'quotes', label: 'Quotes', count: quotes.length, show: true },
     { id: 'unassigned', label: 'Unassigned', count: unassigned.length, show: true },
     { id: 'cash', label: 'Cash', count: cash.length, show: canCash },
     { id: 'tasks', label: 'Overdue tasks', count: tasks.length, show: true },
-  ].filter((t) => t.show);
+  ];
+  const tabs = allTabs.filter((t) => t.show);
 
   return (
     <div className="space-y-4">
