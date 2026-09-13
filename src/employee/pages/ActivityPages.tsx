@@ -9,6 +9,7 @@ import type { Employee } from '../types';
 import { fmtDate, STATUS_META } from '../types';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { ServiceDetailsPanel } from '../../components/ServiceDetailsPanel';
+import { EmployeeBookingChat } from '../components/EmployeeBookingChat';
 
 /* ═══════════════════════════════════════════════════════════════
    Shared helpers
@@ -55,6 +56,8 @@ interface Booking {
   contact_email: string | null;
   created_at: string;
   notes: string | null;
+  assigned_to?: string | null;
+  assigned_employee_id?: string | null;
   details?: Record<string, unknown> | null;
   services?: { name: string; slug?: string }[] | { name: string; slug?: string } | null;
 }
@@ -72,17 +75,30 @@ export function BookingsPage({ employee }: { employee: Employee | null }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const canManage = hasCapability('div.manage_bookings');
   const canApprove = hasCapability('div.approve_quotes');
+  const canMessage = hasCapability('div.message_clients') || hasCapability('div.view');
+  const [team, setTeam] = useState<{ id: string; user_id: string | null; full_name: string }[]>([]);
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [chatName, setChatName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!employee?.service_id) { setLoading(false); return; }
     (async () => {
-      const { data } = await supabase
-        .from('bookings')
-        .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, created_at, notes, details, services(name, slug)')
-        .eq('service_id', employee.service_id)
-        .order('scheduled_date', { ascending: false })
-        .limit(50);
+      const [{ data }, teamRes] = await Promise.all([
+        supabase
+          .from('bookings')
+          .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, created_at, notes, details, assigned_to, assigned_employee_id, services(name, slug)')
+          .eq('service_id', employee.service_id)
+          .order('scheduled_date', { ascending: false })
+          .limit(50),
+        supabase
+          .from('employees')
+          .select('id, user_id, full_name')
+          .eq('service_id', employee.service_id)
+          .eq('status', 'active')
+          .order('full_name'),
+      ]);
       setBookings((data as Booking[]) || []);
+      setTeam(teamRes.data || []);
       setLoading(false);
     })();
   }, [employee?.service_id]);
@@ -137,12 +153,41 @@ export function BookingsPage({ employee }: { employee: Employee | null }) {
                           const { error } = await supabase.from('bookings').update({ status: next }).eq('id', b.id);
                           if (!error) setBookings(prev => prev.map(row => row.id === b.id ? { ...row, status: next } : row));
                         }}
-                        className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white"
+                        className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white min-h-[36px]"
                       >
                         {['pending', 'pending_review', 'approved', 'confirmed', 'in_progress', 'completed', 'cancelled'].map(s => (
                           <option key={s} value={s}>{s.replace('_', ' ')}</option>
                         ))}
                       </select>
+                    )}
+                    {canManage && (
+                      <select
+                        value={b.assigned_to || ''}
+                        onChange={async (ev) => {
+                          const uid = ev.target.value || null;
+                          const member = team.find(t => t.user_id === uid);
+                          const { error } = await supabase.from('bookings').update({
+                            assigned_to: uid,
+                            assigned_employee_id: member?.id || null,
+                          }).eq('id', b.id);
+                          if (!error) setBookings(prev => prev.map(row => row.id === b.id ? { ...row, assigned_to: uid, assigned_employee_id: member?.id || null } : row));
+                        }}
+                        className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white min-h-[36px]"
+                      >
+                        <option value="">Unassigned</option>
+                        {team.filter(t => t.user_id).map(t => (
+                          <option key={t.id} value={t.user_id!}>{t.full_name}</option>
+                        ))}
+                      </select>
+                    )}
+                    {canMessage && (
+                      <button
+                        type="button"
+                        onClick={() => { setChatId(b.id); setChatName(b.contact_name); }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg"
+                      >
+                        Message
+                      </button>
                     )}
                   </div>
                 </div>
@@ -168,6 +213,9 @@ export function BookingsPage({ employee }: { employee: Employee | null }) {
           })}
         </div>
       )}
+      {chatId && (
+        <EmployeeBookingChat bookingId={chatId} clientName={chatName} onClose={() => setChatId(null)} />
+      )}
     </div>
   );
 }
@@ -177,36 +225,83 @@ export function BookingsPage({ employee }: { employee: Employee | null }) {
    ═══════════════════════════════════════════════════════════════ */
 
 export function SchedulePage({ employee }: { employee: Employee | null }) {
+  const { user } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scope, setScope] = useState<'mine' | 'division'>('mine');
+  const today = new Date().toISOString().slice(0, 10);
+  const [day, setDay] = useState(today);
 
   useEffect(() => {
     if (!employee?.service_id) { setLoading(false); return; }
     (async () => {
-      const today = new Date().toISOString().slice(0, 10);
-      const { data } = await supabase
+      setLoading(true);
+      let q = supabase
         .from('bookings')
-        .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, notes, services(name)')
+        .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, notes, assigned_to, services(name)')
         .eq('service_id', employee.service_id)
         .gte('scheduled_date', today)
+        .not('status', 'eq', 'cancelled')
         .order('scheduled_date', { ascending: true })
-        .limit(30);
+        .limit(60);
+      if (scope === 'mine' && user?.id) q = q.eq('assigned_to', user.id);
+      const { data } = await q;
       setBookings((data as Booking[]) || []);
       setLoading(false);
     })();
-  }, [employee?.service_id]);
+  }, [employee?.service_id, scope, user?.id, today]);
 
-  if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-slate-400 animate-spin" /></div>;
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(`${today}T12:00:00`);
+    d.setDate(d.getDate() + i);
+    return d.toISOString().slice(0, 10);
+  });
+
+  const visible = bookings.filter((b) => b.scheduled_date === day);
+  const overdueMine = scope === 'mine' && bookings.some((b) => b.scheduled_date < today && !['completed', 'cancelled'].includes(b.status));
 
   return (
     <div>
-      <PageHeader icon={Calendar} title="My Schedule" subtitle="Upcoming assigned work" />
-      {bookings.length === 0 ? (
-        <EmptyState icon={Calendar} title="No upcoming work" subtitle="Your schedule is clear for now." />
+      <PageHeader icon={Calendar} title="My Schedule" subtitle={scope === 'mine' ? 'Jobs assigned to you' : 'Upcoming work in your division'} />
+      <div className="flex gap-2 mb-4">
+        {(['mine', 'division'] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setScope(s)}
+            className={`min-h-[40px] px-3 rounded-xl text-sm font-medium ${scope === s ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}
+          >
+            {s === 'mine' ? 'Assigned to me' : 'Whole division'}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-2 overflow-x-auto mb-4 pb-1">
+        {week.map((d) => {
+          const count = bookings.filter((b) => b.scheduled_date === d).length;
+          const active = d === day;
+          return (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDay(d)}
+              className={`min-w-[72px] min-h-[64px] rounded-xl border text-center px-2 py-2 ${active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200 text-slate-700'}`}
+            >
+              <p className="text-[10px] uppercase opacity-70">{new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short' })}</p>
+              <p className="text-sm font-bold">{new Date(d + 'T12:00:00').getDate()}</p>
+              <p className="text-[10px]">{count} job{count === 1 ? '' : 's'}</p>
+            </button>
+          );
+        })}
+      </div>
+      {overdueMine && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-3">You have assigned jobs before today that are not completed.</p>}
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-slate-400 animate-spin" /></div>
+      ) : visible.length === 0 ? (
+        <EmptyState icon={Calendar} title={scope === 'mine' ? 'Nothing assigned this day' : 'No jobs this day'} subtitle="Switch day or view the whole division." />
       ) : (
         <div className="relative pl-6 space-y-4">
           <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-slate-200" />
-          {bookings.map((b) => (
+          {visible.map((b) => (
             <div key={b.id} className="relative">
               <div className="absolute -left-4 top-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white shadow-sm" />
               <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">

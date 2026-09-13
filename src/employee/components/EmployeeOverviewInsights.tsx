@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Banknote, Bell, Briefcase, Calendar, ClipboardList, Clock, GitBranch, Loader2, Shield } from 'lucide-react';
+import { Banknote, Bell, Briefcase, Calendar, ClipboardList, Clock, FolderOpen, GitBranch, Inbox, Loader2, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fmtDate } from '../types';
 
@@ -11,7 +11,10 @@ type OverviewNavKey =
   | 'delegated-tasks'
   | 'notifications'
   | 'cash-collections'
-  | 'manage-division';
+  | 'manage-division'
+  | 'work-queue'
+  | 'leave'
+  | 'hr-files';
 
 interface QuickAction {
   label: string;
@@ -169,6 +172,9 @@ export function EmployeeOverviewInsights({ employee, isDivisionHead, hasCapabili
   };
 
   const quickActions: QuickAction[] = [
+    { label: 'Work queue', page: 'work-queue' as OverviewNavKey, icon: Inbox, show: hasCapability('div.view') || hasCapability('div.approve_quotes') },
+    { label: 'Leave', page: 'leave' as OverviewNavKey, icon: Clock, show: true },
+    { label: 'Payslips', page: 'hr-files' as OverviewNavKey, icon: FolderOpen, show: true },
     { label: 'Bookings', page: 'bookings' as OverviewNavKey, icon: Calendar, show: hasCapability('div.view') },
     { label: 'Schedule', page: 'schedule' as OverviewNavKey, icon: Clock, show: hasCapability('div.view') },
     { label: 'Documents', page: 'documents' as OverviewNavKey, icon: Briefcase, show: hasCapability('div.manage_documents') },
@@ -204,7 +210,7 @@ export function EmployeeOverviewInsights({ employee, isDivisionHead, hasCapabili
           key: 'review',
           title: `${kpis.pendingReview} booking${kpis.pendingReview > 1 ? 's' : ''} pending review`,
           detail: 'Review and update status to keep operations moving',
-          page: 'bookings',
+          page: 'work-queue',
           priority: 'medium',
         }
       : null,

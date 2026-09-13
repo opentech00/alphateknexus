@@ -3,7 +3,7 @@ import {
   Mail, Phone, MapPin, Calendar, AlertTriangle, User, Briefcase,
   Building2, BadgeCheck, CreditCard, LogOut, Loader2, Clock, Bell,
   LayoutDashboard, ChevronRight, Menu, X, KeyRound, Banknote, ClipboardList,
-  GitBranch, Shield,
+  GitBranch, Shield, Inbox, CalendarDays, FolderOpen,
 } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { supabase } from '../lib/supabase';
@@ -22,8 +22,11 @@ import { ManageDivisionPage } from './ManageDivisionPage';
 import { EmployeeNotificationsBell } from '../components/EmployeeNotificationsBell';
 import { EmployeeNotificationsPage } from './EmployeeNotificationsPage';
 import { EmployeeOverviewInsights } from '../components/EmployeeOverviewInsights';
+import { WorkQueuePage } from './WorkQueuePage';
+import { LeaveAttendancePage } from './LeaveAttendancePage';
+import { HrFilesPage } from './HrFilesPage';
 
-type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications' | 'bookings' | 'schedule' | 'documents' | 'report' | 'performance' | 'delegated-tasks' | 'manage-division';
+type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications' | 'bookings' | 'schedule' | 'documents' | 'report' | 'performance' | 'delegated-tasks' | 'manage-division' | 'work-queue' | 'leave' | 'hr-files';
 
 export function EmployeeDashboardPage() {
   const { employee, signOut, hasCapability, isDivisionHead } = useAuth();
@@ -75,10 +78,15 @@ export function EmployeeDashboardPage() {
 
   const navItems: { key: Page; label: string; icon: typeof LayoutDashboard }[] = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard },
+    ...(hasCapability('div.view') || hasCapability('div.approve_quotes') || hasCapability('div.manage_bookings')
+      ? [{ key: 'work-queue' as Page, label: 'Work queue', icon: Inbox }]
+      : []),
     ...(isDivisionHead || hasCapability('div.manage_staff_access')
       ? [{ key: 'manage-division' as Page, label: 'Manage division', icon: Shield }]
       : []),
     { key: 'activities', label: 'My Activities', icon: ClipboardList },
+    { key: 'leave', label: 'Leave & attendance', icon: CalendarDays },
+    { key: 'hr-files', label: 'Payslips & HR', icon: FolderOpen },
     { key: 'delegated-tasks', label: 'Delegated Tasks', icon: GitBranch },
     { key: 'division', label: 'My Division', icon: Building2 },
     { key: 'role', label: 'My Role', icon: Briefcase },
@@ -204,6 +212,9 @@ export function EmployeeDashboardPage() {
       <div className="lg:ml-64 pt-14 lg:pt-0">
         <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
           {page === 'overview' && <OverviewPage employee={employee} idCard={idCard} cardLoading={cardLoading} cardStatus={cardStatus} sm={sm} onNavigate={handleNav} />}
+          {page === 'work-queue' && <WorkQueuePage onOpenCash={() => handleNav('cash-collections')} />}
+          {page === 'leave' && <LeaveAttendancePage />}
+          {page === 'hr-files' && <HrFilesPage />}
           {page === 'manage-division' && <ManageDivisionPage />}
           {page === 'activities' && <ActivitiesPage onNavigate={(k) => handleNav(k as Page)} />}
           {page === 'division' && <DivisionPage employee={employee} />}
@@ -238,6 +249,9 @@ function OverviewPage({ employee, idCard, cardLoading, cardStatus, sm, onNavigat
 
   const tiles = [
     ...(isDivisionHead ? [{ page: 'manage-division' as Page, label: 'Manage division', value: 'Team access', icon: Shield, color: 'text-violet-600', bg: 'bg-violet-50' }] : []),
+    { page: 'work-queue' as Page, label: 'Work queue', value: 'Quotes & jobs', icon: Inbox, color: 'text-rose-600', bg: 'bg-rose-50' },
+    { page: 'leave' as Page, label: 'Leave', value: 'Time off', icon: CalendarDays, color: 'text-sky-600', bg: 'bg-sky-50' },
+    { page: 'hr-files' as Page, label: 'Payslips', value: 'HR files', icon: FolderOpen, color: 'text-emerald-700', bg: 'bg-emerald-50' },
     { page: 'division' as Page, label: 'My Division', value: employee.services?.name || 'Unassigned', icon: Building2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { page: 'role' as Page, label: 'My Role', value: employee.hr_roles?.name || 'Unassigned', icon: Briefcase, color: 'text-blue-600', bg: 'bg-blue-50' },
     { page: 'activities' as Page, label: 'My Activities', value: 'View tasks', icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50' },

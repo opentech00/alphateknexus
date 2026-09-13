@@ -81,6 +81,8 @@ const EMPLOYEE_DOC_TYPE_LABELS: Record<string, string> = {
   performance_review: 'Performance Review',
   warning_letter: 'Warning Letter',
   medical: 'Medical',
+  payslip: 'Payslip',
+  policy: 'Policy',
   other: 'Other',
 };
 

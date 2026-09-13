@@ -56,6 +56,8 @@ const DOC_TYPES: Record<string, DocTypeMeta> = {
   performance_review: { label: 'Performance Review', icon: FileCheck,     color: 'text-indigo-600',    bg: 'bg-indigo-50' },
   warning_letter:      { label: 'Warning Letter',   icon: MailWarning,    color: 'text-red-600',       bg: 'bg-red-50' },
   medical:            { label: 'Medical Record',    icon: HeartPulse,      color: 'text-rose-600',      bg: 'bg-rose-50' },
+  payslip:            { label: 'Payslip',           icon: FileSpreadsheet, color: 'text-emerald-700',   bg: 'bg-emerald-50' },
+  policy:             { label: 'Policy',            icon: FileBadge,       color: 'text-slate-700',     bg: 'bg-slate-100' },
   other:              { label: 'Other',             icon: File,            color: 'text-slate-600',     bg: 'bg-slate-50' },
 };
 

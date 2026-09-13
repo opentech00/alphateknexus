@@ -27,6 +27,9 @@ const ACTIVITY_ICONS: Record<string, LucideIcon> = {
   'id-card': CreditCard,
   'cash-collections': Banknote,
   'delegated-tasks': GitBranch,
+  'work-queue': ClipboardList,
+  leave: Calendar,
+  'hr-files': FileText,
 };
 
 const TYPE_META: Record<string, { label: string; color: string; bg: string }> = {
