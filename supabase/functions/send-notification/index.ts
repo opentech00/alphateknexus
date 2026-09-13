@@ -180,10 +180,18 @@ async function sendPushV1(
 ): Promise<{ ok: boolean; error?: string }> {
   const message: Record<string, unknown> = {
     token,
-    notification: { title, body },
+    notification: {
+      title,
+      body,
+      ...(typeof metadata.media_url === "string" && metadata.media_url
+        ? { image: metadata.media_url }
+        : {}),
+    },
     data: {
       ...Object.fromEntries(
-        Object.entries(metadata).map(([k, v]) => [k, String(v)]),
+        Object.entries(metadata)
+          .filter(([, v]) => v !== null && typeof v !== "object")
+          .map(([k, v]) => [k, String(v)]),
       ),
       title,
       body,
@@ -193,6 +201,9 @@ async function sendPushV1(
       notification: {
         channel_id: String(metadata.channel_id || "general"),
         priority: "high",
+        ...(typeof metadata.media_url === "string" && metadata.media_url
+          ? { image: metadata.media_url }
+          : {}),
       },
     },
     apns: {
@@ -249,9 +260,19 @@ async function sendPushLegacy(
   }
 
   const message: Record<string, unknown> = {
-    notification: { title, body },
+    notification: {
+      title,
+      body,
+      ...(typeof metadata.media_url === "string" && metadata.media_url
+        ? { image: metadata.media_url }
+        : {}),
+    },
     data: {
-      ...metadata,
+      ...Object.fromEntries(
+        Object.entries(metadata)
+          .filter(([, v]) => v !== null && typeof v !== "object")
+          .map(([k, v]) => [k, String(v)]),
+      ),
       title,
       body,
       click_action: metadata.click_action?.toString() || "OPEN_APP",
@@ -260,6 +281,9 @@ async function sendPushLegacy(
       notification: {
         channel_id: metadata.channel_id?.toString() || "general",
         priority: "high",
+        ...(typeof metadata.media_url === "string" && metadata.media_url
+          ? { image: metadata.media_url }
+          : {}),
       },
     },
     apns: {
@@ -323,8 +347,11 @@ async function sendPushToToken(
 
 // ── Email helpers ───────────────────────────────────────────────
 
-function buildEmailHtml(title: string, body: string, subtitle: string): string {
+function buildEmailHtml(title: string, body: string, subtitle: string, mediaUrl?: string): string {
   const appUrl = (Deno.env.get("APP_URL") || "https://alphateknexus.com").replace(/\/$/, "");
+  const hero = mediaUrl
+    ? `<tr><td style="padding:0;"><img src="${mediaUrl}" alt="" width="560" style="display:block;width:100%;max-height:280px;object-fit:cover;"></td></tr>`
+    : "";
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background-color:#eef2f6;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
@@ -338,6 +365,7 @@ function buildEmailHtml(title: string, body: string, subtitle: string): string {
 <td style="padding-left:12px;"><strong style="display:block;color:#0f172a;font-size:17px;">AlphaTek Nexus</strong><span style="display:block;margin-top:3px;color:#64748b;font-size:12px;">${subtitle}</span></td>
 </tr></table>
 </td></tr>
+${hero}
 <tr><td style="padding:34px 36px 30px;">
 <p style="margin:0 0 10px;color:#10b981;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;">Account notification</p>
 <h1 style="margin:0 0 12px;color:#0f172a;font-size:24px;line-height:1.25;">${title}</h1>
@@ -470,14 +498,22 @@ Deno.serve(async (req: Request) => {
         const userPrefs = (prefs || {}) as NotificationPreferences;
         const categoryKey = CATEGORY_MAP[row.category] || "cat_system";
         const categoryEnabled = userPrefs[categoryKey] !== false;
+        const meta = (row.metadata || {}) as Record<string, unknown>;
+        const channelOn = (key: string, fallback = true) => {
+          const raw = meta[key];
+          if (raw === false || raw === "false") return false;
+          if (raw === true || raw === "true") return true;
+          return fallback;
+        };
 
         // ── In-app notification ──
-        if (categoryEnabled && userPrefs.in_app_enabled !== false) {
+        if (categoryEnabled && userPrefs.in_app_enabled !== false && channelOn("channels_in_app")) {
           const { error: inAppErr } = await supabase.from("notifications").insert({
             user_id: row.user_id,
             title: row.title,
             body: row.body,
-            type: row.event_type.startsWith("booking") ? "booking_update"
+            type: row.event_type === "announcement" ? "announcement"
+              : row.event_type.startsWith("booking") ? "booking_update"
               : row.event_type.startsWith("message") ? "message"
               : row.event_type.startsWith("job") || row.event_type.startsWith("field") ? "field_dispatch"
               : row.event_type.startsWith("hr") || row.event_type.startsWith("employee") ? "hr_update"
@@ -487,8 +523,8 @@ Deno.serve(async (req: Request) => {
               : row.event_type.startsWith("subscription") || row.event_type.startsWith("smart_sort") ? "subscription"
               : "system",
             recipient_role: row.recipient_role,
-            booking_id: (row.metadata as Record<string, string>).booking_id || null,
-            service_slug: (row.metadata as Record<string, string>).service_slug || null,
+            booking_id: (meta.booking_id as string) || null,
+            service_slug: (meta.service_slug as string) || null,
             metadata: row.metadata,
           });
 
@@ -502,14 +538,18 @@ Deno.serve(async (req: Request) => {
         }
 
         // ── Email notification ──
-        if (categoryEnabled && userPrefs.email_enabled !== false) {
+        if (categoryEnabled && userPrefs.email_enabled !== false && channelOn("channels_email")) {
           const { data: userData } = await supabase.auth.admin.getUserById(row.user_id);
           const recipientEmail = userData?.user?.email;
 
           if (recipientEmail) {
             const subject = getSubjectForEvent(row.event_type, row.title);
-            const html = buildEmailHtml(row.title, row.body, row.event_type.replace(/_/g, " "));
-            const text = buildEmailText(row.title, row.body);
+            const emailBody = typeof meta.email_body === "string" && meta.email_body.trim()
+              ? meta.email_body
+              : row.body;
+            const mediaUrl = typeof meta.media_url === "string" ? meta.media_url : undefined;
+            const html = buildEmailHtml(row.title, emailBody, row.event_type.replace(/_/g, " "), mediaUrl);
+            const text = buildEmailText(row.title, emailBody);
             const emailResult = await sendEmail(supabase, recipientEmail, subject, html, text);
 
             if (emailResult.ok) {
@@ -525,7 +565,7 @@ Deno.serve(async (req: Request) => {
         }
 
         // ── Push notification ──
-        if (categoryEnabled && userPrefs.push_enabled !== false) {
+        if (categoryEnabled && userPrefs.push_enabled !== false && channelOn("channels_push")) {
           const { data: subs } = await supabase
             .from("push_subscriptions")
             .select("id, token, platform, app_role")

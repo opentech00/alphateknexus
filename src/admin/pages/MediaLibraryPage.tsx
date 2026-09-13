@@ -19,6 +19,7 @@ const CATEGORIES: { value: MediaCategory; label: string; icon: typeof ImageIcon;
   { value: 'login_carousel', label: 'Login Carousel', icon: ImageIcon, color: 'text-purple-600', bg: 'bg-purple-50' },
   { value: 'splash', label: 'Splash Screen', icon: ImageIcon, color: 'text-amber-600', bg: 'bg-amber-50' },
   { value: 'general', label: 'General Content', icon: FolderOpen, color: 'text-slate-600', bg: 'bg-slate-100' },
+  { value: 'campaign', label: 'Campaigns', icon: ImageIcon, color: 'text-rose-600', bg: 'bg-rose-50' },
 ];
 
 const SERVICE_KEYS = [
@@ -29,6 +30,7 @@ const SERVICE_KEYS = [
   { value: 'private-security', label: 'Private Security' },
   { value: 'procurement', label: 'Procurement' },
   { value: 'general', label: 'General' },
+  { value: 'campaign', label: 'Campaign' },
 ];
 
 function formatFileSize(bytes: number | null): string {

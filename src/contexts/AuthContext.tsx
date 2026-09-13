@@ -125,53 +125,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      if (data.session?.user) {
-        fetchProfile(data.session.user.id).then(async () => {
+    let cancelled = false;
+
+    const loadUserExtras = (uid: string) => {
+      // Defer so we never query Supabase inside the GoTrue lock.
+      // Calling from() inside onAuthStateChange can drop the session.
+      window.setTimeout(() => {
+        if (cancelled) return;
+        fetchProfile(uid).then(async () => {
+          if (cancelled) return;
+          initPushNotifications('client').catch(() => {});
+          if (signUpInProgressRef.current) return;
           const { data: prof } = await supabase
             .from('profiles')
             .select('is_verified')
-            .eq('id', data.session!.user.id)
+            .eq('id', uid)
             .maybeSingle();
-          if (prof) {
+          if (!cancelled && prof) {
             setNeedsEmailVerification(!prof.is_verified);
           }
-          setLoading(false);
+        }).finally(() => {
+          if (!cancelled) setLoading(false);
         });
-      } else {
-        setLoading(false);
+      }, 0);
+    };
+
+    const applySession = (newSession: Session | null) => {
+      if (cancelled) return;
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+      if (newSession?.user) {
+        lastActivityRef.current = Date.now();
+        loadUserExtras(newSession.user.id);
+        return;
       }
-    });
+      setProfile(null);
+      setNeedsEmailVerification(false);
+      setFailedLoginAlert(null);
+      setLoading(false);
+    };
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      (async () => {
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-        if (newSession?.user) {
-          await fetchProfile(newSession.user.id);
-          initPushNotifications('client').catch(() => {});
-          if (!signUpInProgressRef.current) {
-            const { data: prof } = await supabase
-              .from('profiles')
-              .select('is_verified')
-              .eq('id', newSession.user.id)
-              .maybeSingle();
-            if (prof) {
-              setNeedsEmailVerification(!prof.is_verified);
-            }
-          }
-        } else {
-          setProfile(null);
-          setNeedsEmailVerification(false);
-          setFailedLoginAlert(null);
-        }
-        setLoading(false);
-      })();
+      applySession(newSession);
     });
 
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string, rememberMe = false) => {
@@ -205,6 +206,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: 'Invalid email or password.' };
     }
     if (!data.user) return { error: 'Authentication failed' };
+
+    lastActivityRef.current = Date.now();
 
     // Store remember-me preference
     if (rememberMe) {
@@ -254,13 +257,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const { data: checkData } = await supabase.functions.invoke('manage-2fa', {
-        body: { action: 'verify-login', code: '__check__', userId: data.user.id },
+        body: { action: 'check' },
       });
-      if (checkData && checkData.error === 'Invalid code') {
-        await supabase.auth.signOut();
+      if (checkData?.enabled) {
         setPending2FAEmail(normalizedEmail);
         setPending2FAPassword(password);
         setNeeds2FA(true);
+        await supabase.auth.signOut();
         return { error: null, needs2FA: true };
       }
     } catch {

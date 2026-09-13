@@ -16,6 +16,7 @@ import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { CurrencySwitcher } from '../components/CurrencySwitcher';
 import { ExploreServicesCarousel } from '../components/ExploreServicesCarousel';
+import { CampaignPromoBanner } from '../components/CampaignPromoBanner';
 import { fallbackServiceImage, useServiceBrandingImages } from '../lib/media';
 
 interface DashboardPageProps {
@@ -354,6 +355,12 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
           </div>
         </div>
       </section>
+
+      <CampaignPromoBanner
+        className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 transition-all duration-700 delay-75 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'}`}
+        onNavigate={onNavigate}
+        onSelectService={onSelectService}
+      />
 
       {/* ── Stats ─────────────────────────────────────────── */}
       <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 transition-all duration-700 delay-100 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'}`}>

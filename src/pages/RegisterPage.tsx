@@ -1,44 +1,11 @@
 import { useState, useMemo, FormEvent } from 'react';
 import { Eye, EyeOff, ArrowRight, Check, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { AuthLayout, AuthSlide } from '../components/auth/AuthLayout';
+import { AuthLayout } from '../components/auth/AuthLayout';
 
 interface RegisterPageProps {
   onNavigate: (page: string) => void;
 }
-
-const slides: AuthSlide[] = [
-  {
-    src: '/login-cleaning-janitorial.webp',
-    title: 'Spotless spaces, productive teams.',
-    desc: 'Professional deep cleaning, office maintenance, carpet care, and full sanitization on demand.',
-    badge: 'CLEANING',
-  },
-  {
-    src: '/login-clearing-forwarding.webp',
-    title: 'Ship smarter, arrive faster.',
-    desc: 'Complete customs handling, port clearance, real-time tracking, and insurance coverage for your cargo.',
-    badge: 'LOGISTICS',
-  },
-  {
-    src: '/login-procurement.webp',
-    title: 'Buy better, save more.',
-    desc: 'Strategic sourcing, vendor management, cost analysis, and supply chain optimization.',
-    badge: 'PROCUREMENT',
-  },
-  {
-    src: '/login-private-security.webp',
-    title: 'Protection that never sleeps.',
-    desc: 'Armed & unarmed guards, 24/7 CCTV monitoring, access control, and event security deployment.',
-    badge: 'SECURITY',
-  },
-  {
-    src: '/login-smart-sort.webp',
-    title: 'Sort smart, live cleaner.',
-    desc: 'Scheduled waste pickups, bin subscriptions, recycling programs, and real-time impact tracking for a greener city.',
-    badge: 'SMART SORT',
-  },
-];
 
 function getPasswordStrength(password: string) {
   const checks = {
@@ -95,7 +62,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
   };
 
   return (
-    <AuthLayout slides={slides}>
+    <AuthLayout>
       <div className="mb-4">
         <h1 className="text-xl lg:text-2xl font-bold text-slate-900">Create your account</h1>
         <p className="mt-1 text-slate-500 text-sm">Get started with Alphatek Nexus today</p>

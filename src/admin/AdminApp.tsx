@@ -36,6 +36,7 @@ import { HrDocumentsPage } from './pages/HrDocumentsPage';
 import { BackupPage } from './pages/BackupPage';
 import { UsersManagementPage } from './pages/UsersManagementPage';
 import { BundlesManagementPage } from './pages/BundlesManagementPage';
+import { CampaignsPage } from './pages/CampaignsPage';
 const FieldDispatchPage = lazy(() =>
   import('./pages/FieldDispatchPage').then((m) => ({ default: m.FieldDispatchPage })),
 );
@@ -196,6 +197,8 @@ function AdminContent() {
         return <UsersManagementPage />;
       case 'bundles':
         return <BundlesManagementPage />;
+      case 'campaigns':
+        return <CampaignsPage />;
       case 'admin-sessions':
         return <AdminSessionsPage />;
       case 'task-delegation':

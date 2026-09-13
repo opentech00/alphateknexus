@@ -109,33 +109,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      if (data.session?.user) {
-        fetchEmployee(data.session.user.id).finally(() => setLoading(false));
-      } else {
+    let cancelled = false;
+
+    const applySession = (newSession: Session | null) => {
+      if (cancelled) return;
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+      if (!newSession?.user) {
+        setEmployee(null);
+        setAppAccess(null);
+        setCapabilities(new Set());
         setLoading(false);
+        return;
       }
-    });
+      lastActivityRef.current = Date.now();
+      window.setTimeout(() => {
+        if (cancelled) return;
+        fetchEmployee(newSession.user.id)
+          .then(() => initPushNotifications('employee').catch(() => {}))
+          .finally(() => {
+            if (!cancelled) setLoading(false);
+          });
+      }, 0);
+    };
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      (async () => {
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-        if (newSession?.user) {
-          await fetchEmployee(newSession.user.id);
-          initPushNotifications('employee').catch(() => {});
-        } else {
-          setEmployee(null);
-          setAppAccess(null);
-          setCapabilities(new Set());
-        }
-        setLoading(false);
-      })();
+      applySession(newSession);
     });
 
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (identifier: string, password: string) => {

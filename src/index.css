@@ -35,6 +35,59 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes authKenBurns {
+  from { transform: scale(1.04); }
+  to { transform: scale(1.12); }
+}
+@keyframes authLineIn {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes authWordIn {
+  from { opacity: 0; transform: translateY(16px); filter: blur(6px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+@keyframes authLineOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-14px); }
+}
+@keyframes authWordOut {
+  from { opacity: 1; transform: translateY(0); filter: blur(0); }
+  to { opacity: 0; transform: translateY(-12px); filter: blur(4px); }
+}
+@keyframes authDotProgress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+.auth-kenburns-active {
+  animation: authKenBurns 3s ease-out forwards;
+}
+.auth-line-in {
+  animation: authLineIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.auth-word-in {
+  animation: authWordIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.auth-line-out {
+  animation: authLineOut 0.45s ease-in both;
+}
+.auth-word-out {
+  animation: authWordOut 0.4s ease-in both;
+}
+.auth-dot-progress {
+  animation: authDotProgress 3s linear forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-kenburns-active,
+  .auth-line-in,
+  .auth-word-in,
+  .auth-line-out,
+  .auth-word-out,
+  .auth-dot-progress {
+    animation: none;
+  }
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

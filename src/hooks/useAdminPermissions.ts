@@ -14,7 +14,7 @@ const ALL_PAGES = [
   'overview', 'analytics', 'bookings', 'documents', 'clients', 'divisions',
   'division-cf', 'division-smart-sort', 'division-cleaning', 'division-security',
   'division-procurement', 'wallet', 'booking-review', 'messages', 'users',
-  'reviews', 'bundles', 'referrals', 'field-dispatch', 'field-job-review',
+  'reviews', 'bundles', 'campaigns', 'referrals', 'field-dispatch', 'field-job-review',
   'field-incidents', 'finance', 'task-delegation', 'backup', 'admin-sessions',
   'settings', 'notification-log', 'hr-dashboard', 'hr-employees', 'hr-roles',
   'hr-id-cards', 'hr-activity', 'hr-directory', 'hr-permissions',

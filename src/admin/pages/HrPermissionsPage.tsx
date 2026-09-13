@@ -31,6 +31,7 @@ const MANAGED_PAGES = [
   { key: 'users', label: 'User Management' },
   { key: 'reviews', label: 'Reviews' },
   { key: 'bundles', label: 'Bundles' },
+  { key: 'campaigns', label: 'Campaigns' },
   { key: 'referrals', label: 'Referrals' },
   { key: 'field-dispatch', label: 'Field Dispatch' },
   { key: 'field-job-review', label: 'Field Job Review' },

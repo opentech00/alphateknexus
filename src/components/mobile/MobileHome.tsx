@@ -14,6 +14,7 @@ import { ServiceCardSkeleton, BookingMiniSkeleton } from './Skeleton';
 import { NotificationsPanel } from '../NotificationsPanel';
 import { useDisplayCurrency } from '../../hooks/useDisplayCurrency';
 import { ExploreServicesCarousel } from '../ExploreServicesCarousel';
+import { CampaignPromoBanner } from '../CampaignPromoBanner';
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -340,7 +341,8 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
       </div>
 
       {search === '' && (
-        <div className="mx-5 mb-5" style={{ animation: 'fadeInUp 0.5s ease-out 0.15s both' }}>
+        <div className="mx-5 mb-5 space-y-4" style={{ animation: 'fadeInUp 0.5s ease-out 0.15s both' }}>
+          <CampaignPromoBanner onNavigate={onNavigate} onSelectService={onSelectService} />
           <ExploreServicesCarousel
             slides={exploreSlides}
             onViewAll={() => onNavigate('services')}

@@ -37,7 +37,7 @@ export function LoginPage({ onSwitch, onForgot }: LoginPageProps) {
   };
 
   return (
-    <AuthLayout>
+    <AuthLayout onCta={onSwitch}>
       <div className="mb-5">
         <h1 className="text-xl lg:text-2xl font-bold text-slate-900">Welcome back</h1>
         <p className="mt-1 text-slate-500 text-sm">Sign in to your client portal</p>
