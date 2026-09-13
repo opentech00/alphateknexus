@@ -4,6 +4,11 @@ import { supabase } from '../lib/supabase';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 import { Portal } from '../lib/portal';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { Field, inputClass, ErrorBanner } from './service-form/ServiceFormKit';
+import {
+  applyFieldErrors, collectErrors, todayISO,
+  validateAddress, validateDate, validateEmail, validateName, validatePhone, validateRequired,
+} from '../lib/serviceFormValidation';
 
 interface Service {
   id: string;
@@ -56,20 +61,37 @@ export function ProcurementQuoteForm({ service, onCancel, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const addItem = () => setItems((prev) => [...prev, newItem()]);
   const removeItem = (i: number) =>
     setItems((prev) => prev.filter((_, idx) => idx !== i));
-  const updateItem = (i: number, patch: Partial<Item>) =>
+  const updateItem = (i: number, patch: Partial<Item>) => {
     setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+    setFieldErrors((p) => ({ ...p, items: '' }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     const validItems = items.filter((it) => it.description.trim());
-    if (!title.trim() || !contactName.trim() || !phone.trim() || !validItems.length) {
-      setError('Title, contact name, phone and at least one item are required.');
+    const next = collectErrors({
+      title: validateRequired(title, 'Title'),
+      contactName: validateName(contactName, 'Contact name'),
+      phone: validatePhone(phone),
+      email: validateEmail(email, true),
+      neededBy: validateDate(neededBy, 'Needed-by date'),
+      deliveryAddress: validateAddress(deliveryAddress),
+      items: validItems.length === 0
+        ? 'Add at least one item with a description.'
+        : items.some((it) => it.description.trim() && it.qty < 1)
+          ? 'Quantity must be at least 1.'
+          : '',
+    });
+    setFieldErrors(next);
+    if (!applyFieldErrors(next)) {
+      setError('Please fix the highlighted fields before continuing.');
       return;
     }
 
@@ -156,166 +178,121 @@ export function ProcurementQuoteForm({ service, onCancel, onSuccess }: Props) {
 
         {/* Body */}
         <form id="proc-quote-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-              {error}
-            </div>
-          )}
+          {error && <ErrorBanner message={error} />}
 
-          {/* Title */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Request Title <span className="text-red-500">*</span>
-            </label>
+          <Field name="title" label="Request Title" required error={fieldErrors.title}>
             <input
-              required
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => { setTitle(e.target.value); setFieldErrors(p => ({ ...p, title: '' })); }}
               placeholder="e.g. IT equipment for 10 workstations"
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all text-sm"
+              className={inputClass(!!fieldErrors.title, 'teal')}
             />
-          </div>
+          </Field>
 
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Project Description
-            </label>
+          <Field label="Project Description">
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Provide context — intended use, any brand/quality preferences, compliance requirements..."
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all text-sm resize-none"
+              className={`${inputClass(false, 'teal')} resize-none`}
             />
-          </div>
+          </Field>
 
-          {/* Contact info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Contact Name <span className="text-red-500">*</span>
-              </label>
+            <Field name="contactName" label="Contact Name" required error={fieldErrors.contactName}>
               <input
-                required
                 type="text"
                 value={contactName}
-                onChange={(e) => setContactName(e.target.value)}
+                onChange={(e) => { setContactName(e.target.value); setFieldErrors(p => ({ ...p, contactName: '' })); }}
                 placeholder="Your full name"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all text-sm"
+                className={inputClass(!!fieldErrors.contactName, 'teal')}
+                autoComplete="name"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Phone <span className="text-red-500">*</span>
-              </label>
+            </Field>
+            <Field name="phone" label="Phone" required error={fieldErrors.phone}>
               <input
-                required
                 type="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: '' })); }}
                 placeholder="+232 76 000 000"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all text-sm"
+                className={inputClass(!!fieldErrors.phone, 'teal')}
+                autoComplete="tel"
               />
-            </div>
+            </Field>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
+            <Field name="email" label="Email" required error={fieldErrors.email}>
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: '' })); }}
                 placeholder="you@example.com"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all text-sm"
+                className={inputClass(!!fieldErrors.email, 'teal')}
+                autoComplete="email"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Currency</label>
+            </Field>
+            <Field label="Currency">
               <select
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all text-sm bg-white"
+                className={inputClass(false, 'teal')}
               >
                 {CURRENCIES.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
-            </div>
+            </Field>
           </div>
 
-          {/* Needed By + Budget Range */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                <span className="flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  Needed by
-                </span>
-              </label>
+            <Field name="neededBy" label={<span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-400" /> Needed by</span>} required error={fieldErrors.neededBy}>
               <input
                 type="date"
                 value={neededBy}
-                onChange={(e) => setNeededBy(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all text-sm"
+                onChange={(e) => { setNeededBy(e.target.value); setFieldErrors(p => ({ ...p, neededBy: '' })); }}
+                min={todayISO()}
+                className={inputClass(!!fieldErrors.neededBy, 'teal')}
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                <span className="flex items-center gap-1.5">
-                  <DollarSign className="w-3.5 h-3.5 text-slate-400" />
-                  Budget Range
-                </span>
-              </label>
+            </Field>
+            <Field label={<span className="flex items-center gap-1.5"><DollarSign className="w-3.5 h-3.5 text-slate-400" /> Budget Range</span>}>
               <select
                 value={budgetRange}
                 onChange={(e) => setBudgetRange(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all text-sm bg-white"
+                className={inputClass(false, 'teal')}
               >
                 <option value="">Select a budget range (optional)</option>
                 {BUDGET_RANGES.map((b) => (
                   <option key={b} value={b}>{b}</option>
                 ))}
               </select>
-            </div>
+            </Field>
           </div>
 
-          {/* Delivery Address */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              <span className="flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                Delivery Address
-              </span>
-            </label>
+          <Field name="deliveryAddress" label={<span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-400" /> Delivery Address</span>} required error={fieldErrors.deliveryAddress}>
             <LocationAutocomplete
               value={deliveryAddress}
-              onChange={setDeliveryAddress}
+              onChange={(v) => { setDeliveryAddress(v); setFieldErrors(p => ({ ...p, deliveryAddress: '' })); }}
               showLocate
+              invalid={!!fieldErrors.deliveryAddress}
               placeholder="Street address, city, country"
-              inputClassName="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all text-sm"
+              inputClassName={`${inputClass(!!fieldErrors.deliveryAddress, 'teal')} pl-9`}
             />
-          </div>
+          </Field>
 
-          {/* Vendor Preference */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Vendor / Brand Preference
-            </label>
+          <Field label="Vendor / Brand Preference">
             <input
               type="text"
               value={vendorPreference}
               onChange={(e) => setVendorPreference(e.target.value)}
               placeholder="e.g. Any ISO-certified supplier, prefer local vendors"
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all text-sm"
+              className={inputClass(false, 'teal')}
             />
-          </div>
+          </Field>
 
-          {/* Items */}
-          <div>
+          <div data-field="items">
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-slate-700">
                 Items <span className="text-red-500">*</span>
@@ -332,49 +309,53 @@ export function ProcurementQuoteForm({ service, onCancel, onSuccess }: Props) {
 
             <div className="space-y-2">
               {items.map((item, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-2">
                   <input
                     type="text"
                     value={item.description}
                     onChange={(e) => updateItem(i, { description: e.target.value })}
                     placeholder="Item description"
-                    className="flex-1 min-w-0 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-sm transition-all"
+                    className={`${inputClass(!!fieldErrors.items, 'teal')} flex-1 min-w-0`}
                   />
                   <input
                     type="number"
                     min={1}
                     value={item.qty}
                     onChange={(e) => updateItem(i, { qty: Number(e.target.value) })}
-                    className="w-16 px-2 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-sm text-center transition-all"
+                    className={`${inputClass(!!fieldErrors.items && item.qty < 1, 'teal')} sm:w-16 text-center`}
                   />
                   <input
                     type="text"
                     value={item.unit}
                     onChange={(e) => updateItem(i, { unit: e.target.value })}
                     placeholder="unit"
-                    className="w-20 px-2 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-sm transition-all"
+                    className={`${inputClass(false, 'teal')} sm:w-20`}
                   />
                   <input
                     type="text"
                     value={item.specs}
                     onChange={(e) => updateItem(i, { specs: e.target.value })}
                     placeholder="Specs / brand"
-                    className="w-32 px-2 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-sm transition-all"
+                    className={`${inputClass(false, 'teal')} sm:w-32`}
                   />
                   <button
                     type="button"
                     onClick={() => removeItem(i)}
                     disabled={items.length === 1}
-                    className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               ))}
             </div>
-            <p className="mt-1.5 text-xs text-slate-400">
-              List every item you need quoted — include quantity, unit and any spec/brand details.
-            </p>
+            {fieldErrors.items ? (
+              <p className="mt-1.5 text-xs text-red-600">{fieldErrors.items}</p>
+            ) : (
+              <p className="mt-1.5 text-xs text-slate-400">
+                List every item you need quoted — include quantity, unit and any spec/brand details.
+              </p>
+            )}
           </div>
         </form>
 

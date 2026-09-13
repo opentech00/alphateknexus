@@ -1,12 +1,17 @@
 import { useState } from 'react';
 import {
-  Sparkles, X, CheckCircle2, ArrowLeft, Eye,
+  Sparkles, X, CheckCircle2, ArrowLeft,
   Building2, Repeat2, Tag,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ServicePaymentStep, PaymentSuccessScreen, PaymentFailedScreen } from './ServicePaymentStep';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { Field, inputClass, ErrorBanner, FormActions } from './service-form/ServiceFormKit';
+import {
+  applyFieldErrors, collectErrors, todayISO,
+  validateAddress, validateDate, validateEmail, validateName, validatePhone,
+} from '../lib/serviceFormValidation';
 
 interface Service {
   id: string; name: string; slug: string;
@@ -32,17 +37,6 @@ const FREQUENCIES = [
 ];
 const BASE_RATE = 15_000; // Le per area
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1.5">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  );
-}
-
 function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: string }) {
   return (
     <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-slate-100">
@@ -53,8 +47,6 @@ function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: 
     </div>
   );
 }
-
-const inputCls = 'w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all bg-white';
 
 type Step = 'form' | 'review' | 'payment' | 'success' | 'payment_failed' | 'review_submitted';
 
@@ -81,6 +73,7 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
   const [addons, setAddons] = useState<string[]>([]);
   const [frequency, setFrequency] = useState('One-time');
   const [notes, setNotes] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const toggleArea = (a: string) =>
     setAreas(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
@@ -94,8 +87,17 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
   const total = subtotal - discount;
 
   const handleReview = () => {
-    if (!fullName || !phone || !preferredDate || areas.length === 0) {
-      setError('Please fill in all required fields and select at least one area to clean.');
+    const next = collectErrors({
+      fullName: validateName(fullName),
+      phone: validatePhone(phone),
+      email: validateEmail(email),
+      preferredDate: validateDate(preferredDate, 'Preferred date'),
+      address: validateAddress(address),
+      areas: areas.length === 0 ? 'Select at least one area to clean.' : '',
+    });
+    setFieldErrors(next);
+    if (!applyFieldErrors(next)) {
+      setError('Please fix the highlighted fields before continuing.');
       return;
     }
     setError('');
@@ -221,7 +223,7 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
             </div>
           </div>
         </div>
-        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>}
+        {error && <div className="mb-4"><ErrorBanner message={error} /></div>}
         <div className="flex gap-3">
           <button onClick={() => setStep('form')} className="flex-1 py-3.5 border border-slate-200 rounded-xl text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm">Back &amp; Edit</button>
           <button onClick={handleSubmit} disabled={loading} className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2">
@@ -253,39 +255,40 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
           </div>
         </div>
 
-        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>}
+        {error && <div className="mb-4"><ErrorBanner message={error} /></div>}
 
         <div className="space-y-4">
           {/* Contact */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={Building2} title="Contact Information" />
             <div className="space-y-4">
-              <Field label="Full Name" required>
-                <input className={inputCls} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your full name" />
+              <Field name="fullName" label="Full Name" required error={fieldErrors.fullName}>
+                <input className={inputClass(!!fieldErrors.fullName)} value={fullName} onChange={e => { setFullName(e.target.value); setFieldErrors(p => ({ ...p, fullName: '' })); }} placeholder="Your full name" autoComplete="name" />
               </Field>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Phone" required>
-                  <input className={inputCls} type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+232..." />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field name="phone" label="Phone" required error={fieldErrors.phone}>
+                  <input className={inputClass(!!fieldErrors.phone)} type="tel" value={phone} onChange={e => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: '' })); }} placeholder="+232 76 000 000" autoComplete="tel" />
                 </Field>
-                <Field label="Email">
-                  <input className={inputCls} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" />
+                <Field name="email" label="Email" error={fieldErrors.email}>
+                  <input className={inputClass(!!fieldErrors.email)} type="email" value={email} onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: '' })); }} placeholder="email@example.com" autoComplete="email" />
                 </Field>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Preferred Date" required>
-                  <input className={inputCls} type="date" value={preferredDate} onChange={e => setPreferredDate(e.target.value)} min={new Date().toISOString().split('T')[0]} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field name="preferredDate" label="Preferred Date" required error={fieldErrors.preferredDate}>
+                  <input className={inputClass(!!fieldErrors.preferredDate)} type="date" value={preferredDate} onChange={e => { setPreferredDate(e.target.value); setFieldErrors(p => ({ ...p, preferredDate: '' })); }} min={todayISO()} />
                 </Field>
                 <Field label="Preferred Time">
-                  <input className={inputCls} type="time" value={preferredTime} onChange={e => setPreferredTime(e.target.value)} />
+                  <input className={inputClass()} type="time" value={preferredTime} onChange={e => setPreferredTime(e.target.value)} />
                 </Field>
               </div>
-              <Field label="Service Address">
+              <Field name="address" label="Service Address" required error={fieldErrors.address}>
                 <LocationAutocomplete
                   value={address}
-                  onChange={setAddress}
+                  onChange={(v) => { setAddress(v); setFieldErrors(p => ({ ...p, address: '' })); }}
                   showLocate
-                  placeholder="Where should we deliver the service?"
-                  inputClassName={`${inputCls} pl-9`}
+                  invalid={!!fieldErrors.address}
+                  placeholder="Where should we clean?"
+                  inputClassName={`${inputClass(!!fieldErrors.address)} pl-9`}
                 />
               </Field>
             </div>
@@ -294,15 +297,16 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
           {/* Property */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={Tag} title="Property Size" />
-            <div className="grid grid-cols-2 gap-4 mb-5">
-              <input className={inputCls} type="number" value={sqft} onChange={e => setSqft(e.target.value)} placeholder="Square feet" />
-              <input className={inputCls} type="number" value={rooms} onChange={e => setRooms(e.target.value)} placeholder="Rooms" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+              <input className={inputClass()} type="number" min={1} value={sqft} onChange={e => setSqft(e.target.value)} placeholder="Square feet" />
+              <input className={inputClass()} type="number" min={1} value={rooms} onChange={e => setRooms(e.target.value)} placeholder="Rooms" />
             </div>
 
+            <div data-field="areas">
             <p className="text-sm font-medium text-slate-700 mb-3">What should we clean? <span className="text-red-500">*</span></p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 gap-2">
               {AREAS.map(a => (
-                <button key={a} type="button" onClick={() => toggleArea(a)}
+                <button key={a} type="button" onClick={() => { toggleArea(a); setFieldErrors(p => ({ ...p, areas: '' })); }}
                   className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${areas.includes(a) ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                   <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${areas.includes(a) ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300 bg-white'}`}>
                     {areas.includes(a) && <svg viewBox="0 0 12 12" fill="none" className="w-2.5 h-2.5"><path d="M2 6L5 9L10 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
@@ -310,6 +314,8 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
                   <span className="text-sm text-slate-700">{a}</span>
                 </button>
               ))}
+            </div>
+            {fieldErrors.areas && <p className="mt-2 text-xs text-red-600">{fieldErrors.areas}</p>}
             </div>
           </div>
 
@@ -332,7 +338,7 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
             </div>
 
             <p className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-1.5"><Repeat2 className="w-4 h-4 text-slate-400" /> Frequency</p>
-            <div className="grid grid-cols-2 gap-2 mb-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-5">
               {FREQUENCIES.map(f => (
                 <button key={f.label} type="button" onClick={() => setFrequency(f.label)}
                   className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${frequency === f.label ? 'border-emerald-600 bg-emerald-50 ring-1 ring-emerald-600' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
@@ -357,17 +363,12 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
           {/* Notes */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <Field label="Additional Notes">
-              <textarea className={`${inputCls} resize-none`} rows={4} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any special requirements..." />
+              <textarea className={`${inputClass()} resize-none`} rows={4} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any special requirements..." />
             </Field>
           </div>
         </div>
 
-        <div className="mt-6 flex gap-3">
-          <button type="button" onClick={onCancel} className="px-6 py-3.5 border border-slate-200 rounded-xl text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm">Cancel</button>
-          <button type="button" onClick={handleReview} className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-colors text-sm flex items-center justify-center gap-2">
-            <Eye className="w-4 h-4" /> Review Booking
-          </button>
-        </div>
+        <FormActions onCancel={onCancel} onSubmit={handleReview} submitLabel="Review Booking" />
       </div>
     </div>
   );

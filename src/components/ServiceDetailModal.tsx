@@ -32,7 +32,7 @@ interface ServiceDetailModalProps {
   service: Service;
   rating?: { avg: number; count: number } | null;
   onClose: () => void;
-  onHireNow: (service: Service) => void;
+  onHireNow: (service: Service, mode?: 'hire' | 'pickup' | 'subscribe') => void;
   onRequestQuote?: (service: Service) => void;
 }
 
@@ -622,15 +622,15 @@ export function ServiceDetailModal({ service, rating, onClose, onHireNow, onRequ
                 <span className="whitespace-nowrap">Request Quote</span>
               </button>
               <button
-                onClick={() => onHireNow(service)}
-                className="w-full min-w-0 flex items-center justify-center gap-2 py-3 px-2 sm:px-3 rounded-xl text-sm font-semibold bg-teal-500 hover:bg-teal-600 text-white transition-all active:scale-95 shadow-sm"
+                onClick={() => onHireNow(service, 'subscribe')}
+                className="w-full min-h-[48px] min-w-0 flex items-center justify-center gap-2 py-3 px-2 sm:px-3 rounded-xl text-sm font-semibold bg-teal-500 hover:bg-teal-600 text-white transition-all active:scale-95 shadow-sm"
               >
                 <Repeat2 className="w-4 h-4 shrink-0" />
                 <span className="truncate">Subscribe</span>
               </button>
               <button
-                onClick={() => onHireNow(service)}
-                className="w-full min-w-0 flex items-center justify-center gap-2 py-3 px-2 sm:px-3 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-900 text-white transition-all active:scale-95 shadow-sm"
+                onClick={() => onHireNow(service, 'pickup')}
+                className="w-full min-h-[48px] min-w-0 flex items-center justify-center gap-2 py-3 px-2 sm:px-3 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-900 text-white transition-all active:scale-95 shadow-sm"
               >
                 <PackageCheck className="w-4 h-4 shrink-0" />
                 <span className="truncate">One-Off Pickup</span>

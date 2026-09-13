@@ -6,6 +6,11 @@ import {
 import { supabase } from '../lib/supabase';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { Field, inputClass, ErrorBanner } from './service-form/ServiceFormKit';
+import {
+  applyFieldErrors, collectErrors, todayISO,
+  validateAddress, validateDate, validateEmail, validateName, validatePhone, validateRequired,
+} from '../lib/serviceFormValidation';
 
 interface Service {
   id: string; name: string; slug: string;
@@ -58,18 +63,6 @@ function CheckboxItem({ label, checked, onClick }: { label: string; checked: boo
   );
 }
 
-function Field({ label, required, children, hint }: { label: string; required?: boolean; children: React.ReactNode; hint?: string }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
-      {children}
-      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
-    </div>
-  );
-}
-
-const inputCls = 'w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white';
-
 export function CleaningQuoteForm({ service, onCancel, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -104,16 +97,32 @@ export function CleaningQuoteForm({ service, onCancel, onSuccess }: Props) {
 
   // E. Terms
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const toggleService = (s: string) =>
+  const toggleService = (s: string) => {
     setServiceTypes(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
+    setFieldErrors(p => ({ ...p, serviceTypes: '' }));
+  };
 
   const handleSubmit = async () => {
-    if (!companyName || !contactPerson || !phone || !email || !address || !businessType || !propertySize || serviceTypes.length === 0) {
-      setError('Please fill in all required fields (sections A, B, and C).');
+    const next = collectErrors({
+      companyName: validateRequired(companyName, 'Company / customer name'),
+      contactPerson: validateName(contactPerson, 'Contact person'),
+      phone: validatePhone(phone),
+      whatsapp: validatePhone(whatsapp, false),
+      email: validateEmail(email, true),
+      address: validateAddress(address),
+      businessType: validateRequired(businessType, 'Property type'),
+      propertySize: validateRequired(propertySize, 'Property size'),
+      serviceTypes: serviceTypes.length === 0 ? 'Select at least one service.' : '',
+      startDate: validateDate(startDate, 'Preferred start date', false),
+      terms: termsAccepted ? '' : 'You must accept the service terms to submit.',
+    });
+    setFieldErrors(next);
+    if (!applyFieldErrors(next)) {
+      setError('Please fix the highlighted fields before continuing.');
       return;
     }
-    if (!termsAccepted) { setError('You must accept the service terms to submit the quote request.'); return; }
     setError('');
     setLoading(true);
 
@@ -185,48 +194,49 @@ export function CleaningQuoteForm({ service, onCancel, onSuccess }: Props) {
           </div>
         </div>
 
-        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-start gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />{error}</div>}
+        {error && <div className="mb-4"><ErrorBanner message={error} /></div>}
 
         <div className="space-y-4">
           {/* Section A — Customer */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={Building2} id="A" title="Customer / Company Information" />
             <div className="space-y-4">
-              <Field label="Company / Customer Name" required>
-                <input className={inputCls} value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Your company or name" />
+              <Field name="companyName" label="Company / Customer Name" required error={fieldErrors.companyName}>
+                <input className={inputClass(!!fieldErrors.companyName, 'blue')} value={companyName} onChange={e => { setCompanyName(e.target.value); setFieldErrors(p => ({ ...p, companyName: '' })); }} placeholder="Your company or name" />
               </Field>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Contact Person" required>
-                  <input className={inputCls} value={contactPerson} onChange={e => setContactPerson(e.target.value)} placeholder="Full name" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field name="contactPerson" label="Contact Person" required error={fieldErrors.contactPerson}>
+                  <input className={inputClass(!!fieldErrors.contactPerson, 'blue')} value={contactPerson} onChange={e => { setContactPerson(e.target.value); setFieldErrors(p => ({ ...p, contactPerson: '' })); }} placeholder="Full name" autoComplete="name" />
                 </Field>
                 <Field label="Position / Title">
-                  <input className={inputCls} value={position} onChange={e => setPosition(e.target.value)} />
+                  <input className={inputClass(false, 'blue')} value={position} onChange={e => setPosition(e.target.value)} />
                 </Field>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Phone" required>
-                  <input className={inputCls} type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+232..." />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field name="phone" label="Phone" required error={fieldErrors.phone}>
+                  <input className={inputClass(!!fieldErrors.phone, 'blue')} type="tel" value={phone} onChange={e => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: '' })); }} placeholder="+232..." autoComplete="tel" />
                 </Field>
-                <Field label="WhatsApp (if any)">
-                  <input className={inputCls} type="tel" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} placeholder="+232..." />
+                <Field name="whatsapp" label="WhatsApp (if any)" error={fieldErrors.whatsapp}>
+                  <input className={inputClass(!!fieldErrors.whatsapp, 'blue')} type="tel" value={whatsapp} onChange={e => { setWhatsapp(e.target.value); setFieldErrors(p => ({ ...p, whatsapp: '' })); }} placeholder="+232..." />
                 </Field>
               </div>
-              <Field label="Email Address" required>
-                <input className={inputCls} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" />
+              <Field name="email" label="Email Address" required error={fieldErrors.email}>
+                <input className={inputClass(!!fieldErrors.email, 'blue')} type="email" value={email} onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: '' })); }} placeholder="email@example.com" autoComplete="email" />
               </Field>
-              <Field label="Service Address" required>
+              <Field name="address" label="Service Address" required error={fieldErrors.address}>
                 <LocationAutocomplete
                   value={address}
-                  onChange={setAddress}
+                  onChange={(v) => { setAddress(v); setFieldErrors(p => ({ ...p, address: '' })); }}
                   onSelect={(s) => { if (s.city) setCity(s.city); if (s.country) setCountry(s.country); }}
                   showLocate
+                  invalid={!!fieldErrors.address}
                   placeholder="Property address"
-                  inputClassName={`${inputCls} pl-9`}
+                  inputClassName={`${inputClass(!!fieldErrors.address, 'blue')} pl-9`}
                 />
               </Field>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="City"><input className={inputCls} value={city} onChange={e => setCity(e.target.value)} /></Field>
-                <Field label="Country"><input className={inputCls} value={country} onChange={e => setCountry(e.target.value)} /></Field>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="City"><input className={inputClass(false, 'blue')} value={city} onChange={e => setCity(e.target.value)} /></Field>
+                <Field label="Country"><input className={inputClass(false, 'blue')} value={country} onChange={e => setCountry(e.target.value)} /></Field>
               </div>
             </div>
           </div>
@@ -235,32 +245,35 @@ export function CleaningQuoteForm({ service, onCancel, onSuccess }: Props) {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={BarChart3} id="B" title="Property Profile" />
             <div className="space-y-5">
-              <div>
+              <div data-field="businessType">
                 <p className="text-sm font-medium text-slate-700 mb-3">Property Type <span className="text-red-500">*</span></p>
-                <div className="grid grid-cols-2 gap-2">
-                  {BUSINESS_TYPES.map(t => <RadioCard key={t} label={t} checked={businessType === t} onClick={() => setBusinessType(t)} />)}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {BUSINESS_TYPES.map(t => <RadioCard key={t} label={t} checked={businessType === t} onClick={() => { setBusinessType(t); setFieldErrors(p => ({ ...p, businessType: '' })); }} />)}
                 </div>
+                {fieldErrors.businessType && <p className="mt-2 text-xs text-red-600">{fieldErrors.businessType}</p>}
               </div>
-              <div>
+              <div data-field="propertySize">
                 <p className="text-sm font-medium text-slate-700 mb-3">Property Size <span className="text-red-500">*</span></p>
-                <div className="grid grid-cols-2 gap-2">
-                  {SIZES.map(s => <RadioCard key={s} label={s} checked={propertySize === s} onClick={() => setPropertySize(s)} />)}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {SIZES.map(s => <RadioCard key={s} label={s} checked={propertySize === s} onClick={() => { setPropertySize(s); setFieldErrors(p => ({ ...p, propertySize: '' })); }} />)}
                 </div>
+                {fieldErrors.propertySize && <p className="mt-2 text-xs text-red-600">{fieldErrors.propertySize}</p>}
               </div>
-              <div>
+              <div data-field="serviceTypes">
                 <p className="text-sm font-medium text-slate-700 mb-3">Services Required <span className="text-red-500">*</span></p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {SERVICE_TYPES.map(s => <CheckboxItem key={s} label={s} checked={serviceTypes.includes(s)} onClick={() => toggleService(s)} />)}
                 </div>
+                {fieldErrors.serviceTypes && <p className="mt-2 text-xs text-red-600">{fieldErrors.serviceTypes}</p>}
               </div>
               <div>
                 <p className="text-sm font-medium text-slate-700 mb-2">Service Frequency</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {FREQUENCIES.map(f => <RadioCard key={f} label={f} checked={frequency === f} onClick={() => setFrequency(f)} />)}
                 </div>
               </div>
-              <Field label="Preferred Start Date">
-                <input className={inputCls} type="date" value={startDate} onChange={e => setStartDate(e.target.value)} min={new Date().toISOString().split('T')[0]} />
+              <Field name="startDate" label="Preferred Start Date" error={fieldErrors.startDate}>
+                <input className={inputClass(!!fieldErrors.startDate, 'blue')} type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setFieldErrors(p => ({ ...p, startDate: '' })); }} min={todayISO()} />
               </Field>
             </div>
           </div>
@@ -271,25 +284,25 @@ export function CleaningQuoteForm({ service, onCancel, onSuccess }: Props) {
             <div className="space-y-5">
               <div>
                 <p className="text-sm font-medium text-slate-700 mb-2">Cleaning Supplies &amp; Equipment</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {(['We provide', 'Client provides', 'Shared'] as const).map(s => (
                     <RadioCard key={s} label={s} checked={suppliesProvided === s} onClick={() => setSuppliesProvided(s)} />
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Number of Staff Needed">
-                  <input className={inputCls} type="number" value={staffCount} onChange={e => setStaffCount(e.target.value)} placeholder="e.g. 3" />
+                  <input className={inputClass(false, 'blue')} type="number" value={staffCount} onChange={e => setStaffCount(e.target.value)} placeholder="e.g. 3" />
                 </Field>
                 <div>
                   <p className="text-sm font-medium text-slate-700 mb-2">Preferred Payment Method</p>
-                  <select className={inputCls} value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
+                  <select className={inputClass(false, 'blue')} value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
                     {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
               </div>
               <Field label="Special Requirements">
-                <textarea className={`${inputCls} resize-none`} rows={3} value={specialRequirements} onChange={e => setSpecialRequirements(e.target.value)} placeholder="Access restrictions, security clearance, eco-friendly products, etc." />
+                <textarea className={`${inputClass(false, 'blue')} resize-none`} rows={3} value={specialRequirements} onChange={e => setSpecialRequirements(e.target.value)} placeholder="Access restrictions, security clearance, eco-friendly products, etc." />
               </Field>
             </div>
           </div>
@@ -315,9 +328,9 @@ export function CleaningQuoteForm({ service, onCancel, onSuccess }: Props) {
           {/* Section E — Terms */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={AlertCircle} id="E" title="Terms & Conditions" />
-            <label className="flex items-start gap-3 cursor-pointer group">
-              <div onClick={() => setTermsAccepted(!termsAccepted)}
-                className={`mt-0.5 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${termsAccepted ? 'bg-blue-600 border-blue-600' : 'border-slate-300 group-hover:border-blue-400'}`}>
+            <label data-field="terms" className="flex items-start gap-3 cursor-pointer group">
+              <div onClick={() => { setTermsAccepted(!termsAccepted); setFieldErrors(p => ({ ...p, terms: '' })); }}
+                className={`mt-0.5 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${termsAccepted ? 'bg-blue-600 border-blue-600' : fieldErrors.terms ? 'border-red-400' : 'border-slate-300 group-hover:border-blue-400'}`}>
                 {termsAccepted && <svg viewBox="0 0 12 12" fill="none" className="w-2.5 h-2.5"><path d="M2 6L5 9L10 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
               </div>
               <span className="text-sm text-slate-600 leading-relaxed">
@@ -326,6 +339,7 @@ export function CleaningQuoteForm({ service, onCancel, onSuccess }: Props) {
                 <span className="text-blue-600 underline cursor-pointer">conditions</span>. <span className="text-red-500">*</span>
               </span>
             </label>
+            {fieldErrors.terms && <p className="mt-2 text-xs text-red-600">{fieldErrors.terms}</p>}
             <div className="mt-5 flex items-center gap-2 text-xs text-slate-400 bg-slate-50 rounded-lg p-3 border border-slate-100">
               <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 flex-shrink-0"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" /><path d="M12 8v4m0 4h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
               Quotes are typically delivered within 24 hours via email or phone.

@@ -592,7 +592,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
           service={detailService}
           rating={getServiceRating(detailService)}
           onClose={() => setDetailService(null)}
-          onHireNow={(svc) => { setDetailService(null); handleBookService(svc); }}
+          onHireNow={(svc, mode) => { setDetailService(null); handleBookService(svc, mode); }}
           onRequestQuote={(svc) => { setDetailService(null); handleQuoteService(svc); }}
         />
       )}

@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import {
   X, MessageSquare, MapPin, Trash2, Truck, Sparkles,
-  Clock, ChevronDown, CheckCircle2, AlertCircle, Send,
+  Clock, ChevronDown, Send,
   ArrowLeft,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 import { Portal } from '../lib/portal';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { Field, inputClass, ErrorBanner } from './service-form/ServiceFormKit';
+import {
+  applyFieldErrors, collectErrors, todayISO,
+  validateAddress, validateDate, validateEmail, validateName, validatePhone, validateRequired,
+} from '../lib/serviceFormValidation';
 
 interface Service { id: string; name: string; slug: string; }
 
@@ -76,28 +81,15 @@ function toggle<T>(arr: T[], val: T): T[] {
   return arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-const inputCls = 'w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-colors bg-white';
-
-function Sel({ value, onChange, options, placeholder = 'Select...' }: {
-  value: string; onChange: (v: string) => void; options: string[]; placeholder?: string;
+function Sel({ value, onChange, options, placeholder = 'Select...', invalid }: {
+  value: string; onChange: (v: string) => void; options: string[]; placeholder?: string; invalid?: boolean;
 }) {
   return (
     <div className="relative">
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
-        className={inputCls + ' appearance-none pr-8'}
+        className={`${inputClass(invalid)} appearance-none pr-8`}
       >
         <option value="">{placeholder}</option>
         {options.map(o => <option key={o} value={o}>{o}</option>)}
@@ -199,20 +191,23 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
 
   // ── validation ────────────────────────────────────────────────────────────
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
-    const e: Record<string, string> = {};
-    if (!contactPerson.trim()) e.contactPerson = 'Contact person is required.';
-    if (!phone.trim()) e.phone = 'Phone number is required.';
-    if (!propertyType) e.propertyType = 'Property type is required.';
-    if (!address.trim()) e.address = 'Address is required.';
-    if (wasteStreams.length === 0) e.wasteStreams = 'Select at least one waste stream.';
-    if (!volumePerPickup) e.volumePerPickup = 'Estimated volume is required.';
-    if (!serviceType) e.serviceType = 'Service type is required.';
-    if (!startDate) e.startDate = 'Preferred start date is required.';
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    const next = collectErrors({
+      contactPerson: validateName(contactPerson, 'Contact person'),
+      phone: validatePhone(phone),
+      whatsapp: validatePhone(whatsapp, false),
+      email: validateEmail(email, true),
+      propertyType: validateRequired(propertyType, 'Property type'),
+      address: validateAddress(address),
+      wasteStreams: wasteStreams.length === 0 ? 'Select at least one waste stream.' : '',
+      volumePerPickup: validateRequired(volumePerPickup, 'Estimated volume'),
+      serviceType: validateRequired(serviceType, 'Service type'),
+      startDate: validateDate(startDate, 'Preferred start date'),
+    });
+    setFieldErrors(next);
+    return applyFieldErrors(next);
   };
 
   const handleRequestQuote = () => {
@@ -339,11 +334,7 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
               <ReviewRow label="Monthly budget" value={monthlyBudget} />
               <ReviewRow label="Additional notes" value={additionalNotes} />
             </div>
-            {submitError && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /> {submitError}
-              </div>
-            )}
+            {submitError && <ErrorBanner message={submitError} />}
           </div>
           <div className="px-5 py-4 border-t border-slate-100 flex gap-3 flex-shrink-0">
             <button
@@ -395,43 +386,41 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
 
           {/* ── Section 1: Client ── */}
           <SectionCard icon={MessageSquare} title="Client">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Company / Organization">
                 <input
                   type="text" value={company} onChange={e => setCompany(e.target.value)}
-                  placeholder="Optional" className={inputCls}
+                  placeholder="Optional" className={inputClass()}
                 />
               </Field>
-              <Field label="Contact person" required>
+              <Field name="contactPerson" label="Contact person" required error={fieldErrors.contactPerson}>
                 <input
-                  type="text" value={contactPerson} onChange={e => setContactPerson(e.target.value)}
-                  placeholder="Full name" className={inputCls + (errors.contactPerson ? ' border-red-400' : '')}
+                  type="text" value={contactPerson} onChange={e => { setContactPerson(e.target.value); setFieldErrors(p => ({ ...p, contactPerson: '' })); }}
+                  placeholder="Full name" className={inputClass(!!fieldErrors.contactPerson)} autoComplete="name"
                 />
-                {errors.contactPerson && <p className="text-xs text-red-500 mt-1">{errors.contactPerson}</p>}
               </Field>
               <Field label="Position / Role">
                 <input
                   type="text" value={position} onChange={e => setPosition(e.target.value)}
-                  placeholder="e.g. Facility Manager" className={inputCls}
+                  placeholder="e.g. Facility Manager" className={inputClass()}
                 />
               </Field>
-              <Field label="Phone" required>
+              <Field name="phone" label="Phone" required error={fieldErrors.phone}>
                 <input
-                  type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                  placeholder="+232..." className={inputCls + (errors.phone ? ' border-red-400' : '')}
-                />
-                {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
-              </Field>
-              <Field label="WhatsApp">
-                <input
-                  type="tel" value={whatsapp} onChange={e => setWhatsapp(e.target.value)}
-                  placeholder="+232..." className={inputCls}
+                  type="tel" value={phone} onChange={e => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: '' })); }}
+                  placeholder="+232..." className={inputClass(!!fieldErrors.phone)} autoComplete="tel"
                 />
               </Field>
-              <Field label="Email">
+              <Field name="whatsapp" label="WhatsApp" error={fieldErrors.whatsapp}>
                 <input
-                  type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com" className={inputCls}
+                  type="tel" value={whatsapp} onChange={e => { setWhatsapp(e.target.value); setFieldErrors(p => ({ ...p, whatsapp: '' })); }}
+                  placeholder="+232..." className={inputClass(!!fieldErrors.whatsapp)}
+                />
+              </Field>
+              <Field name="email" label="Email" required error={fieldErrors.email}>
+                <input
+                  type="email" value={email} onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: '' })); }}
+                  placeholder="you@example.com" className={inputClass(!!fieldErrors.email)} autoComplete="email"
                 />
               </Field>
             </div>
@@ -439,69 +428,66 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
 
           {/* ── Section 2: Pickup location ── */}
           <SectionCard icon={MapPin} title="Pickup location">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Property type" required>
-                <Sel value={propertyType} onChange={setPropertyType} options={PROPERTY_TYPES} />
-                {errors.propertyType && <p className="text-xs text-red-500 mt-1">{errors.propertyType}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field name="propertyType" label="Property type" required error={fieldErrors.propertyType}>
+                <Sel value={propertyType} onChange={(v) => { setPropertyType(v); setFieldErrors(p => ({ ...p, propertyType: '' })); }} options={PROPERTY_TYPES} invalid={!!fieldErrors.propertyType} />
               </Field>
-              <Field label="Address" required>
+              <Field name="address" label="Address" required error={fieldErrors.address}>
                 <LocationAutocomplete
                   value={address}
-                  onChange={setAddress}
+                  onChange={(v) => { setAddress(v); setFieldErrors(p => ({ ...p, address: '' })); }}
                   onSelect={(s) => {
                     if (s.city) setCity(s.city);
                   }}
                   showLocate
+                  invalid={!!fieldErrors.address}
                   placeholder="Street, area"
-                  inputClassName={inputCls + ' pl-9' + (errors.address ? ' border-red-400' : '')}
+                  inputClassName={`${inputClass(!!fieldErrors.address)} pl-9`}
                 />
-                {errors.address && <p className="text-xs text-red-500 mt-1">{errors.address}</p>}
               </Field>
               <Field label="City">
                 <input
                   type="text" value={city} onChange={e => setCity(e.target.value)}
-                  className={inputCls}
+                  className={inputClass()}
                 />
               </Field>
               <Field label="Landmark / directions">
                 <input
                   type="text" value={landmark} onChange={e => setLandmark(e.target.value)}
-                  placeholder="Near..." className={inputCls}
+                  placeholder="Near..." className={inputClass()}
                 />
               </Field>
             </div>
             <Field label="Occupants / Staff on site">
               <input
                 type="number" min={0} value={occupants} onChange={e => setOccupants(e.target.value)}
-                className={inputCls + ' w-40'}
+                className={`${inputClass()} w-40`}
               />
             </Field>
             <Field label="Access notes (gates, narrow road, stairs…)">
               <textarea
                 rows={3} value={accessNotes} onChange={e => setAccessNotes(e.target.value)}
-                className={inputCls + ' resize-none'}
+                className={`${inputClass()} resize-none`}
               />
             </Field>
           </SectionCard>
 
           {/* ── Section 3: Waste profile ── */}
           <SectionCard icon={Trash2} title="Waste profile">
-            <Field label="Waste streams" required>
+            <Field name="wasteStreams" label="Waste streams" required error={fieldErrors.wasteStreams}>
               <div className="flex flex-wrap gap-2 mt-1">
                 {WASTE_STREAMS.map(s => (
                   <ChipToggle
                     key={s} label={s}
                     active={wasteStreams.includes(s)}
-                    onClick={() => setWasteStreams(prev => toggle(prev, s))}
+                    onClick={() => { setWasteStreams(prev => toggle(prev, s)); setFieldErrors(p => ({ ...p, wasteStreams: '' })); }}
                   />
                 ))}
               </div>
-              {errors.wasteStreams && <p className="text-xs text-red-500 mt-1">{errors.wasteStreams}</p>}
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Estimated volume per pickup" required>
-                <Sel value={volumePerPickup} onChange={setVolumePerPickup} options={VOLUME_OPTIONS} />
-                {errors.volumePerPickup && <p className="text-xs text-red-500 mt-1">{errors.volumePerPickup}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field name="volumePerPickup" label="Estimated volume per pickup" required error={fieldErrors.volumePerPickup}>
+                <Sel value={volumePerPickup} onChange={(v) => { setVolumePerPickup(v); setFieldErrors(p => ({ ...p, volumePerPickup: '' })); }} options={VOLUME_OPTIONS} invalid={!!fieldErrors.volumePerPickup} />
               </Field>
               <Field label="Containers">
                 <Sel value={containers} onChange={setContainers} options={CONTAINER_OPTIONS} placeholder="Provide bins" />
@@ -511,7 +497,7 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
               <input
                 type="number" min={1} value={numBins}
                 onChange={e => setNumBins(Math.max(1, Number(e.target.value)))}
-                className={inputCls + ' w-32'}
+                className={`${inputClass()} w-32`}
               />
             </Field>
             <label className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -526,8 +512,8 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
 
           {/* ── Section 4: Service plan ── */}
           <SectionCard icon={Truck} title="Service plan">
-            <Field label="Service type" required>
-              <div className="grid grid-cols-3 gap-2 mt-1">
+            <Field name="serviceType" label="Service type" required error={fieldErrors.serviceType}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-1">
                 {SERVICE_TYPES.map(t => (
                   <label key={t} className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border cursor-pointer text-sm transition-all ${
                     serviceType === t
@@ -537,16 +523,15 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
                     <input
                       type="radio" name="serviceType" value={t}
                       checked={serviceType === t}
-                      onChange={() => setServiceType(t)}
+                      onChange={() => { setServiceType(t); setFieldErrors(p => ({ ...p, serviceType: '' })); }}
                       className="text-emerald-600 focus:ring-emerald-500"
                     />
                     {t}
                   </label>
                 ))}
               </div>
-              {errors.serviceType && <p className="text-xs text-red-500 mt-1">{errors.serviceType}</p>}
             </Field>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Pickup frequency">
                 <Sel value={pickupFrequency} onChange={setPickupFrequency} options={FREQ_OPTIONS} placeholder="1× per period" />
               </Field>
@@ -565,15 +550,14 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
                 ))}
               </div>
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Preferred start date" required>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field name="startDate" label="Preferred start date" required error={fieldErrors.startDate}>
                 <input
                   type="date" value={startDate}
-                  min={new Date().toISOString().split('T')[0]}
-                  onChange={e => setStartDate(e.target.value)}
-                  className={inputCls + (errors.startDate ? ' border-red-400' : '')}
+                  min={todayISO()}
+                  onChange={e => { setStartDate(e.target.value); setFieldErrors(p => ({ ...p, startDate: '' })); }}
+                  className={inputClass(!!fieldErrors.startDate)}
                 />
-                {errors.startDate && <p className="text-xs text-red-500 mt-1">{errors.startDate}</p>}
               </Field>
               <Field label="Contract duration">
                 <Sel value={contractDuration} onChange={setContractDuration} options={CONTRACT_DURATIONS} placeholder="Ongoing / Open-ended" />
@@ -610,7 +594,7 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
               <textarea
                 rows={3} value={additionalNotes} onChange={e => setAdditionalNotes(e.target.value)}
                 placeholder="Anything else our Smart Sort team should know..."
-                className={inputCls + ' resize-none'}
+                className={`${inputClass()} resize-none`}
               />
             </Field>
 

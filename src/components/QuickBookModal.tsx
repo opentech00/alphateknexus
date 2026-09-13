@@ -7,6 +7,11 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Portal } from '../lib/portal';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { Field, inputClass, ErrorBanner } from './service-form/ServiceFormKit';
+import {
+  applyFieldErrors, collectErrors,
+  validateAddress, validateDate, validateName, validatePhone,
+} from '../lib/serviceFormValidation';
 
 interface Service {
   id: string;
@@ -70,6 +75,7 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchAll();
@@ -130,6 +136,7 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
   const selectAddress = (addr: SavedAddress) => {
     setSelectedAddressId(addr.id);
     setLocation(addr.address_line);
+    setFieldErrors((p) => ({ ...p, location: '' }));
   };
 
   const handleAddressToggle = () => {
@@ -140,16 +147,15 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
   };
 
   const validateDetails = (): boolean => {
-    if (!date) {
-      setError('Please select a date');
-      return false;
-    }
-    if (!contactName.trim()) {
-      setError('Contact name is required');
-      return false;
-    }
-    if (!contactPhone.trim()) {
-      setError('Contact phone is required');
+    const next = collectErrors({
+      date: validateDate(date, 'Date'),
+      contactName: validateName(contactName),
+      contactPhone: validatePhone(contactPhone),
+      location: validateAddress(location),
+    });
+    setFieldErrors(next);
+    if (!applyFieldErrors(next)) {
+      setError('Please fix the highlighted fields before continuing.');
       return false;
     }
     setError('');
@@ -305,14 +311,12 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
                 </button>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-slate-400" /> Date <span className="text-red-400">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2 mb-2">
+              <Field name="date" label={<span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-slate-400" /> Date</span>} required error={fieldErrors.date}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
                   <button
-                    onClick={() => setDate(today)}
-                    className={`py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    type="button"
+                    onClick={() => { setDate(today); setFieldErrors(p => ({ ...p, date: '' })); }}
+                    className={`min-h-[44px] py-2.5 rounded-xl text-sm font-medium transition-all ${
                       date === today
                         ? 'bg-emerald-600 text-white border-emerald-600'
                         : 'bg-white text-slate-600 border border-slate-200 hover:border-emerald-300'
@@ -321,8 +325,9 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
                     Today
                   </button>
                   <button
-                    onClick={() => setDate(tomorrow)}
-                    className={`py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    type="button"
+                    onClick={() => { setDate(tomorrow); setFieldErrors(p => ({ ...p, date: '' })); }}
+                    className={`min-h-[44px] py-2.5 rounded-xl text-sm font-medium transition-all ${
                       date === tomorrow
                         ? 'bg-emerald-600 text-white border-emerald-600'
                         : 'bg-white text-slate-600 border border-slate-200 hover:border-emerald-300'
@@ -335,21 +340,21 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
                   type="date"
                   min={today}
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
+                  onChange={(e) => { setDate(e.target.value); setFieldErrors(p => ({ ...p, date: '' })); }}
+                  className={inputClass(!!fieldErrors.date)}
                 />
-              </div>
+              </Field>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-1.5">
+                <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-1.5">
                   <Clock className="w-4 h-4 text-slate-400" /> Time (optional)
                 </label>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                   {TIME_SLOTS.map((slot) => (
                     <button
                       key={slot}
                       onClick={() => setTime(time === slot ? '' : slot)}
-                      className={`py-2 rounded-lg text-xs font-medium transition-all ${
+                      className={`min-h-[44px] py-2 rounded-lg text-xs font-medium transition-all ${
                         time === slot
                           ? 'bg-emerald-600 text-white border-emerald-600'
                           : 'bg-white text-slate-600 border border-slate-200 hover:border-emerald-300'
@@ -361,10 +366,7 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-slate-400" /> Location
-                </label>
+              <Field name="location" label={<span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-slate-400" /> Location</span>} required error={fieldErrors.location}>
                 {addresses.length > 0 && (
                   <div className="space-y-1.5 mb-2">
                     {addresses.map((addr) => (
@@ -400,45 +402,38 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
                 )}
                 <LocationAutocomplete
                   value={location}
-                  onChange={(v) => { setLocation(v); setSelectedAddressId(null); }}
+                  onChange={(v) => { setLocation(v); setSelectedAddressId(null); setFieldErrors(p => ({ ...p, location: '' })); }}
                   showLocate
+                  invalid={!!fieldErrors.location}
                   placeholder="Enter service address or area"
-                  inputClassName="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
+                  inputClassName={`${inputClass(!!fieldErrors.location)} pl-9`}
                 />
-              </div>
+              </Field>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-1.5">
-                    <User className="w-4 h-4 text-slate-400" /> Name <span className="text-red-400">*</span>
-                  </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field name="contactName" label={<span className="flex items-center gap-1.5"><User className="w-4 h-4 text-slate-400" /> Name</span>} required error={fieldErrors.contactName}>
                   <input
                     type="text"
                     value={contactName}
-                    onChange={(e) => setContactName(e.target.value)}
+                    onChange={(e) => { setContactName(e.target.value); setFieldErrors(p => ({ ...p, contactName: '' })); }}
                     placeholder="Contact name"
-                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
+                    className={inputClass(!!fieldErrors.contactName)}
+                    autoComplete="name"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-1.5">
-                    <Phone className="w-4 h-4 text-slate-400" /> Phone <span className="text-red-400">*</span>
-                  </label>
+                </Field>
+                <Field name="contactPhone" label={<span className="flex items-center gap-1.5"><Phone className="w-4 h-4 text-slate-400" /> Phone</span>} required error={fieldErrors.contactPhone}>
                   <input
                     type="tel"
                     value={contactPhone}
-                    onChange={(e) => setContactPhone(e.target.value)}
+                    onChange={(e) => { setContactPhone(e.target.value); setFieldErrors(p => ({ ...p, contactPhone: '' })); }}
                     placeholder="Contact phone"
-                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
+                    className={inputClass(!!fieldErrors.contactPhone)}
+                    autoComplete="tel"
                   />
-                </div>
+                </Field>
               </div>
 
-              {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
-                  {error}
-                </div>
-              )}
+              {error && <ErrorBanner message={error} />}
             </div>
           ) : (
             <div className="space-y-4">

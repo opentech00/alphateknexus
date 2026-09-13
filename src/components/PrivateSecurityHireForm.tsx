@@ -7,6 +7,11 @@ import { supabase } from '../lib/supabase';
 import { ServicePaymentStep, PaymentSuccessScreen, PaymentFailedScreen } from './ServicePaymentStep';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { Field, inputClass, ErrorBanner } from './service-form/ServiceFormKit';
+import {
+  applyFieldErrors, collectErrors, todayISO,
+  validateAddress, validateDate, validateEmail, validateName, validatePhone, validateRequired,
+} from '../lib/serviceFormValidation';
 
 interface Props {
   service: Service;
@@ -59,20 +64,6 @@ const ADDONS = [
   { id: 'alarm', label: 'Alarm Response', price: 12000 },
 ];
 
-const inputCls = 'w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all';
-
-function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1.5">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
-    </div>
-  );
-}
-
 function SectionHeader({ icon: Icon, step, title }: { icon: React.ElementType; step: number; title: string }) {
   return (
     <div className="flex items-center gap-3 pb-3 mb-4 border-b border-slate-100">
@@ -124,8 +115,12 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
   const [riskLevel, setRiskLevel] = useState('Medium');
   const [addons, setAddons] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const toggleService = (id: string) => setServiceTypes(p => p.includes(id) ? p.filter(s => s !== id) : [...p, id]);
+  const toggleService = (id: string) => {
+    setServiceTypes(p => p.includes(id) ? p.filter(s => s !== id) : [...p, id]);
+    setFieldErrors(p => ({ ...p, serviceTypes: '' }));
+  };
   const toggleAddon = (id: string) => setAddons(p => p.includes(id) ? p.filter(a => a !== id) : [...p, id]);
 
   const basePrice = serviceTypes.reduce((sum, id) => {
@@ -142,11 +137,26 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
   const discount = Math.round(subtotal * durationDiscount);
   const total = subtotal - discount;
 
-  const canReview = fullName.trim() && phone.trim() && startDate && siteAddress.trim() && serviceTypes.length > 0;
-
   const handleReview = () => {
-    if (!canReview) { setError('Please fill all required fields and select at least one service type.'); return; }
-    setError(''); setStep('review');
+    const guards = parseInt(guardCount, 10);
+    const next = collectErrors({
+      fullName: validateName(fullName),
+      phone: validatePhone(phone),
+      email: validateEmail(email),
+      startDate: validateDate(startDate, 'Start date'),
+      city: validateRequired(city, 'City'),
+      siteAddress: validateAddress(siteAddress),
+      serviceTypes: serviceTypes.length === 0 ? 'Select at least one service type.' : '',
+      guardCount: !guardCount || Number.isNaN(guards) || guards < 1 || guards > 50
+        ? 'Enter a guard count between 1 and 50.' : '',
+    });
+    setFieldErrors(next);
+    if (!applyFieldErrors(next)) {
+      setError('Please fix the highlighted fields before continuing.');
+      return;
+    }
+    setError('');
+    setStep('review');
   };
 
   const handleSubmit = async () => {
@@ -214,7 +224,7 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
               <p className="text-slate-300 text-sm mt-1">{service.name}</p>
             </div>
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><p className="text-xs text-slate-400">Contact</p><p className="text-sm font-medium text-slate-800">{fullName}</p></div>
                 <div><p className="text-xs text-slate-400">Phone</p><p className="text-sm font-medium text-slate-800">{phone}</p></div>
                 <div><p className="text-xs text-slate-400">Start Date</p><p className="text-sm font-medium text-slate-800">{new Date(startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p></div>
@@ -277,7 +287,7 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
           </div>
         </div>
 
-        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>}
+        {error && <div className="mb-4"><ErrorBanner message={error} /></div>}
 
         <div className="space-y-4">
           {/* Section 1 — Contact & Schedule */}
@@ -285,22 +295,33 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
             <SectionHeader icon={Users} step={1} title="Contact & Schedule" />
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Full Name" required><input className={inputCls} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="John Doe" /></Field>
-                <Field label="Phone" required><input className={inputCls} type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+232..." /></Field>
+                <Field name="fullName" label="Full Name" required error={fieldErrors.fullName}>
+                  <input className={inputClass(!!fieldErrors.fullName, 'slate')} value={fullName} onChange={e => { setFullName(e.target.value); setFieldErrors(p => ({ ...p, fullName: '' })); }} placeholder="John Doe" autoComplete="name" />
+                </Field>
+                <Field name="phone" label="Phone" required error={fieldErrors.phone}>
+                  <input className={inputClass(!!fieldErrors.phone, 'slate')} type="tel" value={phone} onChange={e => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: '' })); }} placeholder="+232..." autoComplete="tel" />
+                </Field>
               </div>
-              <Field label="Email"><input className={inputCls} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" /></Field>
+              <Field name="email" label="Email" error={fieldErrors.email}>
+                <input className={inputClass(!!fieldErrors.email, 'slate')} type="email" value={email} onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: '' })); }} placeholder="name@example.com" autoComplete="email" />
+              </Field>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Start Date" required><input className={inputCls} type="date" value={startDate} onChange={e => setStartDate(e.target.value)} min={new Date().toISOString().split('T')[0]} /></Field>
-                <Field label="City" required><input className={inputCls} value={city} onChange={e => setCity(e.target.value)} placeholder="Freetown" /></Field>
+                <Field name="startDate" label="Start Date" required error={fieldErrors.startDate}>
+                  <input className={inputClass(!!fieldErrors.startDate, 'slate')} type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setFieldErrors(p => ({ ...p, startDate: '' })); }} min={todayISO()} />
+                </Field>
+                <Field name="city" label="City" required error={fieldErrors.city}>
+                  <input className={inputClass(!!fieldErrors.city, 'slate')} value={city} onChange={e => { setCity(e.target.value); setFieldErrors(p => ({ ...p, city: '' })); }} placeholder="Freetown" />
+                </Field>
               </div>
-              <Field label="Site Address" required>
+              <Field name="siteAddress" label="Site Address" required error={fieldErrors.siteAddress}>
                 <LocationAutocomplete
                   value={siteAddress}
-                  onChange={setSiteAddress}
+                  onChange={(v) => { setSiteAddress(v); setFieldErrors(p => ({ ...p, siteAddress: '' })); }}
                   onSelect={(s) => { if (s.city) setCity(s.city); }}
                   showLocate
+                  invalid={!!fieldErrors.siteAddress}
                   placeholder="Street, building name, or landmark"
-                  inputClassName={`${inputCls} pl-9`}
+                  inputClassName={`${inputClass(!!fieldErrors.siteAddress, 'slate')} pl-9`}
                 />
               </Field>
             </div>
@@ -310,7 +331,7 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={Shield} step={2} title="Service Type" />
             <p className="text-xs text-slate-500 mb-3">Select one or more security services needed.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div data-field="serviceTypes" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {SERVICE_TYPES.map(s => (
                 <button key={s.id} type="button" onClick={() => toggleService(s.id)} className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all active:scale-[0.98] ${serviceTypes.includes(s.id) ? 'border-slate-700 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
                   <div className={`w-5 h-5 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center ${serviceTypes.includes(s.id) ? 'bg-slate-700 border-slate-700' : 'border-slate-300'}`}>
@@ -324,6 +345,7 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
                 </button>
               ))}
             </div>
+            {fieldErrors.serviceTypes && <p className="mt-2 text-xs text-red-600">{fieldErrors.serviceTypes}</p>}
           </div>
 
           {/* Section 3 — Deployment Details */}
@@ -331,29 +353,29 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
             <SectionHeader icon={Building2} step={3} title="Deployment Details" />
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Number of Guards" required>
-                  <input className={inputCls} type="number" value={guardCount} onChange={e => setGuardCount(e.target.value)} min="1" max="50" />
+                <Field name="guardCount" label="Number of Guards" required error={fieldErrors.guardCount}>
+                  <input className={inputClass(!!fieldErrors.guardCount, 'slate')} type="number" value={guardCount} onChange={e => { setGuardCount(e.target.value); setFieldErrors(p => ({ ...p, guardCount: '' })); }} min="1" max="50" />
                 </Field>
                 <Field label="Site Type" required>
-                  <select className={inputCls} value={siteType} onChange={e => setSiteType(e.target.value)}>
+                  <select className={inputClass(false, 'slate')} value={siteType} onChange={e => setSiteType(e.target.value)}>
                     {SITE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </Field>
               </div>
               <div>
                 <p className="text-sm font-medium text-slate-700 mb-2">Shift Pattern <span className="text-red-500">*</span></p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                   {SHIFT_PATTERNS.map(s => <RadioCard key={s.id} label={s.label} sub={s.hours} checked={shiftPattern === s.id} onClick={() => setShiftPattern(s.id)} />)}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Contract Duration" required>
-                  <select className={inputCls} value={contractDuration} onChange={e => setContractDuration(e.target.value)}>
+                  <select className={inputClass(false, 'slate')} value={contractDuration} onChange={e => setContractDuration(e.target.value)}>
                     {CONTRACT_DURATIONS.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
                   </select>
                 </Field>
                 <Field label="Risk Level" required>
-                  <select className={inputCls} value={riskLevel} onChange={e => setRiskLevel(e.target.value)}>
+                  <select className={inputClass(false, 'slate')} value={riskLevel} onChange={e => setRiskLevel(e.target.value)}>
                     {RISK_LEVELS.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </Field>
@@ -384,7 +406,7 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={AlertTriangle} step={5} title="Additional Notes" />
             <Field label="Special Requirements">
-              <textarea className={`${inputCls} resize-none`} rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Specific threats, access codes, equipment needs, uniform preferences..." />
+              <textarea className={`${inputClass(false, 'slate')} resize-none`} rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Specific threats, access codes, equipment needs, uniform preferences..." />
             </Field>
           </div>
 
@@ -400,7 +422,7 @@ export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props)
 
         <div className="mt-6 flex gap-3">
           <button onClick={onCancel} className="px-6 py-3.5 border border-slate-200 rounded-xl text-slate-700 font-medium hover:bg-slate-50 text-sm">Cancel</button>
-          <button onClick={handleReview} disabled={!canReview} className="flex-1 py-3.5 bg-slate-800 text-white rounded-xl font-semibold hover:bg-slate-900 text-sm disabled:opacity-50 flex items-center justify-center gap-2">
+          <button onClick={handleReview} className="flex-1 py-3.5 bg-slate-800 text-white rounded-xl font-semibold hover:bg-slate-900 text-sm flex items-center justify-center gap-2">
             <Eye className="w-4 h-4" />Review & Continue
           </button>
         </div>

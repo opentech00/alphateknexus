@@ -10,6 +10,11 @@ import { SmartSortImpactDashboard } from './SmartSortImpactDashboard';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { Portal } from '../lib/portal';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { Field, inputClass, ErrorBanner } from './service-form/ServiceFormKit';
+import {
+  applyFieldErrors, collectErrors,
+  validateAddress, validatePhone, validateRequired,
+} from '../lib/serviceFormValidation';
 
 interface Service {
   id: string; name: string; slug: string; description: string; icon: string; price_range: string;
@@ -200,6 +205,7 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
   const [subPhone, setSubPhone] = useState('');
   const [subLoading, setSubLoading] = useState(false);
   const [subError, setSubError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadData();
@@ -297,6 +303,8 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
       setSubBinSize(String(plan.bin_size_liters));
     }
     setSelectedPlan(plan);
+    setFieldErrors({});
+    setSubError('');
     setShowPlanModal(false);
     setShowSubForm(true);
   };
@@ -312,14 +320,28 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
     setSubPhone(sub.contact_phone);
     setSelectedPlan(null);
     setSubError('');
+    setFieldErrors({});
     setShowSubForm(true);
   };
 
-  const handleCreateSub = async () => {
-    if (!subWasteType || !subTimeSlot || !subAddress || !subPhone) {
-      setSubError('Please fill all required fields.');
-      return;
+  const validateSubForm = () => {
+    const next = collectErrors({
+      subWasteType: validateRequired(subWasteType, 'Waste type'),
+      subTimeSlot: validateRequired(subTimeSlot, 'Time slot'),
+      subAddress: validateAddress(subAddress),
+      subPhone: validatePhone(subPhone),
+    });
+    setFieldErrors(next);
+    if (!applyFieldErrors(next)) {
+      setSubError('Please fix the highlighted fields before continuing.');
+      return false;
     }
+    setSubError('');
+    return true;
+  };
+
+  const handleCreateSub = async () => {
+    if (!validateSubForm()) return;
     setSubError('');
     setSubLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
@@ -351,10 +373,7 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
 
   const handleUpdateSub = async () => {
     if (!editingSub) return;
-    if (!subWasteType || !subTimeSlot || !subAddress || !subPhone) {
-      setSubError('Please fill all required fields.');
-      return;
-    }
+    if (!validateSubForm()) return;
     setSubError('');
     setSubLoading(true);
     const payload = {
@@ -378,7 +397,7 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
   const resetSubForm = () => {
     setSubWasteType(''); setSubBinSize('25'); setSubFrequency('monthly');
     setSubTimeSlot(''); setSubAddress(''); setSubLandmark(''); setSubPhone('');
-    setSubError(''); setSelectedPlan(null);
+    setSubError(''); setSelectedPlan(null); setFieldErrors({});
   };
 
   const closeSubForm = () => {
@@ -810,13 +829,13 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
 
             <div className="overflow-y-auto flex-1 px-5 py-5 space-y-5">
               {/* Waste Type */}
-              <div>
+              <div data-field="subWasteType">
                 <p className="text-sm font-semibold text-slate-800 mb-2.5">Waste Type <span className="text-rose-500">*</span></p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {WASTE_TYPES.map(({ id, label, Icon }) => (
                     <button
                       key={id}
-                      onClick={() => setSubWasteType(id)}
+                      onClick={() => { setSubWasteType(id); setFieldErrors(p => ({ ...p, subWasteType: '' })); }}
                       className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-all ${
                         subWasteType === id ? 'border-[#1e293b] bg-slate-50' : 'border-slate-200 hover:border-slate-300'
                       }`}
@@ -826,6 +845,7 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
                     </button>
                   ))}
                 </div>
+                {fieldErrors.subWasteType && <p className="mt-2 text-xs text-red-600">{fieldErrors.subWasteType}</p>}
               </div>
 
               {/* Bin size (custom only or editing) */}
@@ -836,7 +856,7 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
                     <select
                       value={subBinSize}
                       onChange={e => setSubBinSize(e.target.value)}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm appearance-none bg-white focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none"
+                      className={`${inputClass(false, 'slate')} appearance-none`}
                     >
                       {BIN_SIZES.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
                     </select>
@@ -853,7 +873,7 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
                     <select
                       value={subFrequency}
                       onChange={e => setSubFrequency(e.target.value)}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm appearance-none bg-white focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none"
+                      className={`${inputClass(false, 'slate')} appearance-none`}
                     >
                       {FREQUENCIES.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
                     </select>
@@ -863,7 +883,7 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
               )}
 
               {/* Time slot */}
-              <div>
+              <div data-field="subTimeSlot">
                 <div className="flex items-center gap-1.5 mb-2">
                   <Clock className="w-4 h-4 text-slate-400" />
                   <label className="text-sm font-semibold text-slate-800">Preferred Time Slot <span className="text-rose-500">*</span></label>
@@ -872,7 +892,7 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
                   {TIME_SLOTS.map(({ id, label }) => (
                     <button
                       key={id}
-                      onClick={() => setSubTimeSlot(id)}
+                      onClick={() => { setSubTimeSlot(id); setFieldErrors(p => ({ ...p, subTimeSlot: '' })); }}
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
                         subTimeSlot === id ? 'border-[#1e293b] bg-slate-50 ring-1 ring-[#1e293b]' : 'border-slate-200 hover:border-slate-300'
                       }`}
@@ -884,45 +904,42 @@ export function SmartSortSubscribeForm({ service, onCancel }: SmartSortSubscribe
                     </button>
                   ))}
                 </div>
+                {fieldErrors.subTimeSlot && <p className="mt-2 text-xs text-red-600">{fieldErrors.subTimeSlot}</p>}
               </div>
 
-              {/* Address */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-1.5">Street Address <span className="text-rose-500">*</span></label>
+              <Field name="subAddress" label="Street Address" required error={fieldErrors.subAddress}>
                 <LocationAutocomplete
                   value={subAddress}
-                  onChange={setSubAddress}
+                  onChange={(v) => { setSubAddress(v); setFieldErrors(p => ({ ...p, subAddress: '' })); }}
                   showLocate
+                  invalid={!!fieldErrors.subAddress}
                   placeholder="e.g. 15 Siaka Stevens Street"
-                  inputClassName="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none"
+                  inputClassName={`${inputClass(!!fieldErrors.subAddress, 'slate')} pl-9`}
                 />
-              </div>
+              </Field>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-1.5">Nearest Landmark</label>
+              <Field label="Nearest Landmark">
                 <input
                   type="text"
                   value={subLandmark}
                   onChange={e => setSubLandmark(e.target.value)}
                   placeholder="e.g. Opposite National Stadium"
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none"
+                  className={inputClass(false, 'slate')}
                 />
-              </div>
+              </Field>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-1.5">Contact Phone <span className="text-rose-500">*</span></label>
+              <Field name="subPhone" label="Contact Phone" required error={fieldErrors.subPhone}>
                 <input
                   type="tel"
                   value={subPhone}
-                  onChange={e => setSubPhone(e.target.value)}
+                  onChange={e => { setSubPhone(e.target.value); setFieldErrors(p => ({ ...p, subPhone: '' })); }}
                   placeholder="+232 76 000 000"
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none"
+                  className={inputClass(!!fieldErrors.subPhone, 'slate')}
+                  autoComplete="tel"
                 />
-              </div>
+              </Field>
 
-              {subError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{subError}</div>
-              )}
+              {subError && <ErrorBanner message={subError} />}
             </div>
 
             <div className="px-5 pb-5 pt-3 border-t border-slate-100 flex-shrink-0">

@@ -453,7 +453,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
         <ServiceDetailModal
           service={detailService}
           onClose={() => setDetailService(null)}
-          onHireNow={(svc) => { setDetailService(null); handleSelect(svc as unknown as Service, 'hire'); }}
+          onHireNow={(svc, mode) => { setDetailService(null); handleSelect(svc as unknown as Service, mode || 'hire'); }}
           onRequestQuote={(svc) => { setDetailService(null); handleSelect(svc as unknown as Service, 'quote'); }}
         />
       )}

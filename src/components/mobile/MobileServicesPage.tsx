@@ -493,7 +493,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
           service={detailService}
           rating={getServiceRating(detailService)}
           onClose={() => setDetailService(null)}
-          onHireNow={(svc) => { setDetailService(null); handleBook(svc as Service, 'hire'); }}
+          onHireNow={(svc, mode) => { setDetailService(null); handleBook(svc as Service, mode || 'hire'); }}
           onRequestQuote={(svc) => { setDetailService(null); handleQuote(svc as Service); }}
         />
       )}

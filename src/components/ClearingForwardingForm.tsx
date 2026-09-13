@@ -5,6 +5,11 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ServicePaymentStep, PaymentSuccessScreen, PaymentFailedScreen } from './ServicePaymentStep';
+import { Field, inputClass, ErrorBanner } from './service-form/ServiceFormKit';
+import {
+  applyFieldErrors, collectErrors, todayISO,
+  validateDate, validateEmail, validateName, validatePhone, validateRequired,
+} from '../lib/serviceFormValidation';
 
 interface Service {
   id: string;
@@ -109,22 +114,6 @@ function CheckboxCard({
   );
 }
 
-function Field({
-  label, required, children,
-}: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1.5">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-const inputCls =
-  'w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-slate-800 transition-all bg-white';
-
 type Step = 'form' | 'review' | 'payment' | 'success' | 'payment_failed';
 
 export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) {
@@ -172,19 +161,34 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
   const [notes, setNotes] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [docFiles, setDocFiles] = useState<File[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const toggleService = (s: string) =>
+  const toggleService = (s: string) => {
     setRequiredServices((prev) =>
       prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
     );
+    setFieldErrors((p) => ({ ...p, requiredServices: '' }));
+  };
 
   const handleReview = () => {
-    if (!company || !contactPerson || !phone || !email || !cargoDescription || !origin || !arrivalDate) {
-      setError('Please fill in all required fields.');
-      return;
-    }
-    if (!termsAccepted) {
-      setError('You must accept the service terms to continue.');
+    const weightNum = weight.trim() ? Number(weight) : null;
+    const next = collectErrors({
+      company: validateRequired(company, 'Company name'),
+      contactPerson: validateName(contactPerson, 'Contact person'),
+      phone: validatePhone(phone),
+      email: validateEmail(email, true),
+      cargoDescription: validateRequired(cargoDescription, 'Cargo description'),
+      weight: weightNum !== null && (!(weightNum > 0) || Number.isNaN(weightNum))
+        ? 'Weight must be greater than 0.' : '',
+      origin: validateRequired(origin, 'Origin'),
+      destination: validateRequired(destination, 'Destination'),
+      arrivalDate: validateDate(arrivalDate, 'Expected arrival date'),
+      requiredServices: requiredServices.length === 0 ? 'Select at least one required service.' : '',
+      terms: termsAccepted ? '' : 'You must accept the service terms to continue.',
+    });
+    setFieldErrors(next);
+    if (!applyFieldErrors(next)) {
+      setError('Please fix the highlighted fields before continuing.');
       return;
     }
     setError('');
@@ -354,7 +358,7 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
+            <div className="mb-4"><ErrorBanner message={error} /></div>
           )}
 
           <div className="flex gap-3">
@@ -412,7 +416,7 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
+          <div className="mb-4"><ErrorBanner message={error} /></div>
         )}
 
         <div className="space-y-4">
@@ -420,19 +424,19 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={Building2} step={1} title="Shipper / Consignee" />
             <div className="space-y-4">
-              <Field label="Company Name" required>
-                <input className={inputCls} value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Your company or trading name" />
+              <Field name="company" label="Company Name" required error={fieldErrors.company}>
+                <input className={inputClass(!!fieldErrors.company, 'slate')} value={company} onChange={(e) => { setCompany(e.target.value); setFieldErrors(p => ({ ...p, company: '' })); }} placeholder="Your company or trading name" />
               </Field>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Contact Person" required>
-                  <input className={inputCls} value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} placeholder="Full name" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field name="contactPerson" label="Contact Person" required error={fieldErrors.contactPerson}>
+                  <input className={inputClass(!!fieldErrors.contactPerson, 'slate')} value={contactPerson} onChange={(e) => { setContactPerson(e.target.value); setFieldErrors(p => ({ ...p, contactPerson: '' })); }} placeholder="Full name" autoComplete="name" />
                 </Field>
-                <Field label="Phone" required>
-                  <input className={inputCls} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+232..." />
+                <Field name="phone" label="Phone" required error={fieldErrors.phone}>
+                  <input className={inputClass(!!fieldErrors.phone, 'slate')} type="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: '' })); }} placeholder="+232..." autoComplete="tel" />
                 </Field>
               </div>
-              <Field label="Email" required>
-                <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
+              <Field name="email" label="Email" required error={fieldErrors.email}>
+                <input className={inputClass(!!fieldErrors.email, 'slate')} type="email" value={email} onChange={(e) => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: '' })); }} placeholder="name@company.com" autoComplete="email" />
               </Field>
             </div>
           </div>
@@ -444,35 +448,35 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
               {/* Direction */}
               <div>
                 <p className="text-sm font-medium text-slate-700 mb-2">Direction</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {(['Import', 'Export'] as const).map((d) => (
                     <RadioCard key={d} label={d} checked={direction === d} onClick={() => setDirection(d)} />
                   ))}
                 </div>
               </div>
 
-              <Field label="Cargo Description" required>
+              <Field name="cargoDescription" label="Cargo Description" required error={fieldErrors.cargoDescription}>
                 <textarea
-                  className={`${inputCls} resize-none`}
+                  className={`${inputClass(!!fieldErrors.cargoDescription, 'slate')} resize-none`}
                   rows={3}
                   value={cargoDescription}
-                  onChange={(e) => setCargoDescription(e.target.value)}
+                  onChange={(e) => { setCargoDescription(e.target.value); setFieldErrors(p => ({ ...p, cargoDescription: '' })); }}
                   placeholder="e.g. 200 cartons of electronics, packing list available"
                 />
               </Field>
 
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <Field label="HS Code">
-                  <input className={inputCls} value={hsCode} onChange={(e) => setHsCode(e.target.value)} />
+                  <input className={inputClass(false, 'slate')} value={hsCode} onChange={(e) => setHsCode(e.target.value)} />
                 </Field>
-                <Field label="Weight (kg)">
-                  <input className={inputCls} type="number" value={weight} onChange={(e) => setWeight(e.target.value)} />
+                <Field name="weight" label="Weight (kg)" error={fieldErrors.weight}>
+                  <input className={inputClass(!!fieldErrors.weight, 'slate')} type="number" value={weight} onChange={(e) => { setWeight(e.target.value); setFieldErrors(p => ({ ...p, weight: '' })); }} />
                 </Field>
                 <Field label="Packages">
-                  <input className={inputCls} type="number" value={packages} onChange={(e) => setPackages(e.target.value)} />
+                  <input className={inputClass(false, 'slate')} type="number" value={packages} onChange={(e) => setPackages(e.target.value)} />
                 </Field>
                 <Field label="Containers">
-                  <input className={inputCls} value={containers} onChange={(e) => setContainers(e.target.value)} placeholder="20'/40'" />
+                  <input className={inputClass(false, 'slate')} value={containers} onChange={(e) => setContainers(e.target.value)} placeholder="20'/40'" />
                 </Field>
               </div>
 
@@ -513,38 +517,38 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={MapPin} step={3} title="Route & Port of Entry" />
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Origin" required>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field name="origin" label="Origin" required error={fieldErrors.origin}>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <input className={`${inputCls} pl-9`} value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Port / city of origin" />
+                    <input className={`${inputClass(!!fieldErrors.origin, 'slate')} pl-9`} value={origin} onChange={(e) => { setOrigin(e.target.value); setFieldErrors(p => ({ ...p, origin: '' })); }} placeholder="Port / city of origin" />
                   </div>
                 </Field>
-                <Field label="Destination" required>
+                <Field name="destination" label="Destination" required error={fieldErrors.destination}>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <input className={`${inputCls} pl-9`} value={destination} onChange={(e) => setDestination(e.target.value)} />
+                    <input className={`${inputClass(!!fieldErrors.destination, 'slate')} pl-9`} value={destination} onChange={(e) => { setDestination(e.target.value); setFieldErrors(p => ({ ...p, destination: '' })); }} />
                   </div>
                 </Field>
               </div>
 
               <div>
                 <p className="text-sm font-medium text-slate-700 mb-2">Preferred Port / Border of Entry</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {PORTS.map((p) => (
                     <RadioCard key={p} label={p} checked={port === p} onClick={() => setPort(p)} />
                   ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Expected Arrival Date" required>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field name="arrivalDate" label="Expected Arrival Date" required error={fieldErrors.arrivalDate}>
                   <input
-                    className={inputCls}
+                    className={inputClass(!!fieldErrors.arrivalDate, 'slate')}
                     type="date"
                     value={arrivalDate}
-                    onChange={(e) => setArrivalDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => { setArrivalDate(e.target.value); setFieldErrors(p => ({ ...p, arrivalDate: '' })); }}
+                    min={todayISO()}
                   />
                 </Field>
                 <div>
@@ -562,20 +566,21 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
           {/* Section 4 — Required Services */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={CheckCircle2} step={4} title="Required Services" />
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div data-field="requiredServices" className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               {REQUIRED_SERVICES.map((s) => (
                 <CheckboxCard key={s} label={s} checked={requiredServices.includes(s)} onClick={() => toggleService(s)} />
               ))}
             </div>
+            {fieldErrors.requiredServices && <p className="mb-3 text-xs text-red-600">{fieldErrors.requiredServices}</p>}
             <div className="space-y-3">
               <Field label="Delivery Address">
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  <input className={`${inputCls} pl-9`} value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="Final delivery point" />
+                  <input className={`${inputClass(false, 'slate')} pl-9`} value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="Final delivery point" />
                 </div>
               </Field>
               <Field label="City">
-                <input className={inputCls} value={city} onChange={(e) => setCity(e.target.value)} />
+                <input className={inputClass(false, 'slate')} value={city} onChange={(e) => setCity(e.target.value)} />
               </Field>
             </div>
           </div>
@@ -583,13 +588,13 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
           {/* Section 5 — Payment */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={CreditCard} step={5} title="Payment" />
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               {PAYMENT_METHODS.map((m) => (
                 <RadioCard key={m} label={m} checked={paymentMethod === m} onClick={() => setPaymentMethod(m)} />
               ))}
             </div>
             <Field label="PO / Reference Number">
-              <input className={inputCls} value={poNumber} onChange={(e) => setPoNumber(e.target.value)} />
+              <input className={inputClass(false, 'slate')} value={poNumber} onChange={(e) => setPoNumber(e.target.value)} />
             </Field>
           </div>
 
@@ -626,7 +631,7 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
             <div className="mt-5 space-y-3">
               <Field label="Additional Notes">
                 <textarea
-                  className={`${inputCls} resize-none`}
+                  className={`${inputClass(false, 'slate')} resize-none`}
                   rows={3}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -634,11 +639,11 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
                 />
               </Field>
 
-              <label className="flex items-start gap-3 cursor-pointer group">
+              <label data-field="terms" className="flex items-start gap-3 cursor-pointer group">
                 <div
-                  onClick={() => setTermsAccepted(!termsAccepted)}
+                  onClick={() => { setTermsAccepted(!termsAccepted); setFieldErrors(p => ({ ...p, terms: '' })); }}
                   className={`mt-0.5 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-                    termsAccepted ? 'bg-slate-800 border-slate-800' : 'border-slate-300 group-hover:border-slate-500'
+                    termsAccepted ? 'bg-slate-800 border-slate-800' : fieldErrors.terms ? 'border-red-400' : 'border-slate-300 group-hover:border-slate-500'
                   }`}
                 >
                   {termsAccepted && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
@@ -648,6 +653,7 @@ export function ClearingForwardingForm({ service, onCancel, onSuccess }: Props) 
                   <span className="text-red-500">*</span>
                 </span>
               </label>
+              {fieldErrors.terms && <p className="text-xs text-red-600">{fieldErrors.terms}</p>}
             </div>
           </div>
         </div>

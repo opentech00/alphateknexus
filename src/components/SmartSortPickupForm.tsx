@@ -5,6 +5,11 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { Field, inputClass, ErrorBanner } from './service-form/ServiceFormKit';
+import {
+  applyFieldErrors, collectErrors, todayISO,
+  validateAddress, validateDate, validatePhone, validateRequired,
+} from '../lib/serviceFormValidation';
 import { ServicePaymentStep, PaymentSuccessScreen, PaymentFailedScreen } from './ServicePaymentStep';
 
 interface Service {
@@ -93,6 +98,7 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
   const [landmark, setLandmark] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [specialInstructions, setSpecialInstructions] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!rebookData) return;
@@ -114,9 +120,36 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
   const canProceed = [
     wasteType && frequency && customerCategory && wasteClass && binSize,
     pickupDate && timeSlot,
-    address && contactPhone,
+    true,
     true,
   ][step - 1];
+
+  const handleContinue = () => {
+    if (step === 2) {
+      const next = collectErrors({
+        pickupDate: validateDate(pickupDate, 'Pickup date'),
+        timeSlot: validateRequired(timeSlot, 'Time slot'),
+      });
+      setFieldErrors(next);
+      if (!applyFieldErrors(next)) {
+        setError('Please fix the highlighted fields before continuing.');
+        return;
+      }
+    }
+    if (step === 3) {
+      const next = collectErrors({
+        address: validateAddress(address),
+        contactPhone: validatePhone(contactPhone),
+      });
+      setFieldErrors(next);
+      if (!applyFieldErrors(next)) {
+        setError('Please fix the highlighted fields before continuing.');
+        return;
+      }
+    }
+    setError('');
+    setStep(s => s + 1);
+  };
 
   const handleSubmit = async () => {
     setError('');
@@ -213,7 +246,7 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
       <div className="bg-white border-b border-slate-200 px-4 py-4 flex items-center gap-3">
         <button
           onClick={step === 1 ? onCancel : () => setStep(s => s - 1)}
-          className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+          className="p-2.5 min-w-[44px] min-h-[44px] rounded-lg hover:bg-slate-100 transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-slate-600" />
         </button>
@@ -355,20 +388,17 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
                 <h2 className="text-lg font-bold text-slate-900">When should we collect?</h2>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-1.5">
-                  Pickup Date <span className="text-rose-500">*</span>
-                </label>
+              <Field name="pickupDate" label="Pickup Date" required error={fieldErrors.pickupDate}>
                 <input
                   type="date"
                   value={pickupDate}
-                  min={new Date().toISOString().split('T')[0]}
-                  onChange={e => setPickupDate(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none"
+                  min={todayISO()}
+                  onChange={e => { setPickupDate(e.target.value); setFieldErrors(p => ({ ...p, pickupDate: '' })); }}
+                  className={inputClass(!!fieldErrors.pickupDate, 'slate')}
                 />
-              </div>
+              </Field>
 
-              <div>
+              <div data-field="timeSlot">
                 <div className="flex items-center gap-1.5 mb-2.5">
                   <Clock className="w-4 h-4 text-slate-400" />
                   <label className="text-sm font-semibold text-slate-800">
@@ -379,7 +409,7 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
                   {TIME_SLOTS.map(({ id, label }) => (
                     <button
                       key={id}
-                      onClick={() => setTimeSlot(id)}
+                      onClick={() => { setTimeSlot(id); setFieldErrors(p => ({ ...p, timeSlot: '' })); }}
                       className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border text-left transition-all ${
                         timeSlot === id
                           ? 'border-[#1e293b] bg-slate-50 ring-1 ring-[#1e293b]'
@@ -393,7 +423,9 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
                     </button>
                   ))}
                 </div>
+                {fieldErrors.timeSlot && <p className="mt-2 text-xs text-red-600">{fieldErrors.timeSlot}</p>}
               </div>
+              {error && <ErrorBanner message={error} />}
             </div>
           </div>
         )}
@@ -407,42 +439,37 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
                 <h2 className="text-lg font-bold text-slate-900">Pickup Location</h2>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-1.5">
-                  Street Address <span className="text-rose-500">*</span>
-                </label>
+              <Field name="address" label="Street Address" required error={fieldErrors.address}>
                 <LocationAutocomplete
                   value={address}
-                  onChange={setAddress}
+                  onChange={(v) => { setAddress(v); setFieldErrors(p => ({ ...p, address: '' })); }}
                   showLocate
+                  invalid={!!fieldErrors.address}
                   placeholder="e.g. 15 Siaka Stevens Street"
-                  inputClassName="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none"
+                  inputClassName={`${inputClass(!!fieldErrors.address, 'slate')} pl-9`}
                 />
-              </div>
+              </Field>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-1.5">Nearest Landmark</label>
+              <Field label="Nearest Landmark">
                 <input
                   type="text"
                   value={landmark}
                   onChange={e => setLandmark(e.target.value)}
                   placeholder="e.g. Opposite National Stadium"
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none"
+                  className={inputClass(false, 'slate')}
                 />
-              </div>
+              </Field>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-1.5">
-                  Contact Phone <span className="text-rose-500">*</span>
-                </label>
+              <Field name="contactPhone" label="Contact Phone" required error={fieldErrors.contactPhone}>
                 <input
                   type="tel"
                   value={contactPhone}
-                  onChange={e => setContactPhone(e.target.value)}
+                  onChange={e => { setContactPhone(e.target.value); setFieldErrors(p => ({ ...p, contactPhone: '' })); }}
                   placeholder="+232 76 000 000"
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none"
+                  className={inputClass(!!fieldErrors.contactPhone, 'slate')}
+                  autoComplete="tel"
                 />
-              </div>
+              </Field>
 
               <div>
                 <label className="block text-sm font-semibold text-slate-800 mb-1.5">Special Instructions</label>
@@ -451,9 +478,10 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
                   value={specialInstructions}
                   onChange={e => setSpecialInstructions(e.target.value)}
                   placeholder="Gate code, access hours, hazardous items..."
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none resize-none"
+                  className={`${inputClass(false, 'slate')} resize-none`}
                 />
               </div>
+              {error && <ErrorBanner message={error} />}
             </div>
           </div>
         )}
@@ -501,15 +529,13 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
               </div>
             </div>
 
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
-            )}
+            {error && <ErrorBanner message={error} />}
           </div>
         )}
       </div>
 
       {/* Sticky footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 z-10">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 z-10 safe-area-pb">
         <div className="max-w-lg mx-auto flex gap-3">
           {step > 1 && (
             <button
@@ -521,7 +547,7 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
           )}
           {step < 4 ? (
             <button
-              onClick={() => setStep(s => s + 1)}
+              onClick={handleContinue}
               disabled={!canProceed}
               className="flex-1 py-3.5 bg-[#1e293b] text-white font-semibold rounded-xl hover:bg-[#0f172a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >

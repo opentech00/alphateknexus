@@ -6,6 +6,11 @@ import {
 import { supabase } from '../lib/supabase';
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { Field, inputClass, ErrorBanner } from './service-form/ServiceFormKit';
+import {
+  applyFieldErrors, collectErrors, todayISO,
+  validateAddress, validateDate, validateEmail, validateName, validatePhone, validateRequired,
+} from '../lib/serviceFormValidation';
 
 interface Service {
   id: string;
@@ -100,23 +105,6 @@ function CheckboxItem({ label, checked, onClick }: { label: string; checked: boo
   );
 }
 
-function Field({
-  label, required, children, hint,
-}: { label: string; required?: boolean; children: React.ReactNode; hint?: string }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1.5">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
-    </div>
-  );
-}
-
-const inputCls =
-  'w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white';
-
 export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -156,20 +144,33 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
   // E. Terms
   const [specialTerms, setSpecialTerms] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const togglePort = (p: string) =>
     setPreferredPorts((prev) => prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]);
 
-  const toggleService = (s: string) =>
+  const toggleService = (s: string) => {
     setRequiredServices((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
+    setFieldErrors((p) => ({ ...p, requiredServices: '' }));
+  };
 
   const handleSubmit = async () => {
-    if (!companyName || !contactPerson || !phone || !email || !address || !businessType || !goodsNature) {
-      setError('Please fill in all required fields (sections A and B).');
-      return;
-    }
-    if (!termsAccepted) {
-      setError('You must accept the service terms to submit the quote request.');
+    const next = collectErrors({
+      companyName: validateRequired(companyName, 'Company / customer name'),
+      contactPerson: validateName(contactPerson, 'Contact person'),
+      phone: validatePhone(phone),
+      whatsapp: validatePhone(whatsapp, false),
+      email: validateEmail(email, true),
+      address: validateAddress(address),
+      businessType: validateRequired(businessType, 'Type of business'),
+      goodsNature: validateRequired(goodsNature, 'Nature of goods handled'),
+      requiredServices: requiredServices.length === 0 ? 'Select at least one required service.' : '',
+      expectedArrival: validateDate(expectedArrival, 'Expected time of arrival', false),
+      terms: termsAccepted ? '' : 'You must accept the service terms to submit.',
+    });
+    setFieldErrors(next);
+    if (!applyFieldErrors(next)) {
+      setError('Please fix the highlighted fields before continuing.');
       return;
     }
     setError('');
@@ -271,10 +272,7 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            {error}
-          </div>
+          <div className="mb-4"><ErrorBanner message={error} /></div>
         )}
 
         <div className="space-y-4">
@@ -282,64 +280,65 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={Building2} id="A" title="Customer / Company Information" />
             <div className="space-y-4">
-              <Field label="Company / Customer Name" required>
-                <input className={inputCls} value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+              <Field name="companyName" label="Company / Customer Name" required error={fieldErrors.companyName}>
+                <input className={inputClass(!!fieldErrors.companyName, 'blue')} value={companyName} onChange={(e) => { setCompanyName(e.target.value); setFieldErrors(p => ({ ...p, companyName: '' })); }} />
               </Field>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Business Registration Number">
-                  <input className={inputCls} value={regNumber} onChange={(e) => setRegNumber(e.target.value)} />
+                  <input className={inputClass(false, 'blue')} value={regNumber} onChange={(e) => setRegNumber(e.target.value)} />
                 </Field>
                 <Field label="Tax Identification Number (TIN)">
-                  <input className={inputCls} value={tin} onChange={(e) => setTin(e.target.value)} />
+                  <input className={inputClass(false, 'blue')} value={tin} onChange={(e) => setTin(e.target.value)} />
                 </Field>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Contact Person" required>
-                  <input className={inputCls} value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} placeholder="Full name" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field name="contactPerson" label="Contact Person" required error={fieldErrors.contactPerson}>
+                  <input className={inputClass(!!fieldErrors.contactPerson, 'blue')} value={contactPerson} onChange={(e) => { setContactPerson(e.target.value); setFieldErrors(p => ({ ...p, contactPerson: '' })); }} placeholder="Full name" autoComplete="name" />
                 </Field>
                 <Field label="Position / Title">
-                  <input className={inputCls} value={position} onChange={(e) => setPosition(e.target.value)} />
+                  <input className={inputClass(false, 'blue')} value={position} onChange={(e) => setPosition(e.target.value)} />
                 </Field>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Phone" required>
-                  <input className={inputCls} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+232..." />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field name="phone" label="Phone" required error={fieldErrors.phone}>
+                  <input className={inputClass(!!fieldErrors.phone, 'blue')} type="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: '' })); }} placeholder="+232..." autoComplete="tel" />
                 </Field>
-                <Field label="WhatsApp (if any)">
-                  <input className={inputCls} type="tel" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="+232..." />
+                <Field name="whatsapp" label="WhatsApp (if any)" error={fieldErrors.whatsapp}>
+                  <input className={inputClass(!!fieldErrors.whatsapp, 'blue')} type="tel" value={whatsapp} onChange={(e) => { setWhatsapp(e.target.value); setFieldErrors(p => ({ ...p, whatsapp: '' })); }} placeholder="+232..." />
                 </Field>
               </div>
 
-              <Field label="Email Address" required>
-                <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Field name="email" label="Email Address" required error={fieldErrors.email}>
+                <input className={inputClass(!!fieldErrors.email, 'blue')} type="email" value={email} onChange={(e) => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: '' })); }} autoComplete="email" />
               </Field>
 
-              <Field label="Office / Customer Address" required>
+              <Field name="address" label="Office / Customer Address" required error={fieldErrors.address}>
                 <LocationAutocomplete
                   value={address}
-                  onChange={setAddress}
+                  onChange={(v) => { setAddress(v); setFieldErrors(p => ({ ...p, address: '' })); }}
                   onSelect={(s) => { if (s.city) setCity(s.city); if (s.country) setCountry(s.country); }}
                   countryCodes=""
                   showLocate
+                  invalid={!!fieldErrors.address}
                   placeholder="Search your business address"
-                  inputClassName={`${inputCls} pl-9`}
+                  inputClassName={`${inputClass(!!fieldErrors.address, 'blue')} pl-9`}
                 />
               </Field>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="City">
-                  <input className={inputCls} value={city} onChange={(e) => setCity(e.target.value)} />
+                  <input className={inputClass(false, 'blue')} value={city} onChange={(e) => setCity(e.target.value)} />
                 </Field>
                 <Field label="Country">
-                  <input className={inputCls} value={country} onChange={(e) => setCountry(e.target.value)} />
+                  <input className={inputClass(false, 'blue')} value={country} onChange={(e) => setCountry(e.target.value)} />
                 </Field>
               </div>
 
               <Field label="Website (if any)">
-                <input className={inputCls} value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://" />
+                <input className={inputClass(false, 'blue')} value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://" />
               </Field>
             </div>
           </div>
@@ -348,20 +347,21 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={BarChart3} id="B" title="Import / Export Profile" />
             <div className="space-y-5">
-              <div>
+              <div data-field="businessType">
                 <p className="text-sm font-medium text-slate-700 mb-3">Type of Business <span className="text-red-500">*</span></p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {BUSINESS_TYPES.map((t) => (
-                    <RadioCard key={t} label={t} checked={businessType === t} onClick={() => setBusinessType(t)} />
+                    <RadioCard key={t} label={t} checked={businessType === t} onClick={() => { setBusinessType(t); setFieldErrors(p => ({ ...p, businessType: '' })); }} />
                   ))}
                 </div>
+                {fieldErrors.businessType && <p className="mt-2 text-xs text-red-600">{fieldErrors.businessType}</p>}
               </div>
 
-              <Field label="Nature of Goods Handled" required>
+              <Field name="goodsNature" label="Nature of Goods Handled" required error={fieldErrors.goodsNature}>
                 <input
-                  className={inputCls}
+                  className={inputClass(!!fieldErrors.goodsNature, 'blue')}
                   value={goodsNature}
-                  onChange={(e) => setGoodsNature(e.target.value)}
+                  onChange={(e) => { setGoodsNature(e.target.value); setFieldErrors(p => ({ ...p, goodsNature: '' })); }}
                   placeholder="e.g. Electronics, foodstuffs, building materials..."
                 />
               </Field>
@@ -373,7 +373,7 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
                     Preferred Ports / Borders
                   </span>
                 </p>
-                <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
                   {PORTS.map((p) => (
                     <CheckboxItem key={p} label={p} checked={preferredPorts.includes(p)} onClick={() => togglePort(p)} />
                   ))}
@@ -382,7 +382,7 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
 
               <div>
                 <p className="text-sm font-medium text-slate-700 mb-2">Estimated Shipment Frequency</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {SHIPMENT_FREQUENCIES.map((f) => (
                     <RadioCard key={f} label={f} checked={shipmentFrequency === f} onClick={() => setShipmentFrequency(f)} />
                   ))}
@@ -395,52 +395,53 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <SectionHeader icon={CheckCircle2} id="C" title="Services Required" />
             <div className="space-y-5">
-              <div>
+              <div data-field="requiredServices">
                 <p className="text-sm font-medium text-slate-700 mb-2">Select all required services <span className="text-red-500">*</span></p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {CF_SERVICES.map((s) => (
                     <CheckboxItem key={s} label={s} checked={requiredServices.includes(s)} onClick={() => toggleService(s)} />
                   ))}
                 </div>
+                {fieldErrors.requiredServices && <p className="mt-2 text-xs text-red-600">{fieldErrors.requiredServices}</p>}
               </div>
 
               <Field label="Other (specify)">
-                <input className={inputCls} value={otherService} onChange={(e) => setOtherService(e.target.value)} />
+                <input className={inputClass(false, 'blue')} value={otherService} onChange={(e) => setOtherService(e.target.value)} />
               </Field>
 
               <div>
                 <p className="text-sm font-medium text-slate-700 mb-2">Estimated Monthly Shipment Volume</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {MONTHLY_VOLUMES.map((v) => (
                     <RadioCard key={v} label={v} checked={monthlyVolume === v} onClick={() => setMonthlyVolume(v)} />
                   ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Agreed Service Fee / Retainer (Le)">
                   <input
-                    className={inputCls}
+                    className={inputClass(false, 'blue')}
                     type="text"
                     value={serviceFee}
                     onChange={(e) => setServiceFee(e.target.value)}
                     placeholder="e.g. 5,000,000"
                   />
                 </Field>
-                <Field label="Expected Time of Arrival">
+                <Field name="expectedArrival" label="Expected Time of Arrival" error={fieldErrors.expectedArrival}>
                   <input
-                    className={inputCls}
+                    className={inputClass(!!fieldErrors.expectedArrival, 'blue')}
                     type="date"
                     value={expectedArrival}
-                    onChange={(e) => setExpectedArrival(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => { setExpectedArrival(e.target.value); setFieldErrors(p => ({ ...p, expectedArrival: '' })); }}
+                    min={todayISO()}
                   />
                 </Field>
               </div>
 
               <div>
                 <p className="text-sm font-medium text-slate-700 mb-2">Preferred Payment Method</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {PAYMENT_METHODS.map((m) => (
                     <RadioCard key={m} label={m} checked={paymentMethod === m} onClick={() => setPaymentMethod(m)} />
                   ))}
@@ -485,7 +486,7 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
             <SectionHeader icon={AlertCircle} id="E" title="Terms & Conditions" />
             <Field label="">
               <textarea
-                className={`${inputCls} resize-none`}
+                className={`${inputClass(false, 'blue')} resize-none`}
                 rows={3}
                 value={specialTerms}
                 onChange={(e) => setSpecialTerms(e.target.value)}
@@ -493,11 +494,11 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
               />
             </Field>
 
-            <label className="mt-4 flex items-start gap-3 cursor-pointer group">
+            <label data-field="terms" className="mt-4 flex items-start gap-3 cursor-pointer group">
               <div
-                onClick={() => setTermsAccepted(!termsAccepted)}
+                onClick={() => { setTermsAccepted(!termsAccepted); setFieldErrors(p => ({ ...p, terms: '' })); }}
                 className={`mt-0.5 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-                  termsAccepted ? 'bg-blue-600 border-blue-600' : 'border-slate-300 group-hover:border-blue-400'
+                  termsAccepted ? 'bg-blue-600 border-blue-600' : fieldErrors.terms ? 'border-red-400' : 'border-slate-300 group-hover:border-blue-400'
                 }`}
               >
                 {termsAccepted && (
@@ -513,6 +514,7 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
                 <span className="text-red-500">*</span>
               </span>
             </label>
+            {fieldErrors.terms && <p className="mt-2 text-xs text-red-600">{fieldErrors.terms}</p>}
 
             <div className="mt-5 flex items-center gap-2 text-xs text-slate-400 bg-slate-50 rounded-lg p-3 border border-slate-100">
               <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 flex-shrink-0">

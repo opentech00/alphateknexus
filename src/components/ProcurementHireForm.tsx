@@ -5,6 +5,11 @@ import { ServicePaymentStep, PaymentSuccessScreen, PaymentFailedScreen } from '.
 import { ReviewSubmittedScreen } from './ReviewSubmittedScreen';
 import { Portal } from '../lib/portal';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { Field, inputClass, ErrorBanner } from './service-form/ServiceFormKit';
+import {
+  applyFieldErrors, collectErrors, todayISO,
+  validateAddress, validateDate, validateEmail, validateName, validatePhone, validateRequired,
+} from '../lib/serviceFormValidation';
 
 interface Service {
   id: string;
@@ -52,20 +57,37 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
   const [payMethod, setPayMethod] = useState('');
   const [payRef, setPayRef] = useState('');
   const [payError, setPayError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const addItem = () => setItems((prev) => [...prev, newItem()]);
   const removeItem = (i: number) =>
     setItems((prev) => prev.filter((_, idx) => idx !== i));
-  const updateItem = (i: number, patch: Partial<Item>) =>
+  const updateItem = (i: number, patch: Partial<Item>) => {
     setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+    setFieldErrors((p) => ({ ...p, items: '' }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     const validItems = items.filter((it) => it.description.trim());
-    if (!title.trim() || !contactName.trim() || !phone.trim() || !validItems.length) {
-      setError('Title, contact name, phone and at least one item are required.');
+    const next = collectErrors({
+      title: validateRequired(title, 'Title'),
+      contactName: validateName(contactName, 'Contact name'),
+      phone: validatePhone(phone),
+      email: validateEmail(email, true),
+      neededBy: validateDate(neededBy, 'Needed-by date'),
+      deliveryAddress: validateAddress(deliveryAddress),
+      items: validItems.length === 0
+        ? 'Add at least one item with a description.'
+        : items.some((it) => it.description.trim() && it.qty < 1)
+          ? 'Quantity must be at least 1.'
+          : '',
+    });
+    setFieldErrors(next);
+    if (!applyFieldErrors(next)) {
+      setError('Please fix the highlighted fields before continuing.');
       return;
     }
 
@@ -184,130 +206,98 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
 
         {/* Body */}
         <form id="proc-hire-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-              {error}
-            </div>
-          )}
+          {error && <ErrorBanner message={error} />}
 
-          {/* Title */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Title <span className="text-red-500">*</span>
-            </label>
+          <Field name="title" label="Title" required error={fieldErrors.title}>
             <input
-              required
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => { setTitle(e.target.value); setFieldErrors(p => ({ ...p, title: '' })); }}
               placeholder="e.g. Office furniture for new branch"
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all text-sm"
+              className={inputClass(!!fieldErrors.title, 'rose')}
             />
-          </div>
+          </Field>
 
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Description</label>
+          <Field label="Description">
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Context, special requirements..."
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all text-sm resize-none"
+              className={`${inputClass(false, 'rose')} resize-none`}
             />
-          </div>
+          </Field>
 
-          {/* Contact info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Contact Name <span className="text-red-500">*</span>
-              </label>
+            <Field name="contactName" label="Contact Name" required error={fieldErrors.contactName}>
               <input
-                required
                 type="text"
                 value={contactName}
-                onChange={(e) => setContactName(e.target.value)}
+                onChange={(e) => { setContactName(e.target.value); setFieldErrors(p => ({ ...p, contactName: '' })); }}
                 placeholder="Your full name"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all text-sm"
+                className={inputClass(!!fieldErrors.contactName, 'rose')}
+                autoComplete="name"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Phone <span className="text-red-500">*</span>
-              </label>
+            </Field>
+            <Field name="phone" label="Phone" required error={fieldErrors.phone}>
               <input
-                required
                 type="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: '' })); }}
                 placeholder="+232 76 000 000"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all text-sm"
+                className={inputClass(!!fieldErrors.phone, 'rose')}
+                autoComplete="tel"
               />
-            </div>
+            </Field>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
+            <Field name="email" label="Email" required error={fieldErrors.email}>
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: '' })); }}
                 placeholder="you@example.com"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all text-sm"
+                className={inputClass(!!fieldErrors.email, 'rose')}
+                autoComplete="email"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Currency</label>
+            </Field>
+            <Field label="Currency">
               <select
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all text-sm bg-white"
+                className={inputClass(false, 'rose')}
               >
                 {CURRENCIES.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
-            </div>
+            </Field>
           </div>
 
-          {/* Needed By + Delivery Address */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                <span className="flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  Needed by
-                </span>
-              </label>
+            <Field name="neededBy" label={<span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-400" /> Needed by</span>} required error={fieldErrors.neededBy}>
               <input
                 type="date"
                 value={neededBy}
-                onChange={(e) => setNeededBy(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all text-sm"
+                onChange={(e) => { setNeededBy(e.target.value); setFieldErrors(p => ({ ...p, neededBy: '' })); }}
+                min={todayISO()}
+                className={inputClass(!!fieldErrors.neededBy, 'rose')}
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                  Delivery Address
-                </span>
-              </label>
+            </Field>
+            <Field name="deliveryAddress" label={<span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-400" /> Delivery Address</span>} required error={fieldErrors.deliveryAddress}>
               <LocationAutocomplete
                 value={deliveryAddress}
-                onChange={setDeliveryAddress}
+                onChange={(v) => { setDeliveryAddress(v); setFieldErrors(p => ({ ...p, deliveryAddress: '' })); }}
                 showLocate
+                invalid={!!fieldErrors.deliveryAddress}
                 placeholder="Street, city, country"
-                inputClassName="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all text-sm"
+                inputClassName={`${inputClass(!!fieldErrors.deliveryAddress, 'rose')} pl-9`}
               />
-            </div>
+            </Field>
           </div>
 
-          {/* Items */}
-          <div>
+          <div data-field="items">
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-slate-700">
                 Items <span className="text-red-500">*</span>
@@ -324,49 +314,53 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
 
             <div className="space-y-2">
               {items.map((item, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-2">
                   <input
                     type="text"
                     value={item.description}
                     onChange={(e) => updateItem(i, { description: e.target.value })}
                     placeholder="Item description"
-                    className="flex-1 min-w-0 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none text-sm transition-all"
+                    className={`${inputClass(!!fieldErrors.items, 'rose')} flex-1 min-w-0`}
                   />
                   <input
                     type="number"
                     min={1}
                     value={item.qty}
                     onChange={(e) => updateItem(i, { qty: Number(e.target.value) })}
-                    className="w-16 px-2 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none text-sm text-center transition-all"
+                    className={`${inputClass(!!fieldErrors.items && item.qty < 1, 'rose')} sm:w-16 text-center`}
                   />
                   <input
                     type="text"
                     value={item.unit}
                     onChange={(e) => updateItem(i, { unit: e.target.value })}
                     placeholder="unit"
-                    className="w-20 px-2 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none text-sm transition-all"
+                    className={`${inputClass(false, 'rose')} sm:w-20`}
                   />
                   <input
                     type="text"
                     value={item.specs}
                     onChange={(e) => updateItem(i, { specs: e.target.value })}
                     placeholder="Specs"
-                    className="w-28 px-2 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none text-sm transition-all"
+                    className={`${inputClass(false, 'rose')} sm:w-28`}
                   />
                   <button
                     type="button"
                     onClick={() => removeItem(i)}
                     disabled={items.length === 1}
-                    className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               ))}
             </div>
-            <p className="mt-1.5 text-xs text-slate-400">
-              Fill in description, quantity, unit (e.g. pcs, kg, box) and optional specs per item.
-            </p>
+            {fieldErrors.items ? (
+              <p className="mt-1.5 text-xs text-red-600">{fieldErrors.items}</p>
+            ) : (
+              <p className="mt-1.5 text-xs text-slate-400">
+                Fill in description, quantity, unit (e.g. pcs, kg, box) and optional specs per item.
+              </p>
+            )}
           </div>
         </form>
 

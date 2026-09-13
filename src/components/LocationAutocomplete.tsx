@@ -17,6 +17,8 @@ interface Props {
   showLocate?: boolean;
   autoComplete?: string;
   disabled?: boolean;
+  invalid?: boolean;
+  fieldError?: string;
 }
 
 export function LocationAutocomplete({
@@ -29,6 +31,8 @@ export function LocationAutocomplete({
   showLocate = false,
   autoComplete = 'street-address',
   disabled = false,
+  invalid = false,
+  fieldError,
 }: Props) {
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -157,7 +161,8 @@ export function LocationAutocomplete({
             aria-controls={listId}
             aria-autocomplete="list"
             placeholder={placeholder}
-            className={inputClassName}
+            className={`${inputClassName}${invalid ? ' border-red-400 focus:ring-red-500 focus:border-red-500' : ''}`}
+            aria-invalid={invalid || undefined}
             onChange={(e) => onChange(e.target.value)}
             onFocus={() => { if (results.length > 0) setOpen(true); }}
             onKeyDown={onKeyDown}
@@ -204,7 +209,8 @@ export function LocationAutocomplete({
         </ul>
       )}
 
-      {error && <p className="text-xs text-amber-600 mt-1">{error}</p>}
+      {fieldError && <p className="text-xs text-red-600 mt-1.5">{fieldError}</p>}
+      {!fieldError && error && <p className="text-xs text-amber-600 mt-1">{error}</p>}
     </div>
   );
 }

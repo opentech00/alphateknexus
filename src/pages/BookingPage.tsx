@@ -11,6 +11,11 @@ const SERVICE_FEE = 25;
 import { SchedulingCalendar } from '../components/SchedulingCalendar';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { LocationAutocomplete } from '../components/LocationAutocomplete';
+import { Field, inputClass, ErrorBanner } from '../components/service-form/ServiceFormKit';
+import {
+  applyFieldErrors, collectErrors,
+  validateAddress, validateDate, validateEmail, validateName, validatePhone,
+} from '../lib/serviceFormValidation';
 const AddressPickerMap = lazy(() =>
   import('../components/map/AddressPickerMap').then((m) => ({ default: m.AddressPickerMap })),
 );
@@ -350,6 +355,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
   const [payReference, setPayReference] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
   const [paymentError, setPaymentError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (rebookData) {
@@ -807,57 +813,60 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
 
           <form onSubmit={(e) => {
             e.preventDefault();
-            if (!formData.scheduled_date) {
-              setError('Please select a date and time before proceeding.');
+            const next = collectErrors({
+              contact_name: validateName(formData.contact_name),
+              contact_phone: validatePhone(formData.contact_phone),
+              contact_email: validateEmail(formData.contact_email),
+              scheduled_date: formData.scheduled_date
+                ? validateDate(formData.scheduled_date, 'Date')
+                : 'Please select a date and time before proceeding.',
+              location: validateAddress(formData.location),
+            });
+            setFieldErrors(next);
+            if (!applyFieldErrors(next)) {
+              setError('Please fix the highlighted fields before continuing.');
               return;
             }
             setError('');
             setStep('summary');
           }} className="p-6 lg:p-8 space-y-6">
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                {error}
-              </div>
-            )}
+            {error && <ErrorBanner message={error} />}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Contact Name *</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <Field name="contact_name" label="Contact Name" required error={fieldErrors.contact_name}>
                 <input
                   type="text"
-                  required
                   value={formData.contact_name}
-                  onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
+                  onChange={(e) => { setFormData({ ...formData, contact_name: e.target.value }); setFieldErrors(p => ({ ...p, contact_name: '' })); }}
+                  className={inputClass(!!fieldErrors.contact_name)}
                   placeholder="Your full name"
+                  autoComplete="name"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number *</label>
+              </Field>
+              <Field name="contact_phone" label="Phone Number" required error={fieldErrors.contact_phone}>
                 <input
                   type="tel"
-                  required
                   value={formData.contact_phone}
-                  onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
+                  onChange={(e) => { setFormData({ ...formData, contact_phone: e.target.value }); setFieldErrors(p => ({ ...p, contact_phone: '' })); }}
+                  className={inputClass(!!fieldErrors.contact_phone)}
                   placeholder="+232 76 000 000"
+                  autoComplete="tel"
                 />
-              </div>
+              </Field>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email (Optional)</label>
+            <Field name="contact_email" label="Email (Optional)" error={fieldErrors.contact_email}>
               <input
                 type="email"
                 value={formData.contact_email}
-                onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
+                onChange={(e) => { setFormData({ ...formData, contact_email: e.target.value }); setFieldErrors(p => ({ ...p, contact_email: '' })); }}
+                className={inputClass(!!fieldErrors.contact_email)}
                 placeholder="you@example.com"
+                autoComplete="email"
               />
-            </div>
+            </Field>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="col-span-2">
+            <div data-field="scheduled_date">
                 <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-3">
                   <Calendar className="w-4 h-4 text-gray-400" />
                   Select Date &amp; Time *
@@ -867,6 +876,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
                   serviceId={service?.id}
                   onSelectSlot={(date, time) => {
                     setFormData({ ...formData, scheduled_date: date, scheduled_time: time });
+                    setFieldErrors(p => ({ ...p, scheduled_date: '' }));
                   }}
                 />
                 {formData.scheduled_date && (
@@ -875,26 +885,26 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
                     {formData.scheduled_time ? ` at ${formData.scheduled_time}` : ''}
                   </p>
                 )}
-              </div>
+                {fieldErrors.scheduled_date && <p className="mt-2 text-xs text-red-600">{fieldErrors.scheduled_date}</p>}
             </div>
 
-            <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1.5">
-                <MapPin className="w-4 h-4 text-gray-400" />
-                Location / Address
-              </label>
+            <Field name="location" label={<span className="flex items-center gap-2"><MapPin className="w-4 h-4 text-gray-400" /> Location / Address</span>} required error={fieldErrors.location}>
               <LocationAutocomplete
                 value={formData.location}
-                onChange={(v) => setFormData({ ...formData, location: v })}
-                onSelect={(s) => setFormData({
-                  ...formData,
-                  location: s.display_name,
-                  latitude: s.latitude,
-                  longitude: s.longitude,
-                })}
+                onChange={(v) => { setFormData({ ...formData, location: v }); setFieldErrors(p => ({ ...p, location: '' })); }}
+                onSelect={(s) => {
+                  setFormData({
+                    ...formData,
+                    location: s.display_name,
+                    latitude: s.latitude,
+                    longitude: s.longitude,
+                  });
+                  setFieldErrors(p => ({ ...p, location: '' }));
+                }}
                 showLocate
+                invalid={!!fieldErrors.location}
                 placeholder="Service location or address"
-                inputClassName="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
+                inputClassName={`${inputClass(!!fieldErrors.location)} pl-9`}
               />
               <div className="mt-3">
                 <Suspense fallback={<div className="h-[200px] rounded-xl bg-slate-50 border border-slate-100 animate-pulse" />}>
@@ -910,24 +920,33 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
                   />
                 </Suspense>
               </div>
-            </div>
+            </Field>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Additional Notes</label>
+            <Field label="Additional Notes">
               <textarea
                 rows={4}
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm resize-none"
+                className={`${inputClass()} resize-none`}
                 placeholder="Any specific requirements or details..."
               />
-            </div>
+            </Field>
 
             <button
               type="button"
               onClick={() => {
-                if (!formData.scheduled_date) {
-                  setError('Please select a date and time before proceeding.');
+                const next = collectErrors({
+                  contact_name: validateName(formData.contact_name),
+                  contact_phone: validatePhone(formData.contact_phone),
+                  contact_email: validateEmail(formData.contact_email),
+                  scheduled_date: formData.scheduled_date
+                    ? validateDate(formData.scheduled_date, 'Date')
+                    : 'Please select a date and time before proceeding.',
+                  location: validateAddress(formData.location),
+                });
+                setFieldErrors(next);
+                if (!applyFieldErrors(next)) {
+                  setError('Please fix the highlighted fields before continuing.');
                   return;
                 }
                 setError('');
