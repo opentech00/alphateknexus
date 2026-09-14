@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeft, ArrowRight, Banknote, Download, Loader2, Pencil, Plus, RefreshCw,
-  Search, Smartphone, Trash2, TrendingDown, TrendingUp, Wallet, WifiOff, X,
+  ArrowLeft, ArrowRight, Banknote, Download, FileText, Loader2, Lock, Pencil, Plus, RefreshCw,
+  Search, Shield, Smartphone, Trash2, TrendingUp, Wallet, WifiOff, X,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard } from '../components/ui';
 import { downloadCsv } from './finance/financeCsv';
+import { PrivacyToggle, SensitiveValue } from '../../components/SensitiveValue';
+import { getFinancePrivacy, maskReference, redactCsvValue, setFinancePrivacy } from '../../lib/sensitive';
 import {
   ENTRY_CATEGORIES,
   ENTRY_KINDS,
@@ -38,6 +40,7 @@ interface LedgerEntry {
   settlement: 'recorded' | 'pending' | 'collected' | 'void' | 'refunded';
   request_type: 'quote' | 'hire' | null;
   payment_method: string | null;
+  invoice_id: string | null;
   created_at: string;
 }
 
@@ -97,8 +100,17 @@ export function ServiceFinancePage({
   const [modal, setModal] = useState<Partial<LedgerEntry> | null>(null);
   const [quoteEntry, setQuoteEntry] = useState<LedgerEntry | null>(null);
   const [settleEntry, setSettleEntry] = useState<LedgerEntry | null>(null);
+  const [invoiceEntry, setInvoiceEntry] = useState<LedgerEntry | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [totalsByService, setTotalsByService] = useState<Record<string, { collected: number; pending: number }>>({});
+  const [isSuper, setIsSuper] = useState(false);
+  const [privacy, setPrivacy] = useState(getFinancePrivacy);
+  const [notice, setNotice] = useState('');
+  const [bankSlips, setBankSlips] = useState<{
+    id: string; booking_id: string; document_type: string; document_name: string;
+    document_url: string; amount_sle: number | null; created_at: string; contact_name: string;
+  }[]>([]);
+  const [rejectSlip, setRejectSlip] = useState<{ id: string } | null>(null);
 
   const selected = services.find((s) => s.slug === selectedSlug) || null;
 
@@ -122,6 +134,7 @@ export function ServiceFinancePage({
     ]);
     setCanWrite(add === true || manage === true || isSuper === true || canManage === true);
     setCanDelete(del === true || manage === true || isSuper === true);
+    setIsSuper(isSuper === true);
   }, []);
 
   const loadHubTotals = useCallback(async (list: ServiceRow[]) => {
@@ -154,6 +167,8 @@ export function ServiceFinancePage({
       .limit(500);
     if (err) setError(err.message);
     setEntries((data as LedgerEntry[]) || []);
+    const { data: slips } = await supabase.rpc('finance_pending_bank_slips', { p_service_id: service.id });
+    setBankSlips(Array.isArray(slips) ? slips : []);
     setLoading(false);
   }, []);
 
@@ -276,22 +291,62 @@ export function ServiceFinancePage({
     await loadLedger(selected);
   };
 
-  const settle = async (entry: LedgerEntry, method: string, amount: number, reference: string, notes: string) => {
+  const settle = async (entry: LedgerEntry, method: string, amount: number, reference: string, notes: string, immediate: boolean) => {
     if (!selected || !entry.booking_id) return;
     setBusyId('settle');
-    const { data, error: err } = await supabase.rpc('finance_settle_booking', {
+    const { data, error: err } = await supabase.rpc('finance_request_ledger_settle', {
       p_booking_id: entry.booking_id,
       p_method: method,
       p_amount: amount,
       p_reference: reference || null,
       p_notes: notes || null,
+      p_immediate: immediate,
+    });
+    setBusyId(null);
+    if (err) { setError(err.message); return; }
+    const result = data as { success?: boolean; error?: string; queued?: boolean } | null;
+    if (result && result.success === false) { setError(result.error || 'Could not record payment'); return; }
+    setSettleEntry(null);
+    setNotice(result?.queued ? 'Payment submitted for dual-control approval.' : 'Payment recorded.');
+    await loadLedger(selected);
+  };
+
+  const invoiceFromEntry = async (entry: LedgerEntry, note: string) => {
+    if (!selected || !entry.booking_id) return;
+    setBusyId('invoice');
+    const { data, error: err } = await supabase.rpc('finance_invoice_from_booking', {
+      p_booking_id: entry.booking_id,
+      p_due_days: 14,
+      p_note: note || null,
+    });
+    setBusyId(null);
+    if (err) { setError(err.message); return; }
+    const result = data as { success?: boolean; error?: string; queued?: boolean } | null;
+    if (result && result.success === false) { setError(result.error || 'Could not create invoice'); return; }
+    setInvoiceEntry(null);
+    setNotice(result?.queued ? 'Invoice submitted for approval.' : 'Invoice issued to the client.');
+    await loadLedger(selected);
+  };
+
+  const reviewSlip = async (id: string, approve: boolean, reason?: string) => {
+    setBusyId(id);
+    const { data, error: err } = await supabase.rpc('finance_review_bank_slip', {
+      p_id: id,
+      p_approve: approve,
+      p_reason: reason || null,
     });
     setBusyId(null);
     if (err) { setError(err.message); return; }
     const result = data as { success?: boolean; error?: string } | null;
-    if (result && result.success === false) { setError(result.error || 'Could not record payment'); return; }
-    setSettleEntry(null);
-    await loadLedger(selected);
+    if (result && result.success === false) { setError(result.error || 'Could not review slip'); return; }
+    setRejectSlip(null);
+    setNotice(approve ? 'Bank slip verified.' : 'Bank slip rejected.');
+    if (selected) await loadLedger(selected);
+  };
+
+  const togglePrivacy = (next: boolean) => {
+    setFinancePrivacy(next);
+    setPrivacy(next);
   };
 
   if (!selectedSlug) {
@@ -302,12 +357,12 @@ export function ServiceFinancePage({
           description="Quote and hire requests post here automatically. Record online or offline payments per service."
           icon={Wallet}
         />
-        {error && <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>}
+        {error && <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 animate-shakeX">{error}</div>}
         {loading ? (
           <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 text-emerald-500 animate-spin" /></div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {FINANCE_SERVICE_PAGES.map((meta) => {
+            {FINANCE_SERVICE_PAGES.map((meta, idx) => {
               const svc = services.find((s) => s.slug === meta.slug);
               const totals = svc ? totalsByService[svc.id] : null;
               return (
@@ -315,7 +370,8 @@ export function ServiceFinancePage({
                   key={meta.page}
                   type="button"
                   onClick={() => onNavigate(meta.page)}
-                  className="text-left bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-emerald-200 hover:shadow-md transition-all"
+                  style={{ animationDelay: `${idx * 60}ms` }}
+                  className="text-left bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-emerald-200 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 animate-[fadeInUp_0.35s_ease_both]"
                 >
                   <p className="text-sm font-bold text-slate-900">{meta.name}</p>
                   <p className="text-xs text-slate-400 mt-0.5 mb-4">Open ledger</p>
@@ -342,17 +398,18 @@ export function ServiceFinancePage({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 animate-[fadeInUp_0.3s_ease]">
       <PageHeader
         title={selected?.name || 'Service ledger'}
-        description="Client quote and hire requests appear here. Set amounts and record online or offline payments."
+        description="Client quote and hire requests appear here. Set amounts, invoice, and record online or offline payments."
         icon={Banknote}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <PrivacyToggle on={privacy} onChange={togglePrivacy} />
             <button
               type="button"
               onClick={() => onNavigate('finance-services')}
-              className="flex items-center gap-1.5 px-3 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50"
+              className="flex items-center gap-1.5 px-3 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50 hover:-translate-y-px transition-all"
             >
               <ArrowLeft className="w-4 h-4" /> All services
             </button>
@@ -365,7 +422,7 @@ export function ServiceFinancePage({
                   entry_date: new Date().toISOString().slice(0, 10),
                   amount_sle: 0,
                 })}
-                className="flex items-center gap-1.5 px-3 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700"
+                className="flex items-center gap-1.5 px-3 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 hover:shadow-md transition-all"
               >
                 <Plus className="w-4 h-4" /> Add entry
               </button>
@@ -374,17 +431,56 @@ export function ServiceFinancePage({
         }
       />
 
-      {error && <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>}
+      {error && <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 animate-shakeX">{error}</div>}
+      {notice && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800 animate-scaleIn flex items-center gap-2">
+          <Shield className="w-4 h-4" /> {notice}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Collected" value={fmtMoney(stats.collected)} icon={TrendingUp} color="text-emerald-600" accent="bg-emerald-50" />
-        <StatCard label="Online collected" value={fmtMoney(stats.online)} icon={Smartphone} color="text-blue-600" accent="bg-blue-50" />
-        <StatCard label="Offline collected" value={fmtMoney(stats.offline)} icon={WifiOff} color="text-amber-600" accent="bg-amber-50" />
-        <StatCard label="Pending requests" value={fmtMoney(stats.pending)} icon={Banknote} color="text-slate-700" accent="bg-slate-50" />
+        <div className="animate-[fadeInUp_0.35s_ease_both]"><StatCard label="Collected" value={fmtMoney(stats.collected)} icon={TrendingUp} color="text-emerald-600" accent="bg-emerald-50" /></div>
+        <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '60ms' }}><StatCard label="Online collected" value={fmtMoney(stats.online)} icon={Smartphone} color="text-blue-600" accent="bg-blue-50" /></div>
+        <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '120ms' }}><StatCard label="Offline collected" value={fmtMoney(stats.offline)} icon={WifiOff} color="text-amber-600" accent="bg-amber-50" /></div>
+        <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '180ms' }}><StatCard label="Pending requests" value={fmtMoney(stats.pending)} icon={Banknote} color="text-slate-700" accent="bg-slate-50" /></div>
       </div>
-      <p className="text-xs text-slate-400 -mt-2">
-        Net collected {fmtMoney(stats.net)} after expenses {fmtMoney(stats.expense)}. Pending is quoted/hire totals not yet paid.
+      <p className="text-xs text-slate-400 -mt-2 flex items-center gap-1.5">
+        <Lock className="w-3 h-3" />
+        Net collected {fmtMoney(stats.net)} after expenses {fmtMoney(stats.expense)}. Payment references stay masked until you reveal them.
       </p>
+
+      {bankSlips.length > 0 && (
+        <div className="bg-white rounded-2xl border border-amber-200 overflow-hidden shadow-sm animate-scaleIn">
+          <div className="px-4 py-3 border-b border-amber-100 bg-amber-50/70 flex items-center gap-2">
+            <Shield className="w-4 h-4 text-amber-700" />
+            <p className="text-sm font-semibold text-amber-900">Bank slips awaiting review</p>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {bankSlips.map((slip) => (
+              <div key={slip.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{slip.contact_name}</p>
+                  <p className="text-xs text-slate-500 capitalize">{slip.document_type.replace('_', ' ')} · {slip.document_name}</p>
+                </div>
+                <p className="text-sm font-bold text-slate-800">{fmtMoney(Number(slip.amount_sle) || 0)}</p>
+                <a href={slip.document_url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-blue-700 hover:underline">Open slip</a>
+                {canWrite && (
+                  <div className="flex gap-1">
+                    <button type="button" disabled={busyId === slip.id} onClick={() => void reviewSlip(slip.id, true)}
+                      className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
+                      Verify
+                    </button>
+                    <button type="button" onClick={() => setRejectSlip({ id: slip.id })}
+                      className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-red-50 text-red-700 hover:bg-red-100">
+                      Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row gap-3">
         <div className="relative flex-1">
@@ -415,7 +511,8 @@ export function ServiceFinancePage({
           type="button"
           onClick={() => downloadCsv(`${selectedSlug}-ledger.csv`, filtered.map((e) => ({
             date: e.entry_date, type: e.request_type || e.category, channel: e.channel, settlement: e.settlement,
-            kind: e.kind, amount_sle: e.amount_sle, description: e.description, reference: e.reference,
+            kind: e.kind, amount_sle: e.amount_sle, description: e.description,
+            reference: redactCsvValue(privacy, 'reference', e.reference),
             payment_method: e.payment_method, notes: e.notes,
           })))}
           className="flex items-center gap-1.5 px-3 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50"
@@ -470,7 +567,10 @@ export function ServiceFinancePage({
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-slate-800">{e.description || '—'}</p>
-                        {e.reference && <p className="text-xs text-slate-400">{e.reference}</p>}
+                        {e.reference && (
+                          <SensitiveValue privacy={privacy} masked={maskReference(e.reference)} full={e.reference} mono />
+                        )}
+                        {e.invoice_id && <p className="text-[11px] text-blue-600 font-medium mt-0.5">Invoiced</p>}
                       </td>
                       <td className={`px-4 py-3 text-right font-bold whitespace-nowrap ${Number(e.amount_sle) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
                         {fmtMoney(Number(e.amount_sle))}
@@ -480,11 +580,15 @@ export function ServiceFinancePage({
                           {canWrite && pendingBooking && (
                             <>
                               <button type="button" title="Set quote amount" onClick={() => setQuoteEntry(e)}
-                                className="px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 rounded-lg">
+                                className="px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 rounded-lg transition-colors">
                                 Quote
                               </button>
+                              <button type="button" title="Issue invoice" onClick={() => setInvoiceEntry(e)}
+                                className="px-2 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-50 rounded-lg transition-colors">
+                                Invoice
+                              </button>
                               <button type="button" title="Record payment" onClick={() => setSettleEntry(e)}
-                                className="px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 rounded-lg">
+                                className="px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors">
                                 Pay
                               </button>
                             </>
@@ -532,8 +636,24 @@ export function ServiceFinancePage({
         <SettleModal
           entry={settleEntry}
           busy={busyId === 'settle'}
+          allowImmediate={isSuper}
           onClose={() => setSettleEntry(null)}
-          onSave={(method, amount, reference, notes) => void settle(settleEntry, method, amount, reference, notes)}
+          onSave={(method, amount, reference, notes, immediate) => void settle(settleEntry, method, amount, reference, notes, immediate)}
+        />
+      )}
+      {invoiceEntry && (
+        <InvoiceModal
+          entry={invoiceEntry}
+          busy={busyId === 'invoice'}
+          onClose={() => setInvoiceEntry(null)}
+          onSave={(note) => void invoiceFromEntry(invoiceEntry, note)}
+        />
+      )}
+      {rejectSlip && (
+        <RejectSlipModal
+          busy={busyId === rejectSlip.id}
+          onClose={() => setRejectSlip(null)}
+          onSave={(reason) => void reviewSlip(rejectSlip.id, false, reason)}
         />
       )}
     </div>
@@ -555,8 +675,8 @@ function EntryModal({
   const set = (key: keyof LedgerEntry, value: string | number) => setForm((prev) => ({ ...prev, [key]: value }));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col animate-scaleIn">
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
           <h2 className="text-lg font-bold text-slate-900">{form.id ? 'Edit entry' : 'Add manual entry'}</h2>
           <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-5 h-5 text-slate-500" /></button>
@@ -679,38 +799,45 @@ function QuoteModal({
 function SettleModal({
   entry,
   busy,
+  allowImmediate,
   onClose,
   onSave,
 }: {
   entry: LedgerEntry;
   busy: boolean;
+  allowImmediate: boolean;
   onClose: () => void;
-  onSave: (method: string, amount: number, reference: string, notes: string) => void;
+  onSave: (method: string, amount: number, reference: string, notes: string, immediate: boolean) => void;
 }) {
   const [method, setMethod] = useState(entry.payment_method === 'bank' || entry.payment_method === 'cash' || entry.payment_method === 'wallet' || entry.payment_method === 'monime' ? entry.payment_method : 'cash');
   const [amount, setAmount] = useState(String(Number(entry.amount_sle) || ''));
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
+  const [immediate, setImmediate] = useState(false);
   const selected = SETTLE_METHODS.find((m) => m.id === method);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md animate-scaleIn">
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
           <h2 className="text-lg font-bold text-slate-900">Record payment</h2>
           <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-5 h-5 text-slate-500" /></button>
         </div>
         <form
           className="px-5 py-5 space-y-4"
-          onSubmit={(e) => { e.preventDefault(); onSave(method, parseFloat(amount) || 0, reference, notes); }}
+          onSubmit={(e) => { e.preventDefault(); onSave(method, parseFloat(amount) || 0, reference, notes, immediate); }}
         >
           <p className="text-sm text-slate-500">{entry.description}</p>
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-slate-50 border border-slate-100">
+            <Shield className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-slate-600">Offline and online collections go through dual-control unless a super-admin records immediately.</p>
+          </div>
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5">Channel</label>
             <div className="grid grid-cols-2 gap-2">
               {SETTLE_METHODS.map((m) => (
                 <button key={m.id} type="button" onClick={() => setMethod(m.id)}
-                  className={`px-3 py-2 rounded-xl border-2 text-xs font-semibold text-left ${method === m.id ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600'}`}>
+                  className={`px-3 py-2 rounded-xl border-2 text-xs font-semibold text-left transition-all ${method === m.id ? 'border-emerald-500 bg-emerald-50 text-emerald-700 scale-[1.02]' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}>
                   {m.label}
                   <span className="block text-[10px] font-medium opacity-70 capitalize">{m.channel}</span>
                 </button>
@@ -725,17 +852,91 @@ function SettleModal({
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5">Reference</label>
             <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder={selected?.channel === 'offline' ? 'Receipt or deposit slip' : 'Wallet / mobile money ref'}
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none" />
+              className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none" autoComplete="off" />
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5">Notes</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
               className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none resize-none" />
           </div>
+          {allowImmediate && (
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              <input type="checkbox" checked={immediate} onChange={(e) => setImmediate(e.target.checked)} className="rounded border-slate-300" />
+              Record now (skip approval)
+            </label>
+          )}
           <button type="submit" disabled={busy}
-            className="w-full py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2">
+            className="w-full py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-transform hover:scale-[1.01]">
             {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Banknote className="w-5 h-5" />}
-            Record {selected?.channel || 'payment'}
+            {immediate ? 'Record now' : 'Submit for approval'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function InvoiceModal({
+  entry,
+  busy,
+  onClose,
+  onSave,
+}: {
+  entry: LedgerEntry;
+  busy: boolean;
+  onClose: () => void;
+  onSave: (note: string) => void;
+}) {
+  const [note, setNote] = useState('');
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md animate-scaleIn">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
+          <h2 className="text-lg font-bold text-slate-900">Issue invoice</h2>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-5 h-5 text-slate-500" /></button>
+        </div>
+        <form className="px-5 py-5 space-y-4" onSubmit={(e) => { e.preventDefault(); onSave(note); }}>
+          <p className="text-sm text-slate-500">{entry.description}</p>
+          <p className="text-sm font-bold text-slate-800">{fmtMoney(Number(entry.amount_sle))}</p>
+          <div>
+            <label className="block text-sm font-semibold text-slate-800 mb-1.5">Note to client</label>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
+              className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none resize-none" />
+          </div>
+          <button type="submit" disabled={busy}
+            className="w-full py-3.5 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 disabled:opacity-50 flex items-center justify-center gap-2">
+            {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
+            Create invoice
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function RejectSlipModal({
+  busy,
+  onClose,
+  onSave,
+}: {
+  busy: boolean;
+  onClose: () => void;
+  onSave: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState('');
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md animate-scaleIn">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
+          <h2 className="text-lg font-bold text-slate-900">Reject bank slip</h2>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-5 h-5 text-slate-500" /></button>
+        </div>
+        <form className="px-5 py-5 space-y-4" onSubmit={(e) => { e.preventDefault(); onSave(reason); }}>
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} required placeholder="Reason for the client…"
+            className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none resize-none" />
+          <button type="submit" disabled={busy || !reason.trim()}
+            className="w-full py-3.5 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 disabled:opacity-50">
+            {busy ? 'Rejecting…' : 'Reject slip'}
           </button>
         </form>
       </div>

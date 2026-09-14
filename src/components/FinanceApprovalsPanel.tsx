@@ -394,7 +394,7 @@ function CreateApprovalModal({ onClose, onCreated }: { onClose: () => void; onCr
         tax_amount: 0,
         total: amt,
         notes: description || note,
-        line_items: [{ description: description || 'Invoice', quantity: 1, unit_price: amt, total: amt }],
+        line_items: [{ item: description || 'Invoice', description: description || 'Invoice', quantity: 1, trips: '1', unit_price: amt, total: amt }],
         status: 'sent',
       };
     } else if (kind === 'wallet_adjust') {
@@ -448,7 +448,7 @@ function CreateApprovalModal({ onClose, onCreated }: { onClose: () => void; onCr
             <label className="block text-sm font-semibold text-slate-800 mb-1.5">Kind</label>
             <select value={kind} onChange={(e) => setKind(e.target.value as FinanceApprovalKind)}
               className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm bg-white outline-none">
-              {FINANCE_APPROVAL_KINDS.map((k) => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}
+              {FINANCE_APPROVAL_KINDS.filter((k) => k !== 'ledger_settle').map((k) => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}
             </select>
           </div>
 

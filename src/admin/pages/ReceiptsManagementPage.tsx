@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard } from '../components/ui';
+import { buildReceiptHtmlFromRow, openPrintableHtml } from '../../lib/companyDocs';
 
 interface Receipt {
   id: string;
@@ -85,16 +86,12 @@ export function ReceiptsManagementPage() {
   };
 
   const handleDownload = (receipt: Receipt) => {
-    const html = buildPrintableReceipt(receipt);
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `receipt-${receipt.receipt_number}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const html = buildReceiptHtmlFromRow(receipt, {
+      full_name: receipt.profiles?.full_name,
+      email: receipt.profiles?.email,
+      recipient_email: receipt.recipient_email,
+    });
+    openPrintableHtml(html, `receipt-${receipt.receipt_number}.html`);
   };
 
   const filtered = receipts.filter(r => {
@@ -247,27 +244,4 @@ export function ReceiptsManagementPage() {
       </div>
     </div>
   );
-}
-
-function buildPrintableReceipt(receipt: Receipt): string {
-  const purposeLabel = PURPOSE_LABELS[receipt.purpose] || receipt.purpose;
-  const dateStr = new Date(receipt.paid_at).toLocaleString('en-GB', {
-    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt ${receipt.receipt_number}</title>
-<style>body{font-family:sans-serif;background:#f1f5f9;margin:0;padding:40px}.r{max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)}.h{background:linear-gradient(135deg,#0f172a,#1e293b);padding:32px 40px;text-align:center;color:#fff}.h h1{margin:0;font-size:22px}.h p{margin:6px 0 0;color:#94a3b8;font-size:13px}.c{text-align:center;padding:32px 40px 0}.c .ck{display:inline-block;width:56px;height:56px;background:#dcfce7;border-radius:50%;line-height:56px;font-size:28px}.c h2{margin:16px 0 4px;color:#0f172a;font-size:20px}.c p{margin:0;color:#64748b;font-size:14px}.a{text-align:center;padding:24px 40px}.a .l{color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:1px}.a .v{color:#059669;font-size:32px;font-weight:800;margin-top:8px}.d{padding:0 40px 24px}.d table{width:100%;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;border-collapse:collapse}.d td{padding:14px 20px;border-bottom:1px solid #e2e8f0;font-size:13px}.d td:last-child{text-align:right;font-weight:600;color:#0f172a}.d td:first-child{color:#64748b}.f{padding:0 40px 32px;text-align:center}.f p{color:#94a3b8;font-size:12px;line-height:1.6;margin:0}</style></head><body>
-<div class="r"><div class="h"><h1>AlphaTek Nexus</h1><p>Payment Receipt</p></div>
-<div class="c"><div class="ck">✓</div><h2>Payment Successful</h2><p>Your payment has been confirmed and processed.</p></div>
-<div class="a"><div class="l">Amount Paid</div><div class="v">${receipt.currency} ${receipt.amount_sle.toLocaleString()}</div></div>
-<div class="d"><table>
-<tr><td>Receipt No.</td><td style="font-family:monospace">${receipt.receipt_number}</td></tr>
-<tr><td>Reference</td><td style="font-family:monospace">${receipt.reference}</td></tr>
-<tr><td>Type</td><td>${purposeLabel}</td></tr>
-<tr><td>Description</td><td>${receipt.description || purposeLabel}</td></tr>
-<tr><td>Payment Method</td><td style="text-transform:capitalize">${receipt.payment_method}</td></tr>
-<tr><td>Transaction ID</td><td style="font-family:monospace">${receipt.payment_id || 'N/A'}</td></tr>
-<tr><td>Date &amp; Time</td><td>${dateStr}</td></tr>
-</table></div>
-<div class="f"><p>This is an automated receipt for your payment on AlphaTek Nexus.<br/>Please keep this for your records.</p></div></div>
-</body></html>`;
 }

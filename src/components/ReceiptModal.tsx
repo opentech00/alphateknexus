@@ -5,9 +5,11 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Portal } from '../lib/portal';
+import { buildReceiptHtmlFromRow, openPrintableHtml } from '../lib/companyDocs';
 
 interface Receipt {
   id: string;
+  user_id?: string;
   receipt_number: string;
   reference: string;
   amount_sle: number;
@@ -113,16 +115,25 @@ export function ReceiptModal({ paymentReference, onClose, onViewBookings }: Rece
     if (!receipt) return;
     setDownloading(true);
     try {
-      const html = buildPrintableReceipt(receipt);
-      const blob = new Blob([html], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `receipt-${receipt.receipt_number}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      let client: { full_name?: string | null; email?: string | null; phone?: string | null; address?: string | null; recipient_email?: string | null } = {
+        recipient_email: receipt.recipient_email,
+      };
+      if (receipt.user_id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, email, phone, address')
+          .eq('id', receipt.user_id)
+          .maybeSingle();
+        client = {
+          full_name: profile?.full_name,
+          email: profile?.email,
+          phone: profile?.phone,
+          address: profile?.address,
+          recipient_email: receipt.recipient_email,
+        };
+      }
+      const html = buildReceiptHtmlFromRow(receipt, client);
+      openPrintableHtml(html, `receipt-${receipt.receipt_number}.html`);
     } catch (e) {
       console.error('Download failed:', e);
     }
@@ -134,7 +145,7 @@ export function ReceiptModal({ paymentReference, onClose, onViewBookings }: Rece
     setSharing(true);
     const shareData = {
       title: `Payment Receipt ${receipt.receipt_number}`,
-      text: `AlphaTek Nexus Receipt — ${formatMoney(receipt.amount_sle, receipt.currency)} paid on ${formatDate(receipt.paid_at)}. Receipt No: ${receipt.receipt_number}`,
+      text: `Alphatek receipt — ${formatMoney(receipt.amount_sle, receipt.currency)} paid on ${formatDate(receipt.paid_at)}. Receipt No: ${receipt.receipt_number}`,
       url: window.location.href,
     };
     try {
@@ -331,47 +342,4 @@ function ReceiptRow({
       </span>
     </div>
   );
-}
-
-function buildPrintableReceipt(receipt: Receipt): string {
-  const purposeLabel = PURPOSE_LABELS[receipt.purpose] || receipt.purpose;
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Receipt ${receipt.receipt_number}</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; margin: 0; padding: 40px; }
-  .receipt { max-width: 480px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-  .header { background: linear-gradient(135deg, #0f172a, #1e293b); padding: 32px 40px; text-align: center; }
-  .header h1 { margin: 0; color: #fff; font-size: 22px; }
-  .header p { margin: 6px 0 0; color: #94a3b8; font-size: 13px; }
-  .check { text-align: center; padding: 32px 40px 0; }
-  .check-circle { display: inline-block; width: 56px; height: 56px; background: #dcfce7; border-radius: 50%; line-height: 56px; font-size: 28px; }
-  .check h2 { margin: 16px 0 4px; color: #0f172a; font-size: 20px; }
-  .check p { margin: 0; color: #64748b; font-size: 14px; }
-  .amount { text-align: center; padding: 24px 40px; }
-  .amount .label { color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
-  .amount .value { color: #059669; font-size: 32px; font-weight: 800; margin-top: 8px; }
-  .details { padding: 0 40px 24px; }
-  .details table { width: 100%; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; border-collapse: collapse; }
-  .details td { padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
-  .details td:last-child { text-align: right; font-weight: 600; color: #0f172a; }
-  .details td:first-child { color: #64748b; }
-  .footer { padding: 0 40px 32px; text-align: center; }
-  .footer p { color: #94a3b8; font-size: 12px; line-height: 1.6; margin: 0; }
-</style></head><body>
-<div class="receipt">
-  <div class="header"><h1>AlphaTek Nexus</h1><p>Payment Receipt</p></div>
-  <div class="check"><div class="check-circle">✓</div><h2>Payment Successful</h2><p>Your payment has been confirmed and processed.</p></div>
-  <div class="amount"><div class="label">Amount Paid</div><div class="value">${formatMoney(receipt.amount_sle, receipt.currency)}</div></div>
-  <div class="details"><table>
-    <tr><td>Receipt No.</td><td style="font-family:monospace">${receipt.receipt_number}</td></tr>
-    <tr><td>Reference</td><td style="font-family:monospace">${receipt.reference}</td></tr>
-    <tr><td>Type</td><td>${purposeLabel}</td></tr>
-    <tr><td>Description</td><td>${receipt.description || purposeLabel}</td></tr>
-    <tr><td>Payment Method</td><td style="text-transform:capitalize">${receipt.payment_method}</td></tr>
-    <tr><td>Transaction ID</td><td style="font-family:monospace">${receipt.payment_id || 'N/A'}</td></tr>
-    <tr><td>Date &amp; Time</td><td>${formatDate(receipt.paid_at)}</td></tr>
-  </table></div>
-  <div class="footer"><p>This is an automated receipt for your payment on AlphaTek Nexus.<br/>Please keep this for your records.</p></div>
-</div>
-</body></html>`;
 }

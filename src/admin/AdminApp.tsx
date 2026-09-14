@@ -167,7 +167,7 @@ function AdminContent() {
       case 'documents':
         return <DocumentsManagementPage />;
       case 'finance':
-        return <FinancePage />;
+        return <FinancePage onNavigate={setCurrentPage} />;
       case 'admin-finance':
         return <AdminFinanceWorkspacePage onNavigate={setCurrentPage} />;
       case 'finance-services':

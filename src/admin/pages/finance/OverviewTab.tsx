@@ -6,6 +6,8 @@ import {
 import { supabase } from '../../../lib/supabase';
 import { StatCard } from '../../components/ui';
 import { downloadCsv, sanitizeSearch, startOfTodayIso } from './financeCsv';
+import { PrivacyToggle, SensitiveValue } from '../../../components/SensitiveValue';
+import { getFinancePrivacy, maskEmail, maskReference, redactCsvValue, setFinancePrivacy } from '../../../lib/sensitive';
 
 export type FinanceJumpTab =
   | 'wallet'
@@ -71,7 +73,7 @@ function emailOf(map: ProfileMap, userId: string) {
   return map[userId]?.email || '';
 }
 
-export function OverviewTab({ onOpenTab }: { onOpenTab: (tab: FinanceJumpTab) => void }) {
+export function OverviewTab({ onOpenTab, onOpenLedgers }: { onOpenTab: (tab: FinanceJumpTab) => void; onOpenLedgers?: () => void }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [walletBalance, setWalletBalance] = useState(0);
@@ -82,10 +84,15 @@ export function OverviewTab({ onOpenTab }: { onOpenTab: (tab: FinanceJumpTab) =>
   const [payoutsQueued, setPayoutsQueued] = useState(0);
   const [payoutsPaidToday, setPayoutsPaidToday] = useState(0);
   const [invoiceOutstanding, setInvoiceOutstanding] = useState(0);
+  const [ledgerPending, setLedgerPending] = useState(0);
+  const [ledgerCollected, setLedgerCollected] = useState(0);
+  const [ledgerOnline, setLedgerOnline] = useState(0);
+  const [ledgerOffline, setLedgerOffline] = useState(0);
   const [unmatched, setUnmatched] = useState<UnmatchedItem[]>([]);
   const [search, setSearch] = useState('');
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
+  const [privacy, setPrivacy] = useState(getFinancePrivacy);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,6 +106,7 @@ export function OverviewTab({ onOpenTab }: { onOpenTab: (tab: FinanceJumpTab) =>
         cashRes,
         payoutRes,
         invoiceRes,
+        ledgerRes,
       ] = await Promise.all([
         supabase.from('wallet_transactions').select('amount_sle, status, recorded_by, user_id, reference, created_at, type, description').limit(2000),
         supabase.from('wallet_transactions').select('id, user_id, amount_sle, reference, status, created_at, recorded_by').eq('status', 'pending').limit(200),
@@ -106,6 +114,7 @@ export function OverviewTab({ onOpenTab }: { onOpenTab: (tab: FinanceJumpTab) =>
         supabase.from('payments').select('id, user_id, amount_sle, status, reference, created_at, confirmed_at, method').eq('method', 'cash').limit(500),
         supabase.from('withdrawal_requests').select('id, user_id, amount_sle, status, payout_status, reference, created_at, completed_at').limit(500),
         supabase.from('invoices').select('id, user_id, invoice_number, status, total, amount_paid, due_date, created_at').limit(500),
+        supabase.rpc('finance_ledger_snapshot'),
       ]);
 
       const errors = [walletRes, walletPendingRes, monimeRes, cashRes, payoutRes, invoiceRes]
@@ -151,6 +160,14 @@ export function OverviewTab({ onOpenTab }: { onOpenTab: (tab: FinanceJumpTab) =>
           .filter((r) => r.status === 'sent' || r.status === 'overdue')
           .reduce((s, r) => s + (Number(r.total) - Number(r.amount_paid)), 0),
       );
+
+      const snap = ledgerRes.data as {
+        pending_amount?: number; collected_amount?: number; online_amount?: number; offline_amount?: number;
+      } | null;
+      setLedgerPending(Number(snap?.pending_amount) || 0);
+      setLedgerCollected(Number(snap?.collected_amount) || 0);
+      setLedgerOnline(Number(snap?.online_amount) || 0);
+      setLedgerOffline(Number(snap?.offline_amount) || 0);
 
       const items: UnmatchedItem[] = [];
       pendingRows.forEach((r) => items.push({
@@ -309,14 +326,16 @@ export function OverviewTab({ onOpenTab }: { onOpenTab: (tab: FinanceJumpTab) =>
 
   const exportUnmatched = () => {
     downloadCsv(`finance-exceptions-${new Date().toISOString().slice(0, 10)}.csv`, unmatched.map((i) => ({
-      rail: i.rail, client: i.client, email: i.email, reference: i.reference,
+      rail: i.rail, client: i.client, email: redactCsvValue(privacy, 'email', i.email),
+      reference: redactCsvValue(privacy, 'reference', i.reference),
       amount_sle: i.amount, status: i.status, date: i.date,
     })));
   };
 
   const exportHits = () => {
     downloadCsv(`finance-search-${new Date().toISOString().slice(0, 10)}.csv`, hits.map((i) => ({
-      rail: i.rail, client: i.client, email: i.email, reference: i.reference,
+      rail: i.rail, client: i.client, email: redactCsvValue(privacy, 'email', i.email),
+      reference: redactCsvValue(privacy, 'reference', i.reference),
       method: i.method, amount_sle: i.amount, status: i.status, date: i.date,
     })));
   };
@@ -332,12 +351,15 @@ export function OverviewTab({ onOpenTab }: { onOpenTab: (tab: FinanceJumpTab) =>
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-slate-800">Today’s books</p>
-          <p className="text-xs text-slate-500">Wallet vs Monime vs cash vs payouts, plus items that still need a second look.</p>
+          <p className="text-xs text-slate-500">Wallet vs Monime vs cash vs payouts, plus service ledgers that still need a second look.</p>
         </div>
-        <button onClick={load}
-          className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm">
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <PrivacyToggle on={privacy} onChange={(next) => { setFinancePrivacy(next); setPrivacy(next); }} />
+          <button onClick={load}
+            className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm">
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -358,6 +380,18 @@ export function OverviewTab({ onOpenTab }: { onOpenTab: (tab: FinanceJumpTab) =>
             <StatCard label="PAYOUTS QUEUED" value={fmtMoney(payoutsQueued)} icon={Banknote} color="text-red-500" accent="bg-red-50" />
             <StatCard label="INVOICES OUTSTANDING" value={fmtMoney(invoiceOutstanding)} icon={FileText} color="text-blue-500" accent="bg-blue-50" />
           </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="animate-[fadeInUp_0.35s_ease_both]"><StatCard label="LEDGER COLLECTED" value={fmtMoney(ledgerCollected)} icon={Banknote} color="text-emerald-500" accent="bg-emerald-50" /></div>
+            <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '50ms' }}><StatCard label="LEDGER PENDING" value={fmtMoney(ledgerPending)} icon={Clock} color="text-amber-500" accent="bg-amber-50" /></div>
+            <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '100ms' }}><StatCard label="LEDGER ONLINE" value={fmtMoney(ledgerOnline)} icon={Smartphone} color="text-blue-500" accent="bg-blue-50" /></div>
+            <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '150ms' }}><StatCard label="LEDGER OFFLINE" value={fmtMoney(ledgerOffline)} icon={Banknote} color="text-slate-600" accent="bg-slate-50" /></div>
+          </div>
+          {onOpenLedgers && (
+            <button type="button" onClick={onOpenLedgers}
+              className="text-sm font-semibold text-emerald-700 hover:text-emerald-800">
+              Open service ledgers →
+            </button>
+          )}
           {walletPending !== 0 && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
               Wallet adjustments awaiting a second admin: {fmtMoney(walletPending)}.
@@ -407,9 +441,13 @@ export function OverviewTab({ onOpenTab }: { onOpenTab: (tab: FinanceJumpTab) =>
                     <td className="px-5 py-3 text-xs font-semibold text-slate-600">{h.rail}</td>
                     <td className="px-5 py-3">
                       <p className="font-medium text-slate-800">{h.client}</p>
-                      <p className="text-xs text-slate-400">{h.email}</p>
+                      <p className="text-xs text-slate-400">
+                        <SensitiveValue privacy={privacy} masked={maskEmail(h.email)} full={h.email} />
+                      </p>
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-slate-600">{h.reference || '—'}</td>
+                    <td className="px-5 py-3">
+                      <SensitiveValue privacy={privacy} masked={maskReference(h.reference)} full={h.reference || '—'} mono />
+                    </td>
                     <td className="px-5 py-3 hidden sm:table-cell text-xs text-slate-500 capitalize">{(h.method || '').replace(/_/g, ' ')}</td>
                     <td className="px-5 py-3 text-right font-bold text-slate-800">{fmtMoney(h.amount)}</td>
                     <td className="px-5 py-3 text-center text-xs capitalize">{h.status}</td>
@@ -459,9 +497,13 @@ export function OverviewTab({ onOpenTab }: { onOpenTab: (tab: FinanceJumpTab) =>
                     <td className="px-5 py-3 text-xs font-semibold text-slate-600">{i.rail}</td>
                     <td className="px-5 py-3">
                       <p className="font-medium text-slate-800">{i.client}</p>
-                      <p className="text-xs text-slate-400">{i.email}</p>
+                      <p className="text-xs text-slate-400">
+                        <SensitiveValue privacy={privacy} masked={maskEmail(i.email)} full={i.email} />
+                      </p>
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-slate-600">{i.reference}</td>
+                    <td className="px-5 py-3">
+                      <SensitiveValue privacy={privacy} masked={maskReference(i.reference)} full={i.reference} mono />
+                    </td>
                     <td className="px-5 py-3 text-right font-bold text-slate-800">{fmtMoney(i.amount)}</td>
                     <td className="px-5 py-3 text-xs text-amber-700">{i.status}</td>
                     <td className="px-5 py-3 text-center">

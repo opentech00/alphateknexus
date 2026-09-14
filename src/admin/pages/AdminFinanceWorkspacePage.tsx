@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Landmark, Users, Briefcase, ArrowRight, Wallet, Receipt, BarChart3, Banknote,
-  ShieldCheck, Loader2, Inbox,
+  ShieldCheck, Loader2, Inbox, Clock, Smartphone,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard, Card } from '../components/ui';
 import { STATUS_META } from '../hr/types';
 import { INTERNAL_DEPARTMENT_SLUG } from '../../lib/capabilities';
+import { PrivacyToggle, SensitiveValue } from '../../components/SensitiveValue';
+import { getFinancePrivacy, maskEmail, setFinancePrivacy } from '../../lib/sensitive';
 
 interface StaffRow {
   id: string;
@@ -26,6 +28,8 @@ export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const [error, setError] = useState('');
+  const [privacy, setPrivacy] = useState(getFinancePrivacy);
+  const [ledger, setLedger] = useState({ pending: 0, collected: 0, online: 0, offline: 0, slips: 0 });
 
   useEffect(() => {
     const load = async () => {
@@ -42,7 +46,7 @@ export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
         setLoading(false);
         return;
       }
-      const [{ data: empData, error: empErr }, { count }] = await Promise.all([
+      const [{ data: empData, error: empErr }, { count }, { data: snap }, { data: slips }] = await Promise.all([
         supabase
           .from('employees')
           .select('id, full_name, email, status, photo_url, hr_roles(name)')
@@ -52,6 +56,8 @@ export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
           .from('finance_approvals')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'submitted'),
+        supabase.rpc('finance_ledger_snapshot'),
+        supabase.rpc('finance_pending_bank_slips', { p_service_id: null }),
       ]);
       if (empErr) setError(empErr.message);
       const mapped: StaffRow[] = ((empData || []) as Array<{
@@ -71,6 +77,14 @@ export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
       }));
       setStaff(mapped);
       setPendingApprovals(count || 0);
+      const s = snap as { pending_amount?: number; collected_amount?: number; online_amount?: number; offline_amount?: number } | null;
+      setLedger({
+        pending: Number(s?.pending_amount) || 0,
+        collected: Number(s?.collected_amount) || 0,
+        online: Number(s?.online_amount) || 0,
+        offline: Number(s?.offline_amount) || 0,
+        slips: Array.isArray(slips) ? slips.length : 0,
+      });
       setLoading(false);
     };
     void load();
@@ -110,13 +124,27 @@ export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
     <div className="space-y-6">
       <PageHeader
         title="Admin & Finance"
-        description="Internal department workspace — staff, roles, and finance operations"
+        description="Ops board — quotes, collections, approvals, and department staff"
         icon={Landmark}
+        actions={<PrivacyToggle on={privacy} onChange={(next) => { setFinancePrivacy(next); setPrivacy(next); }} />}
       />
 
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
       )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-[fadeInUp_0.3s_ease]">
+        <button type="button" onClick={() => onNavigate('finance-services')} className="text-left hover:-translate-y-0.5 transition-transform">
+          <StatCard label="Ledger pending" value={`SLE ${ledger.pending.toLocaleString()}`} icon={Clock} color="text-amber-600" accent="bg-amber-50" />
+        </button>
+        <button type="button" onClick={() => onNavigate('finance-services')} className="text-left hover:-translate-y-0.5 transition-transform">
+          <StatCard label="Collected" value={`SLE ${ledger.collected.toLocaleString()}`} icon={Banknote} color="text-emerald-600" accent="bg-emerald-50" />
+        </button>
+        <StatCard label="Online / offline" value={`${ledger.online.toLocaleString()} / ${ledger.offline.toLocaleString()}`} icon={Smartphone} color="text-blue-600" accent="bg-blue-50" />
+        <button type="button" onClick={() => onNavigate('finance')} className="text-left hover:-translate-y-0.5 transition-transform">
+          <StatCard label="Approvals / slips" value={`${pendingApprovals} / ${ledger.slips}`} icon={Inbox} color="text-amber-600" accent="bg-amber-50" />
+        </button>
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard label="Department staff" value={stats.total} icon={Users} color="text-slate-600" accent="bg-slate-50" />
@@ -141,7 +169,7 @@ export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
                 key={link.page}
                 type="button"
                 onClick={() => onNavigate(link.page)}
-                className="group flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-emerald-200 transition-all text-left"
+                className="group flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-emerald-200 hover:-translate-y-0.5 hover:shadow-md transition-all text-left"
               >
                 <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0">
                   <Icon className="w-5 h-5 text-emerald-600" />
@@ -202,7 +230,9 @@ export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-800 truncate">{e.full_name}</p>
-                    <p className="text-xs text-slate-400 truncate">{e.email}</p>
+                    <p className="text-xs text-slate-400 truncate">
+                      <SensitiveValue privacy={privacy} masked={maskEmail(e.email)} full={e.email} />
+                    </p>
                   </div>
                   <span className="text-xs text-slate-500 hidden sm:inline">{e.hr_roles?.name || 'No role'}</span>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${sm.cls}`}>{sm.label}</span>

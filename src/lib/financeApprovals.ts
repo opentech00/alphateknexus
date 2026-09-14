@@ -1,4 +1,4 @@
-export const FINANCE_APPROVAL_KINDS = ['invoice', 'withdrawal', 'wallet_adjust', 'fx_rate'] as const;
+export const FINANCE_APPROVAL_KINDS = ['invoice', 'withdrawal', 'wallet_adjust', 'fx_rate', 'ledger_settle'] as const;
 export type FinanceApprovalKind = (typeof FINANCE_APPROVAL_KINDS)[number];
 export type FinanceApprovalStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
 
@@ -22,6 +22,7 @@ export const KIND_LABELS: Record<FinanceApprovalKind, string> = {
   withdrawal: 'Withdrawal',
   wallet_adjust: 'Wallet adjustment',
   fx_rate: 'FX rate',
+  ledger_settle: 'Ledger payment',
 };
 
 export const APPROVAL_STATUS_META: Record<FinanceApprovalStatus, { label: string; cls: string }> = {
@@ -41,6 +42,11 @@ export function summarizeApprovalPayload(kind: FinanceApprovalKind, payload: Rec
   if (kind === 'withdrawal' || kind === 'wallet_adjust') {
     const amount = Number(p.amount_sle || 0);
     return `SLE ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  if (kind === 'ledger_settle') {
+    const amount = Number(p.amount || 0);
+    const method = String(p.method || 'payment');
+    return `SLE ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · ${method}`;
   }
   if (kind === 'fx_rate') {
     const code = String(p.currency_code || '—');

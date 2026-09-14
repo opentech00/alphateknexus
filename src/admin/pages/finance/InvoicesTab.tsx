@@ -1,21 +1,20 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  FileText, Search, Loader2, Plus, X, CheckCircle2, Download, Send,
-  Trash2, Clock, AlertCircle, DollarSign, Filter, Mail,
+  FileText, Search, Loader2, Plus, CheckCircle2, Download, Send,
+  Trash2, Clock, AlertCircle, DollarSign, Filter, Mail, Printer,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { daysPastDue, downloadCsv } from './financeCsv';
+import { CreateInvoiceModal, ViewInvoiceModal } from './InvoicePaper';
+import {
+  buildOfficialInvoiceHtml, openPrintableHtml, parseInvoiceNotes, type OfficialLineItem,
+} from '../../../lib/companyDocs';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null; phone: string | null };
 }
 
-interface LineItem {
-  description: string;
-  quantity: number;
-  unit_price: number;
-  total: number;
-}
+type LineItem = OfficialLineItem;
 
 interface Invoice {
   id: string; user_id: string; invoice_number: string; status: string;
@@ -26,12 +25,29 @@ interface Invoice {
   profile?: { full_name: string | null; email: string | null; phone: string | null };
 }
 
-interface FxRate {
-  currency_code: string; rate_to_sle: number;
-}
-
 function fmtMoney(n: number, currency = 'SLE') {
   return `${currency} ${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function invoiceHtml(inv: Invoice) {
+  const parsed = parseInvoiceNotes(inv.notes);
+  return buildOfficialInvoiceHtml({
+    invoiceNumber: inv.invoice_number,
+    issueDate: inv.issue_date,
+    dueDate: inv.due_date,
+    currency: inv.currency,
+    subtotal: Number(inv.subtotal),
+    discountRate: Number(inv.tax_rate),
+    discountAmount: Number(inv.tax_amount),
+    total: Number(inv.total),
+    amountPaid: Number(inv.amount_paid),
+    notes: inv.notes,
+    lineItems: inv.line_items || [],
+    billToName: parsed.billToName || inv.profile?.full_name || 'Client',
+    billToAddress: parsed.billToAddress,
+    billToEmail: inv.profile?.email,
+    billToPhone: inv.profile?.phone,
+  });
 }
 
 function formatDate(d: string) {
@@ -65,6 +81,7 @@ export function InvoicesTab() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const loadInvoices = useCallback(async () => {
@@ -129,23 +146,9 @@ export function InvoicesTab() {
     return true;
   });
 
-  const handleDownload = async (inv: Invoice) => {
-    setActionLoading(inv.id);
-    try {
-      const { data, error } = await supabase.functions.invoke('generate-invoice', {
-        body: { action: 'generate-pdf', invoiceId: inv.id },
-      });
-      if (error || !data?.html) throw new Error(error?.message || 'Failed to generate PDF');
-      const blob = new Blob([data.html], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `invoice-${inv.invoice_number}.html`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err: any) {
-      alert(`Failed to download: ${err.message}`);
-    }
-    setActionLoading(null);
+  const handleDownload = (inv: Invoice) => {
+    const html = invoiceHtml(inv);
+    openPrintableHtml(html, `invoice-${inv.invoice_number}.html`);
   };
 
   const handleSendEmail = async (inv: Invoice) => {
@@ -167,12 +170,8 @@ export function InvoicesTab() {
     const now = new Date().toISOString();
     const { data: { user } } = await supabase.auth.getUser();
     const balance = Number(inv.total) - Number(inv.amount_paid);
-    const { error } = await supabase
-      .from('invoices')
-      .update({ status: 'paid', amount_paid: inv.total, paid_at: now })
-      .eq('id', inv.id);
-    if (!error && balance > 0) {
-      await supabase.from('payments').insert({
+    if (balance > 0) {
+      const { error: payErr } = await supabase.from('payments').insert({
         user_id: inv.user_id,
         payable_type: 'invoice',
         payable_id: inv.id,
@@ -183,7 +182,16 @@ export function InvoicesTab() {
         confirmed_at: now,
         notes: `Invoice ${inv.invoice_number} marked paid in finance`,
       });
+      if (payErr) {
+        alert(`Payment record failed: ${payErr.message}`);
+        setActionLoading(null);
+        return;
+      }
     }
+    const { error } = await supabase
+      .from('invoices')
+      .update({ status: 'paid', amount_paid: inv.total, paid_at: now, payment_method: 'bank_transfer' })
+      .eq('id', inv.id);
     if (!error) loadInvoices();
     setActionLoading(null);
   };
@@ -227,9 +235,9 @@ export function InvoicesTab() {
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <AgingChip label="Current" value={fmtMoney(aging.current)} />
-        <AgingChip label="1–30 days" value={fmtMoney(aging.d30)} />
-        <AgingChip label="31–60 days" value={fmtMoney(aging.d60)} />
-        <AgingChip label="61–90 days" value={fmtMoney(aging.d90)} />
+        <AgingChip label="1â€“30 days" value={fmtMoney(aging.d30)} />
+        <AgingChip label="31â€“60 days" value={fmtMoney(aging.d60)} />
+        <AgingChip label="61â€“90 days" value={fmtMoney(aging.d90)} />
         <AgingChip label="90+ days" value={fmtMoney(aging.older)} warn />
       </div>
 
@@ -237,7 +245,7 @@ export function InvoicesTab() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search by client, email, or invoice number…"
+            placeholder="Search by client, email, or invoice numberâ€¦"
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none" />
         </div>
         <div className="flex items-center gap-2">
@@ -305,7 +313,12 @@ export function InvoicesTab() {
                   const balance = Number(inv.total) - Number(inv.amount_paid);
                   return (
                     <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-5 py-3 font-mono text-xs font-semibold text-slate-800">{inv.invoice_number}</td>
+                      <td className="px-5 py-3">
+                        <button type="button" onClick={() => setViewInvoice(inv)}
+                          className="font-mono text-xs font-semibold text-slate-800 hover:text-emerald-700 hover:underline">
+                          {inv.invoice_number}
+                        </button>
+                      </td>
                       <td className="px-5 py-3">
                         <p className="font-medium text-slate-800">{inv.profile?.full_name || 'Unknown'}</p>
                         <p className="text-xs text-slate-400">{inv.profile?.email || ''}</p>
@@ -325,9 +338,9 @@ export function InvoicesTab() {
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center justify-center gap-1.5">
-                          <button onClick={() => handleDownload(inv)} disabled={actionLoading === inv.id} title="Download"
-                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50">
-                            {actionLoading === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                          <button onClick={() => handleDownload(inv)} title="Print / save PDF"
+                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                            <Printer className="w-4 h-4" />
                           </button>
                           <button onClick={() => handleSendEmail(inv)} disabled={actionLoading === inv.id} title={inv.status === 'overdue' ? 'Send reminder' : 'Send to client'}
                             className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50">
@@ -360,229 +373,15 @@ export function InvoicesTab() {
           onCreated={() => { setShowCreateModal(false); loadInvoices(); }}
         />
       )}
+      {viewInvoice && (
+        <ViewInvoiceModal
+          invoice={viewInvoice}
+          onClose={() => setViewInvoice(null)}
+          emailing={actionLoading === viewInvoice.id}
+          onEmail={() => handleSendEmail(viewInvoice)}
+        />
+      )}
     </>
-  );
-}
-
-function CreateInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [userId, setUserId] = useState('');
-  const [userSearch, setUserSearch] = useState('');
-  const [userResults, setUserResults] = useState<any[]>([]);
-  const [currency, setCurrency] = useState('SLE');
-  const [fxRates, setFxRates] = useState<FxRate[]>([]);
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
-  const [dueDate, setDueDate] = useState(new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]);
-  const [taxRate, setTaxRate] = useState('0');
-  const [notes, setNotes] = useState('');
-  const [lineItems, setLineItems] = useState<LineItem[]>([
-    { description: '', quantity: 1, unit_price: 0, total: 0 },
-  ]);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    supabase.from('fx_rates').select('currency_code, rate_to_sle').eq('is_active', true)
-      .then(({ data }: { data: FxRate[] | null }) => setFxRates(data || []));
-  }, []);
-
-  const searchUsers = async (q: string) => {
-    setUserSearch(q);
-    if (q.length < 2) { setUserResults([]); return; }
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, phone')
-      .or(`full_name.ilike.%${q}%,email.ilike.%${q}%`)
-      .limit(10);
-    setUserResults(data || []);
-  };
-
-  const updateLineItem = (idx: number, field: keyof LineItem, value: string) => {
-    setLineItems(prev => prev.map((item, i) => {
-      if (i !== idx) return item;
-      const updated = { ...item, [field]: field === 'description' ? value : parseFloat(value) || 0 };
-      updated.total = updated.quantity * updated.unit_price;
-      return updated;
-    }));
-  };
-
-  const addLineItem = () => setLineItems(prev => [...prev, { description: '', quantity: 1, unit_price: 0, total: 0 }]);
-  const removeLineItem = (idx: number) => setLineItems(prev => prev.filter((_, i) => i !== idx));
-
-  const subtotal = lineItems.reduce((s, i) => s + i.total, 0);
-  const taxAmount = subtotal * (parseFloat(taxRate) || 0) / 100;
-  const total = subtotal + taxAmount;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    if (!userId) { setError('Select a client'); return; }
-    if (lineItems.some(i => !i.description.trim())) { setError('All line items need a description'); return; }
-    setSubmitting(true);
-    const { data: canManage } = await supabase.rpc('has_finance_permission', { perm: 'can_manage_invoices' });
-    const { data: isSuper } = await supabase.rpc('is_super_admin');
-    if (!canManage && !isSuper) {
-      const { error: rpcErr } = await supabase.rpc('create_finance_approval', {
-        p_kind: 'invoice',
-        p_payload: {
-          user_id: userId,
-          status: 'sent',
-          issue_date: issueDate,
-          due_date: dueDate,
-          currency,
-          subtotal,
-          tax_rate: parseFloat(taxRate) || 0,
-          tax_amount: taxAmount,
-          total,
-          notes: notes.trim() || null,
-          line_items: lineItems,
-        },
-        p_related_id: null,
-        p_note: notes.trim() || null,
-        p_submit: true,
-      });
-      setSubmitting(false);
-      if (rpcErr) { setError(rpcErr.message); return; }
-      onCreated();
-      return;
-    }
-    const { error: err } = await supabase.from('invoices').insert({
-      user_id: userId,
-      status: 'draft',
-      issue_date: issueDate,
-      due_date: dueDate,
-      currency,
-      subtotal,
-      tax_rate: parseFloat(taxRate) || 0,
-      tax_amount: taxAmount,
-      total,
-      amount_paid: 0,
-      notes: notes.trim() || null,
-      line_items: lineItems,
-      created_by: 'admin',
-    });
-    setSubmitting(false);
-    if (err) { setError(err.message); return; }
-    onCreated();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-emerald-600" />
-            <h2 className="text-lg font-bold text-slate-900">Create Invoice</h2>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"><X className="w-5 h-5 text-slate-500" /></button>
-        </div>
-        <div className="overflow-y-auto flex-1 px-5 py-5">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>}
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-800 mb-1.5">Client</label>
-              <input type="text" value={userSearch} onChange={e => searchUsers(e.target.value)} placeholder="Search by name or email…"
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
-              {userResults.length > 0 && (
-                <div className="mt-2 border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
-                  {userResults.map(u => (
-                    <button key={u.id} type="button"
-                      onClick={() => { setUserId(u.id); setUserSearch(`${u.full_name || u.email || ''}`); setUserResults([]); }}
-                      className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
-                      <p className="text-sm font-medium text-slate-800">{u.full_name || 'Unknown'}</p>
-                      <p className="text-xs text-slate-400">{u.email}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {userId && <div className="mt-2 flex items-center gap-2 text-sm text-emerald-600"><CheckCircle2 className="w-4 h-4" /> Client selected</div>}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-1.5">Issue Date</label>
-                <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-1.5">Due Date</label>
-                <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-1.5">Currency</label>
-                <select value={currency} onChange={e => setCurrency(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-emerald-500 outline-none">
-                  {fxRates.length === 0 && <option value="SLE">SLE</option>}
-                  {fxRates.map(r => <option key={r.currency_code} value={r.currency_code}>{r.currency_code}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-1.5">Tax Rate (%)</label>
-                <input type="number" step="0.01" min="0" value={taxRate} onChange={e => setTaxRate(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-semibold text-slate-800">Line Items</label>
-                <button type="button" onClick={addLineItem}
-                  className="flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700">
-                  <Plus className="w-3.5 h-3.5" /> Add Item
-                </button>
-              </div>
-              <div className="space-y-2">
-                {lineItems.map((item, idx) => (
-                  <div key={idx} className="flex items-start gap-2">
-                    <input type="text" value={item.description} onChange={e => updateLineItem(idx, 'description', e.target.value)}
-                      placeholder="Description"
-                      className="flex-1 px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
-                    <input type="number" value={item.quantity} onChange={e => updateLineItem(idx, 'quantity', e.target.value)}
-                      min="1" step="1" title="Quantity"
-                      className="w-16 px-2 py-2.5 border border-slate-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-emerald-500 outline-none" />
-                    <input type="number" value={item.unit_price} onChange={e => updateLineItem(idx, 'unit_price', e.target.value)}
-                      min="0" step="0.01" title="Unit Price"
-                      className="w-24 px-2 py-2.5 border border-slate-200 rounded-lg text-sm text-right focus:ring-2 focus:ring-emerald-500 outline-none" />
-                    <div className="w-24 px-2 py-2.5 text-right text-sm font-semibold text-slate-700">
-                      {fmtMoney(item.total, currency).replace(currency + ' ', '')}
-                    </div>
-                    {lineItems.length > 1 && (
-                      <button type="button" onClick={() => removeLineItem(idx)}
-                        className="p-2 text-slate-400 hover:text-red-500 rounded-lg transition-colors">
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-4 space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-slate-500">Subtotal</span><span className="font-semibold text-slate-700">{fmtMoney(subtotal, currency)}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-slate-500">Tax ({taxRate || 0}%)</span><span className="font-semibold text-slate-700">{fmtMoney(taxAmount, currency)}</span></div>
-              <div className="flex justify-between text-base pt-2 border-t border-slate-200"><span className="font-bold text-slate-900">Total</span><span className="font-bold text-emerald-600">{fmtMoney(total, currency)}</span></div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-800 mb-1.5">Notes (optional)</label>
-              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-                placeholder="Payment instructions or notes for the client…"
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none" />
-            </div>
-
-            <button type="submit" disabled={submitting}
-              className="w-full py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-              {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
-              {submitting ? 'Creating…' : 'Create invoice'}
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
   );
 }
 

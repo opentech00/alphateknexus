@@ -28,6 +28,7 @@ const REPORT_TYPES = [
   { id: 'weekly_digest', label: 'Weekly Digest', desc: 'Revenue, invoices, and withdrawals summary', icon: FileBarChart },
   { id: 'admin_revenue', label: 'Revenue Report', desc: 'Full financial overview for a period', icon: TrendingUp },
   { id: 'client_statement', label: 'Client Statement', desc: 'Individual client financial statement', icon: FileText },
+  { id: 'service_pnl', label: 'Service P&L', desc: 'Collected vs pending by service ledger', icon: Banknote },
 ] as const;
 
 export function ReportsTab() {
@@ -126,10 +127,18 @@ export function ReportsTab() {
           onGenerate={async (reportType, userId, periodStart, periodEnd, sendEmail) => {
             setGenerating(true);
             try {
-              const { error } = await supabase.functions.invoke('generate-finance-report', {
-                body: { action: 'generate', reportType, userId: userId || null, periodStart, periodEnd, sendEmail },
-              });
-              if (error) throw error;
+              if (reportType === 'service_pnl') {
+                const { error } = await supabase.rpc('finance_generate_service_pnl', {
+                  p_period_start: periodStart,
+                  p_period_end: periodEnd,
+                });
+                if (error) throw error;
+              } else {
+                const { error } = await supabase.functions.invoke('generate-finance-report', {
+                  body: { action: 'generate', reportType, userId: userId || null, periodStart, periodEnd, sendEmail },
+                });
+                if (error) throw error;
+              }
               setShowGenerate(false);
               load();
             } catch (err: any) {
@@ -270,6 +279,7 @@ function GenerateModal({ generating, onGenerate, onClose }: {
 function ReportViewer({ report, onClose }: { report: FinanceReport; onClose: () => void }) {
   const s = report.summary;
   const isClient = report.report_type === 'client_statement';
+  const isPnl = report.report_type === 'service_pnl';
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -278,7 +288,7 @@ function ReportViewer({ report, onClose }: { report: FinanceReport; onClose: () 
           <div className="flex items-center gap-2">
             <FileBarChart className="w-5 h-5 text-emerald-600" />
             <h2 className="text-lg font-bold text-slate-900">
-              {isClient ? 'Client Statement' : report.report_type === 'weekly_digest' ? 'Weekly Digest' : 'Revenue Report'}
+              {isClient ? 'Client Statement' : isPnl ? 'Service P&L' : report.report_type === 'weekly_digest' ? 'Weekly Digest' : 'Revenue Report'}
             </h2>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"><X className="w-5 h-5 text-slate-500" /></button>
@@ -302,6 +312,13 @@ function ReportViewer({ report, onClose }: { report: FinanceReport; onClose: () 
                 <StatBox label="Invoices Paid" value={String(s.invoices_paid || 0)} icon={FileText} color="text-emerald-600" />
                 <StatBox label="Outstanding" value={String(s.invoices_outstanding || 0)} icon={FileText} color="text-amber-600" />
               </>
+            ) : isPnl ? (
+              <>
+                <StatBox label="Collected" value={fmtMoney(s.collected_amount || 0)} icon={TrendingUp} color="text-emerald-600" />
+                <StatBox label="Pending" value={fmtMoney(s.pending_amount || 0)} icon={Banknote} color="text-amber-600" />
+                <StatBox label="Online" value={fmtMoney(s.online_amount || 0)} icon={TrendingUp} color="text-blue-600" />
+                <StatBox label="Offline" value={fmtMoney(s.offline_amount || 0)} icon={Banknote} color="text-slate-700" />
+              </>
             ) : (
               <>
                 <StatBox label="Total Inflow" value={fmtMoney(s.total_inflow || 0)} icon={TrendingUp} color="text-emerald-600" />
@@ -316,7 +333,25 @@ function ReportViewer({ report, onClose }: { report: FinanceReport; onClose: () 
             )}
           </div>
 
-          {isClient && s.transactions && s.transactions.length > 0 && (
+          {isPnl && Array.isArray(s.services) && s.services.length > 0 && (
+            <div className="mt-5">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">By service</h4>
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                {s.services.map((row: { slug: string; name: string; pending: number; collected: number }) => (
+                  <div key={row.slug} className="flex items-center justify-between px-4 py-2.5 border-b border-slate-50 last:border-0">
+                    <p className="text-xs font-medium text-slate-700">{row.name}</p>
+                    <p className="text-xs text-slate-500">
+                      <span className="text-emerald-700 font-semibold">{fmtMoney(row.collected)}</span>
+                      <span className="mx-1">·</span>
+                      pending {fmtMoney(row.pending)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {isClient && Array.isArray(s.transactions) && s.transactions.length > 0 && (
             <div className="mt-5">
               <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Transactions</h4>
               <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
