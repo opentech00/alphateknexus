@@ -59,8 +59,17 @@ export function useDisplayCurrency() {
       }
 
       const stored = readStored();
-      let pref: DisplayCurrency | null = stored;
+      let pref: DisplayCurrency | null = null;
       let country: string | null = null;
+
+      const { data: app } = await supabase
+        .from('app_settings')
+        .select('default_display_currency')
+        .eq('id', 1)
+        .maybeSingle();
+      const appDefault = isDisplayCurrency(app?.default_display_currency)
+        ? app.default_display_currency
+        : null;
 
       if (user) {
         const [{ data: prefs }, { data: address }] = await Promise.all([
@@ -82,6 +91,18 @@ export function useDisplayCurrency() {
         return;
       }
 
+      if (isDisplayCurrency(stored)) {
+        setCurrencyState(stored);
+        setSource('saved');
+        return;
+      }
+
+      if (appDefault) {
+        setCurrencyState(appDefault);
+        setSource('detected');
+        return;
+      }
+
       const detected = detectDisplayCurrency({
         country,
         phone: profile?.phone,
@@ -89,7 +110,6 @@ export function useDisplayCurrency() {
       });
       setCurrencyState(detected);
       setSource('detected');
-      writeStored(detected);
     })();
 
     return () => { cancelled = true; };

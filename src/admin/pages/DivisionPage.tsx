@@ -11,6 +11,8 @@ import { DocumentUpload } from '../../components/DocumentUpload';
 import { ServiceDetailsPanel } from '../../components/ServiceDetailsPanel';
 import { StatCard } from '../components/ui';
 import { DivisionPermissionsTab } from './DivisionPermissionsTab';
+import { ServiceRequestExportMenu } from '../../components/ServiceRequestExportMenu';
+import { bookingToExportRow } from '../../lib/exportServiceRequests';
 
 export interface DivisionConfig {
   name: string;
@@ -282,10 +284,16 @@ export function DivisionPage({ config }: Props) {
         <div className={`w-12 h-12 ${config.accentLight} rounded-xl flex items-center justify-center flex-shrink-0`}>
           <DivIcon className={`w-6 h-6 ${config.accentText}`} />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-slate-900">{config.name}</h1>
           <p className="mt-0.5 text-slate-500 text-sm">{config.description}</p>
         </div>
+        {topView === 'bookings' && (
+          <ServiceRequestExportMenu
+            documentTitle={`${config.name} — Client Service Requests`}
+            rows={bookings.map(bookingToExportRow)}
+          />
+        )}
       </div>
 
       {/* Stats row */}

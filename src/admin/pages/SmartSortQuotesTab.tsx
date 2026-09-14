@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { StatCard, EmptyState, Spinner } from '../components/ui';
+import { ServiceRequestExportMenu } from '../../components/ServiceRequestExportMenu';
 
 interface QuoteDetails {
   type: string;
@@ -219,6 +220,23 @@ export function SmartSortQuotesTab() {
               <option value="completed">Closed</option>
               <option value="cancelled">Cancelled</option>
             </select>
+            <ServiceRequestExportMenu
+              documentTitle="Smart Sort — Client Quote Requests"
+              filenameStem="Alphateknexus-smartsort-quotes"
+              headers={[
+                'Date', 'Contact', 'Company', 'Phone', 'Email', 'Property Type', 'Address',
+                'Waste Streams', 'Volume', 'Service Type', 'Frequency', 'Start Date',
+                'Budget', 'Add-ons', 'Status',
+              ]}
+              tableRows={filtered.map((q) => [
+                fmtDate(q.created_at), q.contact_name, q.details?.company || '',
+                q.contact_phone, q.contact_email || '', q.details?.property_type || '',
+                q.location, (q.details?.waste_streams || []).join('; '),
+                q.details?.volume_per_pickup || '', q.details?.service_type || '',
+                q.details?.pickup_frequency || '', fmtDate(q.scheduled_date),
+                q.details?.monthly_budget || '', (q.details?.add_ons || []).join('; '), q.status,
+              ])}
+            />
             <button onClick={exportCsv} title="Export CSV"
               className="p-2.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
               <Download className="w-4 h-4" />

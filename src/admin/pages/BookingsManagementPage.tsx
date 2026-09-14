@@ -9,6 +9,8 @@ import { MessageThread } from '../../components/MessageThread';
 import { DocumentUpload } from '../../components/DocumentUpload';
 import { ServiceDetailsPanel } from '../../components/ServiceDetailsPanel';
 import { PageHeader, EmptyState, Spinner } from '../components/ui';
+import { ServiceRequestExportMenu } from '../../components/ServiceRequestExportMenu';
+import { bookingToExportRow } from '../../lib/exportServiceRequests';
 
 interface BookingDetails {
   // C&F hire
@@ -359,6 +361,12 @@ export function BookingsManagementPage() {
         title="Manage Bookings"
         description="Review and update client booking statuses"
         icon={Calendar}
+        actions={
+          <ServiceRequestExportMenu
+            documentTitle="Client Service Requests"
+            rows={bookings.map(bookingToExportRow)}
+          />
+        }
       />
 
       {/* Mode tabs */}

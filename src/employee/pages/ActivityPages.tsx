@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   Loader2, FileText, Calendar, Upload, ClipboardList, BarChart3,
   ArrowLeft, CheckCircle2, Clock, AlertCircle, FileDown, Inbox, ChevronDown, ChevronUp,
@@ -10,21 +10,24 @@ import { fmtDate, STATUS_META } from '../types';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { ServiceDetailsPanel } from '../../components/ServiceDetailsPanel';
 import { EmployeeBookingChat } from '../components/EmployeeBookingChat';
+import { ServiceRequestExportMenu } from '../../components/ServiceRequestExportMenu';
+import { bookingToExportRow } from '../../lib/exportServiceRequests';
 
 /* ═══════════════════════════════════════════════════════════════
    Shared helpers
    ═══════════════════════════════════════════════════════════════ */
 
-function PageHeader({ icon: Icon, title, subtitle }: { icon: typeof FileText; title: string; subtitle: string }) {
+function PageHeader({ icon: Icon, title, subtitle, actions }: { icon: typeof FileText; title: string; subtitle: string; actions?: ReactNode }) {
   return (
     <div className="flex items-center gap-3 mb-5">
       <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0">
         <Icon className="w-5 h-5 text-slate-600" />
       </div>
-      <div>
+      <div className="flex-1 min-w-0">
         <h1 className="text-lg font-bold text-slate-900">{title}</h1>
         <p className="text-sm text-slate-400">{subtitle}</p>
       </div>
+      {actions}
     </div>
   );
 }
@@ -89,7 +92,7 @@ export function BookingsPage({ employee }: { employee: Employee | null }) {
           .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, created_at, notes, details, assigned_to, assigned_employee_id, services(name, slug)')
           .eq('service_id', employee.service_id)
           .order('scheduled_date', { ascending: false })
-          .limit(50),
+          .limit(500),
         supabase
           .from('employees')
           .select('id, user_id, full_name')
@@ -107,7 +110,17 @@ export function BookingsPage({ employee }: { employee: Employee | null }) {
 
   return (
     <div>
-      <PageHeader icon={FileText} title="Division Bookings" subtitle="Bookings assigned to your division" />
+      <PageHeader
+        icon={FileText}
+        title="Division Bookings"
+        subtitle="Bookings assigned to your division"
+        actions={
+          <ServiceRequestExportMenu
+            documentTitle="Client Service Requests"
+            rows={bookings.map(bookingToExportRow)}
+          />
+        }
+      />
       {bookings.length === 0 ? (
         <EmptyState icon={Inbox} title="No bookings yet" subtitle="There are no bookings in your division right now." />
       ) : (

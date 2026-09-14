@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard, Card, EmptyState, Spinner, ErrorBanner, TableShell } from '../components/ui';
+import { ServiceRequestExportMenu } from '../../components/ServiceRequestExportMenu';
+import { bookingToExportRow } from '../../lib/exportServiceRequests';
 import {
   ClipboardCheck, CheckCircle2, XCircle, Clock, Filter, Search,
   Calendar, Phone, Mail, MapPin, User, Briefcase, FileText, Loader2,
@@ -169,6 +171,12 @@ export function BookingReviewPage() {
         title="Booking Review"
         description="Review and approve customer booking requests before they proceed to payment"
         icon={ClipboardCheck}
+        actions={
+          <ServiceRequestExportMenu
+            documentTitle="Client Service Requests — Booking Review"
+            rows={filtered.map(bookingToExportRow)}
+          />
+        }
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">

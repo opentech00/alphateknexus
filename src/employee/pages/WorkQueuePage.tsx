@@ -7,6 +7,8 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { fmtDate } from '../types';
 import { EmployeeBookingChat } from '../components/EmployeeBookingChat';
+import { ServiceRequestExportMenu } from '../../components/ServiceRequestExportMenu';
+import { bookingToExportRow } from '../../lib/exportServiceRequests';
 
 type Tab = 'quotes' | 'unassigned' | 'cash' | 'tasks';
 
@@ -18,6 +20,10 @@ interface QueueBooking {
   location: string | null;
   contact_name: string | null;
   contact_phone: string | null;
+  contact_email: string | null;
+  notes: string | null;
+  created_at: string;
+  details: Record<string, unknown> | null;
   user_id: string;
   assigned_to: string | null;
   review_note: string | null;
@@ -78,14 +84,14 @@ export function WorkQueuePage({ onOpenCash }: { onOpenCash: () => void }) {
     const [quoteRes, openRes, teamRes, cashRes, taskRes] = await Promise.all([
       supabase
         .from('bookings')
-        .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, user_id, assigned_to, review_note, services(name)')
+        .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, notes, created_at, details, user_id, assigned_to, review_note, services(name)')
         .eq('service_id', employee.service_id)
         .in('status', ['pending_review', 'pending'])
         .order('created_at', { ascending: false })
         .limit(40),
       supabase
         .from('bookings')
-        .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, user_id, assigned_to, review_note, services(name)')
+        .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, notes, created_at, details, user_id, assigned_to, review_note, services(name)')
         .eq('service_id', employee.service_id)
         .is('assigned_to', null)
         .gte('scheduled_date', today)
@@ -172,9 +178,15 @@ export function WorkQueuePage({ onOpenCash }: { onOpenCash: () => void }) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-bold text-slate-900">Work queue</h1>
-        <p className="text-sm text-slate-400">Approve quotes, assign jobs, and clear overdue work.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-bold text-slate-900">Work queue</h1>
+          <p className="text-sm text-slate-400">Approve quotes, assign jobs, and clear overdue work.</p>
+        </div>
+        <ServiceRequestExportMenu
+          documentTitle="Client Service Requests — Work Queue"
+          rows={Array.from(new Map([...quotes, ...unassigned].map((b) => [b.id, b])).values()).map(bookingToExportRow)}
+        />
       </div>
 
       {error && (
