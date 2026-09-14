@@ -65,6 +65,7 @@ export const ACTION_META: Record<string, { label: string; cls: string; icon: str
   profile_updated: { label: 'Profile Updated',   cls: 'bg-slate-100 text-slate-600 border-slate-200',        icon: 'slate' },
   login:           { label: 'Login',            cls: 'bg-violet-50 text-violet-700 border-violet-200',      icon: 'violet' },
   created:         { label: 'Employee Created',  cls: 'bg-emerald-50 text-emerald-700 border-emerald-200',  icon: 'emerald' },
+  finance_approval:{ label: 'Finance Approval',  cls: 'bg-teal-50 text-teal-700 border-teal-200',            icon: 'teal' },
 };
 
 export const DIVISIONS = [
@@ -73,6 +74,7 @@ export const DIVISIONS = [
   { name: 'Cleaning Services', slug: 'cleaning-janitorial' },
   { name: 'Private Security', slug: 'private-security' },
   { name: 'Procurement', slug: 'procurement' },
+  { name: 'Admin & Finance', slug: 'admin-finance' },
 ] as const;
 
 export const STATUS_META: Record<string, { label: string; cls: string; dot: string }> = {

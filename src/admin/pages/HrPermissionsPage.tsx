@@ -37,7 +37,15 @@ const MANAGED_PAGES = [
   { key: 'field-job-review', label: 'Field Job Review' },
   { key: 'field-incidents', label: 'Field Incidents' },
   { key: 'wallet', label: 'Wallet & Payments' },
+  { key: 'receipts', label: 'Receipts' },
   { key: 'finance', label: 'Finance Module' },
+  { key: 'admin-finance', label: 'Admin & Finance Workspace' },
+  { key: 'finance-services', label: 'All Service Ledgers' },
+  { key: 'finance-cf', label: 'C&F Ledger' },
+  { key: 'finance-smart-sort', label: 'Smart Sort Ledger' },
+  { key: 'finance-cleaning', label: 'Cleaning Ledger' },
+  { key: 'finance-security', label: 'Security Ledger' },
+  { key: 'finance-procurement', label: 'Procurement Ledger' },
   { key: 'task-delegation', label: 'Task Delegation' },
   { key: 'backup', label: 'Data Backup' },
   { key: 'admin-sessions', label: 'Admin Sessions' },
@@ -50,6 +58,7 @@ const MANAGED_PAGES = [
   { key: 'hr-activity', label: 'Activity Logs' },
   { key: 'hr-directory', label: 'Staff Directory' },
   { key: 'hr-permissions', label: 'Permissions' },
+  { key: 'hr-documents', label: 'HR Documents' },
 ];
 
 export function HrPermissionsPage() {

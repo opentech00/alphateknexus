@@ -172,6 +172,25 @@ function FxRateModal({ editing, onClose, onSaved }: {
       updated_by: 'admin',
     };
 
+    const { data: canFx } = await supabase.rpc('has_finance_permission', { perm: 'can_manage_fx_rates' });
+    const { data: isSuper } = await supabase.rpc('is_super_admin');
+    if (!canFx && !isSuper) {
+      const { error: rpcErr } = await supabase.rpc('create_finance_approval', {
+        p_kind: 'fx_rate',
+        p_payload: {
+          ...payload,
+          id: editing?.id || null,
+        },
+        p_related_id: editing?.id || null,
+        p_note: null,
+        p_submit: true,
+      });
+      setSubmitting(false);
+      if (rpcErr) { setError(rpcErr.message); return; }
+      onSaved();
+      return;
+    }
+
     if (editing) {
       const { error: err } = await supabase.from('fx_rates').update(payload).eq('id', editing.id);
       if (err) { setError(err.message); setSubmitting(false); return; }

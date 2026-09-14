@@ -9,6 +9,8 @@ import { fmtDate } from '../types';
 import { EmployeeBookingChat } from '../components/EmployeeBookingChat';
 import { ServiceRequestExportMenu } from '../../components/ServiceRequestExportMenu';
 import { bookingToExportRow } from '../../lib/exportServiceRequests';
+import { isInternalDepartmentSlug } from '../../lib/capabilities';
+import { FinanceDepartmentInbox } from './FinanceDepartmentInbox';
 
 type Tab = 'quotes' | 'unassigned' | 'cash' | 'tasks';
 
@@ -78,6 +80,12 @@ export function WorkQueuePage({ onOpenCash }: { onOpenCash: () => void }) {
 
   const load = useCallback(async () => {
     if (!employee?.service_id) { setLoading(false); return; }
+    if (isInternalDepartmentSlug(employee.services?.slug)) {
+      setQuotes([]);
+      setUnassigned([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError('');
     const today = new Date().toISOString().slice(0, 10);
@@ -118,7 +126,7 @@ export function WorkQueuePage({ onOpenCash }: { onOpenCash: () => void }) {
     setCash((cashRes.data as CashRow[]) || []);
     setTasks((taskRes.data as TaskRow[]) || []);
     setLoading(false);
-  }, [employee?.service_id, user, canCash]);
+  }, [employee?.service_id, employee?.services?.slug, user, canCash]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -175,6 +183,11 @@ export function WorkQueuePage({ onOpenCash }: { onOpenCash: () => void }) {
     { id: 'tasks', label: 'Overdue tasks', count: tasks.length, show: true },
   ];
   const tabs = allTabs.filter((t) => t.show);
+  const isInternal = isInternalDepartmentSlug(employee?.services?.slug);
+
+  if (isInternal) {
+    return <FinanceDepartmentInbox employee={employee} />;
+  }
 
   return (
     <div className="space-y-4">

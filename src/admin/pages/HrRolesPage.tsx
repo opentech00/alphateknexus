@@ -15,6 +15,7 @@ const DIVISION_COLORS: Record<string, string> = {
   'cleaning-janitorial':  'from-cyan-500 to-cyan-600',
   'private-security':    'from-red-500 to-red-600',
   'procurement':          'from-amber-500 to-amber-600',
+  'admin-finance':        'from-slate-700 to-slate-900',
 };
 
 export function HrRolesPage() {
@@ -110,7 +111,7 @@ export function HrRolesPage() {
     <div className="space-y-5">
       <PageHeader
         title="Roles"
-        description="Positions organized by division. Each division has its own role set."
+        description="Positions organized by division or internal department. Each unit has its own role set."
         icon={Briefcase}
         actions={
           <button

@@ -118,6 +118,7 @@ export function HrEmployeesPage() {
     const newRoleName = newRole?.name || 'None';
     setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, role_id: roleId || null, hr_roles: newRole || null } : e));
     await supabase.from('employees').update({ role_id: roleId || null, updated_at: new Date().toISOString() }).eq('id', employeeId);
+    await supabase.rpc('apply_hr_role_template', { target_employee_id: employeeId, p_role_id: roleId || null });
     await supabase.from('employee_activity_logs').insert({
       employee_id: employeeId,
       action: 'role_assigned',
@@ -131,6 +132,7 @@ export function HrEmployeesPage() {
     const prevRoleName = emp?.hr_roles?.name || 'None';
     setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, role_id: null, hr_roles: null } : e));
     await supabase.from('employees').update({ role_id: null, updated_at: new Date().toISOString() }).eq('id', employeeId);
+    await supabase.rpc('apply_hr_role_template', { target_employee_id: employeeId, p_role_id: null });
     await supabase.from('employee_activity_logs').insert({
       employee_id: employeeId,
       action: 'role_unassigned',
@@ -242,7 +244,7 @@ export function HrEmployeesPage() {
             />
           </div>
           <select value={divisionFilter} onChange={e => setDivisionFilter(e.target.value)} className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white outline-none">
-            <option value="all">All Divisions</option>
+            <option value="all">All Divisions & Departments</option>
             {DIVISIONS.map(d => <option key={d.slug} value={d.slug}>{d.name}</option>)}
           </select>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white outline-none">
@@ -983,6 +985,12 @@ function AddEmployeeModal({ roles, services, onClose, onCreated }: {
 
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to create employee'); setLoading(false); return; }
+      if (data.employee?.id) {
+        await supabase.rpc('apply_hr_role_template', {
+          target_employee_id: data.employee.id,
+          p_role_id: roleId || null,
+        });
+      }
 
       // Store resume in the HR documents module for centralized management.
       if (resumeFile && data.employee?.id) {

@@ -83,7 +83,7 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
 
   const fetchAll = async () => {
     const [svcRes, addrRes, recentRes] = await Promise.all([
-      supabase.from('services').select('*').eq('is_active', true).order('created_at'),
+      supabase.from('services').select('*').eq('is_active', true).eq('is_internal', false).order('created_at'),
       supabase.from('user_addresses').select('*').order('is_default', { ascending: false }),
       supabase
         .from('bookings')

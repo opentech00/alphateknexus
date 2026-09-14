@@ -13,12 +13,15 @@ interface AdminPermissionsState {
 const ALL_PAGES = [
   'overview', 'analytics', 'bookings', 'documents', 'clients', 'divisions',
   'division-cf', 'division-smart-sort', 'division-cleaning', 'division-security',
-  'division-procurement', 'wallet', 'booking-review', 'messages', 'users',
+  'division-procurement', 'booking-review', 'messages', 'users',
   'reviews', 'bundles', 'campaigns', 'referrals', 'field-dispatch', 'field-job-review',
-  'field-incidents', 'finance', 'task-delegation', 'backup', 'admin-sessions',
+  'field-incidents', 'finance', 'wallet', 'receipts', 'admin-finance',
+  'finance-services', 'finance-cf', 'finance-smart-sort', 'finance-cleaning',
+  'finance-security', 'finance-procurement',
+  'task-delegation', 'backup', 'admin-sessions',
   'settings', 'notification-log', 'hr-dashboard', 'hr-employees', 'hr-roles',
   'hr-id-cards', 'hr-activity', 'hr-directory', 'hr-permissions',
-  'media-library',
+  'hr-documents', 'media-library',
 ];
 
 export function useAdminPermissions(profile: Profile | null, isAdmin: boolean): AdminPermissionsState {

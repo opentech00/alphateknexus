@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { supabase } from '../lib/supabase';
+import { isInternalDepartmentSlug } from '../../lib/capabilities';
 
 interface RoleActivity {
   id: string;
@@ -62,9 +63,11 @@ export function ActivitiesPage({ onNavigate }: { onNavigate: (key: string) => vo
         .eq('is_active', true)
         .order('display_order', { ascending: true });
       const rows = (data as RoleActivity[]) || [];
+      const internal = isInternalDepartmentSlug(employee.services?.slug);
       const allowed = rows.filter(a => {
         const required = capForActivity[a.activity_key];
         if (!required) return true;
+        if (internal && ['documents', 'report', 'performance'].includes(a.activity_key)) return true;
         return hasCapability(required);
       });
 

@@ -25,6 +25,7 @@ import { EmployeeOverviewInsights } from '../components/EmployeeOverviewInsights
 import { WorkQueuePage } from './WorkQueuePage';
 import { LeaveAttendancePage } from './LeaveAttendancePage';
 import { HrFilesPage } from './HrFilesPage';
+import { isInternalDepartmentSlug } from '../../lib/capabilities';
 
 type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications' | 'bookings' | 'schedule' | 'documents' | 'report' | 'performance' | 'delegated-tasks' | 'manage-division' | 'work-queue' | 'leave' | 'hr-files';
 
@@ -75,11 +76,12 @@ export function EmployeeDashboardPage() {
 
   const sm = STATUS_META[employee.status] ?? STATUS_META.active;
   const cardStatus = idCard ? STATUS_META[idCard.status] ?? STATUS_META.active : null;
+  const isInternalDept = isInternalDepartmentSlug(employee.services?.slug);
 
   const navItems: { key: Page; label: string; icon: typeof LayoutDashboard }[] = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard },
-    ...(hasCapability('div.view') || hasCapability('div.approve_quotes') || hasCapability('div.manage_bookings')
-      ? [{ key: 'work-queue' as Page, label: 'Work queue', icon: Inbox }]
+    ...((isInternalDept || hasCapability('div.view') || hasCapability('div.approve_quotes') || hasCapability('div.manage_bookings'))
+      ? [{ key: 'work-queue' as Page, label: isInternalDept ? 'Department inbox' : 'Work queue', icon: Inbox }]
       : []),
     ...(isDivisionHead || hasCapability('div.manage_staff_access')
       ? [{ key: 'manage-division' as Page, label: 'Manage division', icon: Shield }]
@@ -246,10 +248,11 @@ function OverviewPage({ employee, idCard, cardLoading, cardStatus, sm, onNavigat
   onNavigate: (p: Page) => void;
 }) {
   const { isDivisionHead, hasCapability } = useAuth();
+  const isInternalDept = isInternalDepartmentSlug(employee.services?.slug);
 
   const tiles = [
     ...(isDivisionHead ? [{ page: 'manage-division' as Page, label: 'Manage division', value: 'Team access', icon: Shield, color: 'text-violet-600', bg: 'bg-violet-50' }] : []),
-    { page: 'work-queue' as Page, label: 'Work queue', value: 'Quotes & jobs', icon: Inbox, color: 'text-rose-600', bg: 'bg-rose-50' },
+    { page: 'work-queue' as Page, label: isInternalDept ? 'Department inbox' : 'Work queue', value: isInternalDept ? 'Approvals & tasks' : 'Quotes & jobs', icon: Inbox, color: 'text-rose-600', bg: 'bg-rose-50' },
     { page: 'leave' as Page, label: 'Leave', value: 'Time off', icon: CalendarDays, color: 'text-sky-600', bg: 'bg-sky-50' },
     { page: 'hr-files' as Page, label: 'Payslips', value: 'HR files', icon: FolderOpen, color: 'text-emerald-700', bg: 'bg-emerald-50' },
     { page: 'division' as Page, label: 'My Division', value: employee.services?.name || 'Unassigned', icon: Building2, color: 'text-emerald-600', bg: 'bg-emerald-50' },

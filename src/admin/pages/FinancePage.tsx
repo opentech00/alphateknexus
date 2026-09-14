@@ -15,10 +15,11 @@ import { FxRatesTab } from './finance/FxRatesTab';
 import { PayoutsTab } from './finance/PayoutsTab';
 import { PermissionsTab } from './finance/PermissionsTab';
 import { ReportsTab } from './finance/ReportsTab';
+import { ApprovalsTab } from './finance/ApprovalsTab';
 import { CashPaymentsTab } from './finance/CashPaymentsTab';
 import { downloadCsv } from './finance/financeCsv';
 
-type Tab = 'overview' | 'wallet' | 'mobile-money' | 'debit-card' | 'bank-receipt' | 'analytics' | 'invoices' | 'fx-rates' | 'payouts' | 'cash-payments' | 'permissions' | 'reports';
+type Tab = 'overview' | 'wallet' | 'mobile-money' | 'debit-card' | 'bank-receipt' | 'analytics' | 'invoices' | 'fx-rates' | 'payouts' | 'approvals' | 'cash-payments' | 'permissions' | 'reports';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null };
@@ -46,6 +47,7 @@ export function FinancePage() {
     { id: 'invoices', label: 'Invoices', icon: FileText },
     { id: 'fx-rates', label: 'FX Rates', icon: TrendingUp },
     { id: 'payouts', label: 'Payouts', icon: Banknote },
+    { id: 'approvals', label: 'Approvals', icon: Shield },
     { id: 'cash-payments', label: 'Cash Payments', icon: Banknote },
     { id: 'permissions', label: 'Permissions', icon: Shield },
     { id: 'reports', label: 'Reports', icon: FileText },
@@ -87,6 +89,7 @@ export function FinancePage() {
         {tab === 'invoices' && <InvoicesTab />}
         {tab === 'fx-rates' && <FxRatesTab />}
         {tab === 'payouts' && <PayoutsTab />}
+        {tab === 'approvals' && <ApprovalsTab />}
         {tab === 'cash-payments' && <CashPaymentsTab />}
         {tab === 'permissions' && <PermissionsTab />}
         {tab === 'reports' && <ReportsTab />}
@@ -210,7 +213,31 @@ function WalletTab() {
     setAddSubmitting(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setAddError('You must be signed in'); setAddSubmitting(false); return; }
+    const { data: canApprove } = await supabase.rpc('has_finance_permission', { perm: 'can_approve_withdrawals' });
+    const { data: isSuper } = await supabase.rpc('is_super_admin');
     const sign = (addType === 'payment') ? -Math.abs(amt) : amt;
+    if (!canApprove && !isSuper) {
+      const { error: rpcErr } = await supabase.rpc('create_finance_approval', {
+        p_kind: 'wallet_adjust',
+        p_payload: {
+          user_id: addUserId,
+          type: addType,
+          amount_sle: sign,
+          method: addMethod,
+          reference: addReference.trim() || null,
+          description: addDescription.trim() || `${TYPE_META[addType]?.label || addType} by admin`,
+        },
+        p_related_id: null,
+        p_note: addDescription.trim() || null,
+        p_submit: true,
+      });
+      setAddSubmitting(false);
+      if (rpcErr) { setAddError(rpcErr.message); return; }
+      setShowAddModal(false);
+      setAddUserId(''); setAddAmount(''); setAddReference(''); setAddDescription(''); setUserSearch(''); setUserResults([]);
+      loadTransactions();
+      return;
+    }
     const { error: err } = await supabase.from('wallet_transactions').insert({
       user_id: addUserId, type: addType, amount_sle: sign, method: addMethod,
       reference: addReference.trim() || null,

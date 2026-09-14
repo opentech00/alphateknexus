@@ -104,8 +104,7 @@ export function PermissionsTab() {
         <div>
           <p className="text-sm font-semibold text-slate-800">Role-Based Financial Permissions</p>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            Grant granular finance access to team members. Full admins automatically bypass all restrictions and retain complete access.
-            Users without a permission row can only view finance data (default).
+            Grant granular finance access to team members. Role templates apply automatically when an Admin & Finance HR role is assigned; you can still override flags here. Super-admins bypass these restrictions.
           </p>
         </div>
       </div>

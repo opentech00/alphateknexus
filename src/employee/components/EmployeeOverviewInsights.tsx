@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Banknote, Bell, Briefcase, Calendar, ClipboardList, Clock, FolderOpen, GitBranch, Inbox, Loader2, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fmtDate } from '../types';
+import { isInternalDepartmentSlug } from '../../lib/capabilities';
 
 type OverviewNavKey =
   | 'bookings'
@@ -51,6 +52,7 @@ export function EmployeeOverviewInsights({ employee, isDivisionHead, hasCapabili
     previousCompleted: 0,
     pendingReview: 0,
   });
+  const isInternal = isInternalDepartmentSlug(employee?.services?.slug);
 
   useEffect(() => {
     if (!employee?.service_id) {
@@ -61,6 +63,7 @@ export function EmployeeOverviewInsights({ employee, isDivisionHead, hasCapabili
     const run = async () => {
       setInsightLoading(true);
 
+      const emptyBookings = Promise.resolve({ data: [], count: 0 });
       const now = new Date();
       const startCurrent = new Date(now);
       startCurrent.setDate(now.getDate() - 6);
@@ -81,14 +84,14 @@ export function EmployeeOverviewInsights({ employee, isDivisionHead, hasCapabili
         previousCompletedRes,
         pendingReviewRes,
       ] = await Promise.all([
-        supabase
+        isInternal ? emptyBookings : supabase
           .from('bookings')
           .select('id, status, scheduled_date, scheduled_time, location, contact_name, details, services(name,slug)')
           .eq('service_id', employee.service_id)
           .gte('scheduled_date', now.toISOString().slice(0, 10))
           .order('scheduled_date', { ascending: true })
           .limit(8),
-        supabase
+        isInternal ? emptyBookings : supabase
           .from('bookings')
           .select('id, status, scheduled_date, scheduled_time, location, contact_name, created_at, details, services(name,slug)')
           .eq('service_id', employee.service_id)
@@ -111,33 +114,33 @@ export function EmployeeOverviewInsights({ employee, isDivisionHead, hasCapabili
               .order('created_at', { ascending: false })
               .limit(8)
           : Promise.resolve({ data: [] }),
-        supabase
+        isInternal ? emptyBookings : supabase
           .from('bookings')
           .select('*', { head: true, count: 'exact' })
           .eq('service_id', employee.service_id)
           .gte('created_at', startCurrentIso)
           .lte('created_at', nowIso),
-        supabase
+        isInternal ? emptyBookings : supabase
           .from('bookings')
           .select('*', { head: true, count: 'exact' })
           .eq('service_id', employee.service_id)
           .gte('created_at', startPreviousIso)
           .lt('created_at', startCurrentIso),
-        supabase
+        isInternal ? emptyBookings : supabase
           .from('bookings')
           .select('*', { head: true, count: 'exact' })
           .eq('service_id', employee.service_id)
           .eq('status', 'completed')
           .gte('created_at', startCurrentIso)
           .lte('created_at', nowIso),
-        supabase
+        isInternal ? emptyBookings : supabase
           .from('bookings')
           .select('*', { head: true, count: 'exact' })
           .eq('service_id', employee.service_id)
           .eq('status', 'completed')
           .gte('created_at', startPreviousIso)
           .lt('created_at', startCurrentIso),
-        supabase
+        isInternal ? emptyBookings : supabase
           .from('bookings')
           .select('*', { head: true, count: 'exact' })
           .eq('service_id', employee.service_id)
@@ -159,7 +162,7 @@ export function EmployeeOverviewInsights({ employee, isDivisionHead, hasCapabili
     };
 
     run();
-  }, [employee?.service_id, employee?.user_id]);
+  }, [employee?.service_id, employee?.user_id, isInternal]);
 
   const completionRate = kpis.currentTotal > 0
     ? Math.round((kpis.currentCompleted / kpis.currentTotal) * 100)
@@ -172,13 +175,13 @@ export function EmployeeOverviewInsights({ employee, isDivisionHead, hasCapabili
   };
 
   const quickActions: QuickAction[] = [
-    { label: 'Work queue', page: 'work-queue' as OverviewNavKey, icon: Inbox, show: hasCapability('div.view') || hasCapability('div.approve_quotes') },
+    { label: isInternal ? 'Department inbox' : 'Work queue', page: 'work-queue' as OverviewNavKey, icon: Inbox, show: isInternal || hasCapability('div.view') || hasCapability('div.approve_quotes') },
     { label: 'Leave', page: 'leave' as OverviewNavKey, icon: Clock, show: true },
     { label: 'Payslips', page: 'hr-files' as OverviewNavKey, icon: FolderOpen, show: true },
-    { label: 'Bookings', page: 'bookings' as OverviewNavKey, icon: Calendar, show: hasCapability('div.view') },
-    { label: 'Schedule', page: 'schedule' as OverviewNavKey, icon: Clock, show: hasCapability('div.view') },
-    { label: 'Documents', page: 'documents' as OverviewNavKey, icon: Briefcase, show: hasCapability('div.manage_documents') },
-    { label: 'Submit Report', page: 'report' as OverviewNavKey, icon: ClipboardList, show: hasCapability('div.reports') },
+    { label: 'Bookings', page: 'bookings' as OverviewNavKey, icon: Calendar, show: !isInternal && hasCapability('div.view') },
+    { label: 'Schedule', page: 'schedule' as OverviewNavKey, icon: Clock, show: !isInternal && hasCapability('div.view') },
+    { label: 'Documents', page: 'documents' as OverviewNavKey, icon: Briefcase, show: isInternal || hasCapability('div.manage_documents') },
+    { label: 'Submit Report', page: 'report' as OverviewNavKey, icon: ClipboardList, show: isInternal || hasCapability('div.reports') },
     { label: 'Delegated Tasks', page: 'delegated-tasks' as OverviewNavKey, icon: GitBranch, show: true },
     { label: 'Notifications', page: 'notifications' as OverviewNavKey, icon: Bell, show: true },
     { label: 'Cash Collections', page: 'cash-collections' as OverviewNavKey, icon: Banknote, show: hasCapability('div.cash_collections') },

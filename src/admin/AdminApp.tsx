@@ -7,6 +7,7 @@ import { AdminLoginPage } from './pages/AdminLoginPage';
 import { TwoFactorPage } from '../pages/TwoFactorPage';
 import { AdminSidebar } from './AdminSidebar';
 import { IdleWarningModal } from '../components/IdleWarningModal';
+import { FinanceToastContainer } from '../components/FinanceToast';
 import { OverviewPage } from './pages/OverviewPage';
 import { BookingsManagementPage } from './pages/BookingsManagementPage';
 import { ClientsPage } from './pages/ClientsPage';
@@ -23,6 +24,8 @@ import { DocumentsManagementPage } from './pages/DocumentsManagementPage';
 import { WalletManagementPage } from './pages/WalletManagementPage';
 import { ReceiptsManagementPage } from './pages/ReceiptsManagementPage';
 import { FinancePage } from './pages/FinancePage';
+import { ServiceFinancePage } from './pages/ServiceFinancePage';
+import { AdminFinanceWorkspacePage } from './pages/AdminFinanceWorkspacePage';
 import { ReviewsManagementPage } from './pages/ReviewsManagementPage';
 import { ReferralsManagementPage } from './pages/ReferralsManagementPage';
 import { HrDashboardPage } from './pages/HrDashboardPage';
@@ -165,6 +168,20 @@ function AdminContent() {
         return <DocumentsManagementPage />;
       case 'finance':
         return <FinancePage />;
+      case 'admin-finance':
+        return <AdminFinanceWorkspacePage onNavigate={setCurrentPage} />;
+      case 'finance-services':
+        return <ServiceFinancePage onNavigate={setCurrentPage} />;
+      case 'finance-cf':
+        return <ServiceFinancePage initialSlug="clearing-forwarding" onNavigate={setCurrentPage} />;
+      case 'finance-smart-sort':
+        return <ServiceFinancePage initialSlug="waste-management" onNavigate={setCurrentPage} />;
+      case 'finance-cleaning':
+        return <ServiceFinancePage initialSlug="cleaning-janitorial" onNavigate={setCurrentPage} />;
+      case 'finance-security':
+        return <ServiceFinancePage initialSlug="private-security" onNavigate={setCurrentPage} />;
+      case 'finance-procurement':
+        return <ServiceFinancePage initialSlug="procurement" onNavigate={setCurrentPage} />;
       case 'wallet':
         return <WalletManagementPage />;
       case 'receipts':
@@ -225,6 +242,7 @@ function AdminContent() {
         </div>
       </main>
       <AdminIdleWarning />
+      <FinanceToastContainer />
     </div>
   );
 }

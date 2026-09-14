@@ -105,7 +105,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
   useEffect(() => {
     (async () => {
       const { data: svcData, error: svcErr } = await supabase
-        .from('services').select('*').eq('is_active', true).order('created_at');
+        .from('services').select('*').eq('is_active', true).eq('is_internal', false).order('created_at');
       if (svcErr) { setFetchError('Failed to load services. Pull down to retry.'); setLoading(false); return; }
       setServices((svcData as Service[]) || []);
       setLoading(false);

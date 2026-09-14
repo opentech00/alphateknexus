@@ -50,7 +50,7 @@ export function CampaignPromoBanner({
       onNavigate?.(page);
       return;
     }
-    const { data } = await supabase.from('services').select('*').eq('slug', page).eq('is_active', true).maybeSingle();
+    const { data } = await supabase.from('services').select('*').eq('slug', page).eq('is_active', true).eq('is_internal', false).maybeSingle();
     if (data && onSelectService) onSelectService(data as Service);
     else onNavigate?.('services');
   };

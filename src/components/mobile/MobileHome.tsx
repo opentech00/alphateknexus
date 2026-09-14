@@ -185,7 +185,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
   const [showFloatHeader, setShowFloatHeader] = useState(false);
 
   const fetchServices = useCallback(async () => {
-    const { data } = await supabase.from('services').select('*').eq('is_active', true).order('created_at');
+    const { data } = await supabase.from('services').select('*').eq('is_active', true).eq('is_internal', false).order('created_at');
     setServices((data as Service[]) || []);
     setLoading(false);
   }, []);

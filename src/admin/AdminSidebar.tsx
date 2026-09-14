@@ -3,8 +3,8 @@ import {
   LayoutDashboard, CalendarDays, Users, Building2, Settings,
   LogOut, Menu, X, ChevronRight, ChevronDown,
   BarChart3, Truck, Brush, ShieldCheck, Package, ArrowLeft, Recycle, FolderOpen,
-  Briefcase, CreditCard, UserCog, History, Contact, Database,
-  Receipt as ReceiptIcon, Star, Gift, Landmark,
+  Briefcase, CreditCard, UserCog, History, Contact, Database, Banknote,
+  Receipt as ReceiptIcon, Star, Gift, Landmark, Wallet,
   Navigation, ClipboardCheck, MessageSquare,
   AlertTriangle, CheckSquare, Bell, GitBranch, Image as ImageIcon, Megaphone,
 } from 'lucide-react';
@@ -74,9 +74,30 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    title: 'ADMIN & FINANCE',
+    items: [
+      { label: 'Department Workspace', page: 'admin-finance', icon: Landmark },
+      { label: 'Finance Module', page: 'finance', icon: Landmark },
+      { label: 'Wallet & Payments', page: 'wallet', icon: Wallet },
+      { label: 'Receipts', page: 'receipts', icon: ReceiptIcon },
+      { label: 'All Service Ledgers', page: 'finance-services', icon: Banknote },
+    ],
+    subcategories: [
+      {
+        label: 'Service ledgers',
+        items: [
+          { label: 'Clearing & Forwarding', page: 'finance-cf', icon: Truck },
+          { label: 'Smart Sort / Recycling', page: 'finance-smart-sort', icon: Recycle },
+          { label: 'Cleaning Services', page: 'finance-cleaning', icon: Brush },
+          { label: 'Private Security', page: 'finance-security', icon: ShieldCheck },
+          { label: 'Procurement', page: 'finance-procurement', icon: Package },
+        ],
+      },
+    ],
+  },
+  {
     title: 'MANAGEMENT',
     items: [
-      { label: 'Finance Module', page: 'finance', icon: Landmark },
       { label: 'Task Delegation', page: 'task-delegation', icon: GitBranch },
       { label: 'Media Library', page: 'media-library', icon: ImageIcon },
       { label: 'Data Backup', page: 'backup', icon: Database },
@@ -173,6 +194,15 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
     documents: 0,
     clients: 0,
     finance: 0,
+    wallet: 0,
+    receipts: 0,
+    'admin-finance': 0,
+    'finance-services': 0,
+    'finance-cf': 0,
+    'finance-smart-sort': 0,
+    'finance-cleaning': 0,
+    'finance-security': 0,
+    'finance-procurement': 0,
     reviews: 0,
     'field-dispatch': newJobCount,
     'field-job-review': jobReviewCount,
@@ -303,7 +333,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
             if (!hasContent) return null;
 
             // HR section with collapsible sub-categories
-            if (section.subcategories) {
+            if (section.title === 'HUMAN RESOURCES' && section.subcategories) {
               const isAnyHrActive = isHrPage(currentPage);
               return (
                 <div key={section.title}>
@@ -344,7 +374,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
               );
             }
 
-            // Standard section
+            // Standard section (optionally with grouped sub-items)
             return (
               <div key={section.title}>
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2">
@@ -353,6 +383,16 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
                 <div className="space-y-0.5">
                   {filteredItems.map((item) => renderItem(item, section.title))}
                 </div>
+                {filteredSubs?.map((sub) => (
+                  <div key={sub.label} className="mt-3 ml-1 pl-3 border-l border-slate-800">
+                    <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider px-3 mb-1.5">
+                      {sub.label}
+                    </p>
+                    <div className="space-y-0.5">
+                      {sub.items.map((item) => renderItem(item, `${section.title}-${sub.label}`))}
+                    </div>
+                  </div>
+                ))}
               </div>
             );
           })}

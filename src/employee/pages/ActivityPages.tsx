@@ -12,6 +12,7 @@ import { ServiceDetailsPanel } from '../../components/ServiceDetailsPanel';
 import { EmployeeBookingChat } from '../components/EmployeeBookingChat';
 import { ServiceRequestExportMenu } from '../../components/ServiceRequestExportMenu';
 import { bookingToExportRow } from '../../lib/exportServiceRequests';
+import { isInternalDepartmentSlug } from '../../lib/capabilities';
 
 /* ═══════════════════════════════════════════════════════════════
    Shared helpers
@@ -82,9 +83,10 @@ export function BookingsPage({ employee }: { employee: Employee | null }) {
   const [team, setTeam] = useState<{ id: string; user_id: string | null; full_name: string }[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
   const [chatName, setChatName] = useState<string | null>(null);
+  const isInternal = isInternalDepartmentSlug(employee?.services?.slug);
 
   useEffect(() => {
-    if (!employee?.service_id) { setLoading(false); return; }
+    if (!employee?.service_id || isInternal) { setLoading(false); setBookings([]); return; }
     (async () => {
       const [{ data }, teamRes] = await Promise.all([
         supabase
@@ -104,9 +106,18 @@ export function BookingsPage({ employee }: { employee: Employee | null }) {
       setTeam(teamRes.data || []);
       setLoading(false);
     })();
-  }, [employee?.service_id]);
+  }, [employee?.service_id, isInternal]);
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-slate-400 animate-spin" /></div>;
+
+  if (isInternal) {
+    return (
+      <div>
+        <PageHeader icon={FileText} title="Division Bookings" subtitle="Client bookings are not used in this department" />
+        <EmptyState icon={Inbox} title="No client bookings" subtitle="Admin & Finance is an internal department. There are no client service requests to manage here." />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -244,9 +255,10 @@ export function SchedulePage({ employee }: { employee: Employee | null }) {
   const [scope, setScope] = useState<'mine' | 'division'>('mine');
   const today = new Date().toISOString().slice(0, 10);
   const [day, setDay] = useState(today);
+  const isInternal = isInternalDepartmentSlug(employee?.services?.slug);
 
   useEffect(() => {
-    if (!employee?.service_id) { setLoading(false); return; }
+    if (!employee?.service_id || isInternal) { setLoading(false); setBookings([]); return; }
     (async () => {
       setLoading(true);
       let q = supabase
@@ -262,7 +274,7 @@ export function SchedulePage({ employee }: { employee: Employee | null }) {
       setBookings((data as Booking[]) || []);
       setLoading(false);
     })();
-  }, [employee?.service_id, scope, user?.id, today]);
+  }, [employee?.service_id, scope, user?.id, today, isInternal]);
 
   const week = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(`${today}T12:00:00`);
@@ -272,6 +284,15 @@ export function SchedulePage({ employee }: { employee: Employee | null }) {
 
   const visible = bookings.filter((b) => b.scheduled_date === day);
   const overdueMine = scope === 'mine' && bookings.some((b) => b.scheduled_date < today && !['completed', 'cancelled'].includes(b.status));
+
+  if (isInternal) {
+    return (
+      <div>
+        <PageHeader icon={Calendar} title="My Schedule" subtitle="This department has no client job schedule" />
+        <EmptyState icon={Inbox} title="No client schedule" subtitle="Admin & Finance is an internal department, so there are no booked jobs to display." />
+      </div>
+    );
+  }
 
   return (
     <div>

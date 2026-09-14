@@ -418,6 +418,33 @@ function CreateInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCre
     if (!userId) { setError('Select a client'); return; }
     if (lineItems.some(i => !i.description.trim())) { setError('All line items need a description'); return; }
     setSubmitting(true);
+    const { data: canManage } = await supabase.rpc('has_finance_permission', { perm: 'can_manage_invoices' });
+    const { data: isSuper } = await supabase.rpc('is_super_admin');
+    if (!canManage && !isSuper) {
+      const { error: rpcErr } = await supabase.rpc('create_finance_approval', {
+        p_kind: 'invoice',
+        p_payload: {
+          user_id: userId,
+          status: 'sent',
+          issue_date: issueDate,
+          due_date: dueDate,
+          currency,
+          subtotal,
+          tax_rate: parseFloat(taxRate) || 0,
+          tax_amount: taxAmount,
+          total,
+          notes: notes.trim() || null,
+          line_items: lineItems,
+        },
+        p_related_id: null,
+        p_note: notes.trim() || null,
+        p_submit: true,
+      });
+      setSubmitting(false);
+      if (rpcErr) { setError(rpcErr.message); return; }
+      onCreated();
+      return;
+    }
     const { error: err } = await supabase.from('invoices').insert({
       user_id: userId,
       status: 'draft',
@@ -550,7 +577,7 @@ function CreateInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCre
             <button type="submit" disabled={submitting}
               className="w-full py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
               {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
-              {submitting ? 'Creating…' : 'Create Invoice'}
+              {submitting ? 'Creating…' : 'Create invoice'}
             </button>
           </form>
         </div>

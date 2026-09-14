@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Users, Briefcase, CreditCard as IdCardIcon, TrendingUp, Building2, UserCheck,
-  UserPlus, ArrowRight,
+  UserPlus, ArrowRight, Landmark,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard, Card, Spinner } from '../components/ui';
@@ -103,13 +103,19 @@ export function HrDashboardPage({ onNavigate }: Props) {
       <Card className="p-5 sm:p-6">
         <div className="flex items-center gap-2 mb-5">
           <Building2 className="w-5 h-5 text-slate-600" />
-          <h2 className="text-base font-bold text-slate-900">Staff by Division</h2>
+          <h2 className="text-base font-bold text-slate-900">Staff by Division & Department</h2>
         </div>
         <div className="space-y-3">
           {divisionCounts.map(d => (
             <div key={d.slug}>
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-sm text-slate-600">{d.name}</span>
+                {d.slug === 'admin-finance' ? (
+                  <button type="button" onClick={() => onNavigate('admin-finance')} className="text-sm text-emerald-700 font-medium hover:underline">
+                    {d.name}
+                  </button>
+                ) : (
+                  <span className="text-sm text-slate-600">{d.name}</span>
+                )}
                 <span className="text-sm font-semibold text-slate-900">{d.count}</span>
               </div>
               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -121,6 +127,24 @@ export function HrDashboardPage({ onNavigate }: Props) {
             </div>
           ))}
         </div>
+      </Card>
+
+      <Card className="p-5 sm:p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Landmark className="w-5 h-5 text-slate-600" />
+          <h2 className="text-base font-bold text-slate-900">Admin & Finance</h2>
+        </div>
+        <p className="text-sm text-slate-500 mb-4">
+          Internal department workspace with staff roster, role mix, and links into Finance, Wallet, and Receipts.
+        </p>
+        <button
+          type="button"
+          onClick={() => onNavigate('admin-finance')}
+          className="group inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors"
+        >
+          Open workspace
+          <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+        </button>
       </Card>
     </div>
   );

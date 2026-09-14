@@ -47,12 +47,15 @@ export const CAPABILITY_META: Record<CapabilityKey, { label: string; desc: strin
   'field.incidents': { label: 'Field incidents', desc: 'Report field incidents', group: 'field' },
 };
 
+export const INTERNAL_DEPARTMENT_SLUG = 'admin-finance';
+
 export const CANONICAL_DIVISIONS = [
   { name: 'Clearing & Forwarding', slug: 'clearing-forwarding' },
   { name: 'Smart Sort / Recycling', slug: 'waste-management' },
   { name: 'Cleaning Services', slug: 'cleaning-janitorial' },
   { name: 'Private Security', slug: 'private-security' },
   { name: 'Procurement', slug: 'procurement' },
+  { name: 'Admin & Finance', slug: 'admin-finance' },
 ] as const;
 
 export const SLUG_ALIASES: Record<string, string> = {
@@ -61,9 +64,14 @@ export const SLUG_ALIASES: Record<string, string> = {
   'waste-management': 'waste-management',
   'cleaning-janitorial': 'cleaning-janitorial',
   'clearing-forwarding': 'clearing-forwarding',
-  'private-security': 'private-security',                                                                                                                                                                                                                                                                                                                                                                                                     
+  'private-security': 'private-security',
   procurement: 'procurement',
+  'admin-finance': 'admin-finance',
 };
+
+export function isInternalDepartmentSlug(slug?: string | null): boolean {
+  return slug === INTERNAL_DEPARTMENT_SLUG;
+}
 
 export function canonicalSlug(slug: string | null | undefined): string | null {
   if (!slug) return null;
@@ -74,6 +82,12 @@ export function templateKeysForRoleName(name: string | null | undefined): Capabi
   const n = (name || '').toLowerCase();
   if (n.includes('head')) {
     return [...GRANTABLE_CAPABILITIES];
+  }
+  if (n.includes('finance officer') || n.includes('admin assistant') || n === 'admin') {
+    return ['div.view', 'div.reports', 'div.manage_documents'];
+  }
+  if (n.includes('admin manager')) {
+    return ['div.view', 'div.delegate_tasks', 'div.reports', 'div.manage_documents'];
   }
   if (n.includes('supervisor') || n.includes('manager') || n.includes('coordinator')) {
     return ['div.view', 'div.manage_bookings', 'div.delegate_tasks', 'div.reports', 'div.manage_documents'];

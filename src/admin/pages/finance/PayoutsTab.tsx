@@ -233,16 +233,18 @@ export function PayoutsTab() {
       return;
     }
 
-    const updates: Record<string, any> = {
-      admin_note: adminNote.trim() || null,
-      reviewed_by: (await supabase.auth.getUser()).data.user?.id,
-      reviewed_at: new Date().toISOString(),
-    };
-    if (reviewAction === 'approve') updates.status = 'approved';
-    if (reviewAction === 'reject') updates.status = 'rejected';
-    const { error } = await supabase.from('withdrawal_requests').update(updates).eq('id', reviewModal.id);
+    const { data, error } = await supabase.rpc('review_withdrawal_request', {
+      p_withdrawal_id: reviewModal.id,
+      p_approve: reviewAction === 'approve',
+      p_note: adminNote.trim() || null,
+    });
     if (error) {
       setPayoutResult({ success: false, message: error.message });
+      setActionLoading(null);
+      return;
+    }
+    if (data && (data as { success?: boolean }).success === false) {
+      setPayoutResult({ success: false, message: (data as { error?: string }).error || 'Review failed' });
       setActionLoading(null);
       return;
     }

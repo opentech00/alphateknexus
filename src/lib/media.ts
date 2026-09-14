@@ -111,7 +111,8 @@ export function useServiceBrandingImages(): {
       const { data: services } = await supabase
         .from('services')
         .select('slug, branding_image_url')
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('is_internal', false);
 
       // Fetch service_branding assets from media library
       const mediaAssets = await fetchMediaAssets('service_branding');
@@ -163,7 +164,8 @@ export function useLoginCarouselImages(): {
       const { data: services } = await supabase
         .from('services')
         .select('slug, login_image_url')
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('is_internal', false);
 
       const mediaAssets = await fetchMediaAssets('login_carousel');
 

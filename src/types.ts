@@ -9,6 +9,7 @@ export interface Service {
   created_at: string;
   branding_image_url?: string | null;
   login_image_url?: string | null;
+  is_internal?: boolean;
 }
 
 export type MediaCategory = 'app_logo' | 'service_branding' | 'login_carousel' | 'splash' | 'general' | 'campaign';

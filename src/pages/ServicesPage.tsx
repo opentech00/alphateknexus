@@ -104,6 +104,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
         .from('services')
         .select('*')
         .eq('is_active', true)
+        .eq('is_internal', false)
         .order('created_at');
       setServices(data || []);
       setLoading(false);

@@ -56,6 +56,7 @@ export function BundlesManagementPage() {
       .from('services')
       .select('id, name, slug, icon')
       .eq('is_active', true)
+      .eq('is_internal', false)
       .order('name');
     setServices(data || []);
   }, []);
