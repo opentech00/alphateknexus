@@ -34,10 +34,72 @@ export interface OfficialLineItem {
   total?: number;
 }
 
+export interface BankAccount {
+  name: string;
+  account: string;
+}
+
+export interface InvoiceLetterhead {
+  brandName: string;
+  legalLine: string;
+  groupLine: string;
+  address: string;
+  phones: string;
+  tin: string;
+  logoUrl: string;
+  officerName: string;
+  officerTitle: string;
+  banks: BankAccount[];
+}
+
+export function defaultLetterhead(): InvoiceLetterhead {
+  return {
+    brandName: COMPANY.shortName,
+    legalLine: 'GLOBAL SL LIMITED',
+    groupLine: 'GLOBAL GROUP',
+    address: `${COMPANY.street}\n${COMPANY.city}`,
+    phones: COMPANY.phones,
+    tin: COMPANY.tin,
+    logoUrl: '',
+    officerName: COMPANY_SIGNATORY.name,
+    officerTitle: COMPANY_SIGNATORY.title,
+    banks: COMPANY_BANKS.map((b) => ({ name: b.name, account: b.account })),
+  };
+}
+
+export function mergeLetterhead(partial?: Partial<InvoiceLetterhead> | null): InvoiceLetterhead {
+  const base = defaultLetterhead();
+  if (!partial) return base;
+  const banks = Array.isArray(partial.banks) && partial.banks.length > 0
+    ? partial.banks.map((b) => ({ name: String(b?.name || ''), account: String(b?.account || '') }))
+    : base.banks;
+  return {
+    brandName: partial.brandName?.trim() || base.brandName,
+    legalLine: partial.legalLine?.trim() || base.legalLine,
+    groupLine: partial.groupLine?.trim() || base.groupLine,
+    address: partial.address?.trim() || base.address,
+    phones: partial.phones?.trim() || base.phones,
+    tin: partial.tin?.trim() || base.tin,
+    logoUrl: partial.logoUrl?.trim() || '',
+    officerName: partial.officerName?.trim() || base.officerName,
+    officerTitle: partial.officerTitle?.trim() || base.officerTitle,
+    banks,
+  };
+}
+
+export function officerScribble(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '';
+  if (parts.length === 1) return parts[0];
+  const initials = parts.slice(0, -1).map((p) => p[0]?.toUpperCase() || '').filter(Boolean).join('.');
+  return `${initials}. ${parts[parts.length - 1]}`;
+}
+
 export interface InvoiceNotesMeta {
   billToName?: string;
   billToAddress?: string;
   notes?: string;
+  letterhead?: InvoiceLetterhead;
 }
 
 export interface OfficialInvoiceInput {
@@ -56,6 +118,7 @@ export interface OfficialInvoiceInput {
   billToAddress?: string | null;
   billToEmail?: string | null;
   billToPhone?: string | null;
+  letterhead?: Partial<InvoiceLetterhead> | null;
 }
 
 export interface OfficialReceiptInput {
@@ -131,8 +194,11 @@ export function parseInvoiceNotes(notes: string | null | undefined): InvoiceNote
       const billToName = typeof parsed.bill_to_name === 'string' ? parsed.bill_to_name : undefined;
       const billToAddress = typeof parsed.bill_to_address === 'string' ? parsed.bill_to_address : undefined;
       const inner = typeof parsed.notes === 'string' ? parsed.notes : undefined;
-      if (billToName || billToAddress || 'notes' in parsed || 'bill_to_name' in parsed) {
-        return { billToName, billToAddress, notes: inner };
+      const letterhead = parsed.letterhead && typeof parsed.letterhead === 'object'
+        ? mergeLetterhead(parsed.letterhead)
+        : undefined;
+      if (billToName || billToAddress || letterhead || 'notes' in parsed || 'bill_to_name' in parsed || 'letterhead' in parsed) {
+        return { billToName, billToAddress, notes: inner, letterhead };
       }
     }
   } catch {
@@ -145,11 +211,13 @@ export function serializeInvoiceNotes(meta: InvoiceNotesMeta): string | null {
   const billToName = meta.billToName?.trim() || '';
   const billToAddress = meta.billToAddress?.trim() || '';
   const notes = meta.notes?.trim() || '';
-  if (!billToName && !billToAddress) return notes || null;
+  const letterhead = meta.letterhead ? mergeLetterhead(meta.letterhead) : undefined;
+  if (!billToName && !billToAddress && !letterhead) return notes || null;
   return JSON.stringify({
     bill_to_name: billToName || null,
     bill_to_address: billToAddress || null,
     notes: notes || null,
+    letterhead: letterhead || null,
   });
 }
 
@@ -211,15 +279,18 @@ const LOGO_MARK = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" w
   <path fill="#fff" d="M40 32.2 32.8 48h14.4L40 32.2z"/>
 </svg>`;
 
-function brandBlock(variant: 'company' | 'group', compact = false): string {
-  const legal = variant === 'group' ? 'GLOBAL GROUP' : 'GLOBAL SL LIMITED';
+function brandBlock(lh: InvoiceLetterhead, variant: 'company' | 'group', compact = false): string {
+  const legal = variant === 'group' ? lh.groupLine : lh.legalLine;
   const size = compact ? '20px' : '28px';
-  const mark = compact ? LOGO_MARK.replace('width="54" height="54"', 'width="40" height="40"') : LOGO_MARK;
+  const imgH = compact ? 40 : 54;
+  const mark = lh.logoUrl
+    ? `<img src="${esc(lh.logoUrl)}" alt="" style="height:${imgH}px;width:auto;max-width:120px;object-fit:contain;display:block"/>`
+    : (compact ? LOGO_MARK.replace('width="54" height="54"', 'width="40" height="40"') : LOGO_MARK);
   return `<div class="brand ${compact ? 'brand-sm' : ''}">
     <div class="mark">${mark}</div>
     <div class="wordmark">
-      <div class="name" style="font-size:${size}">Alphatek</div>
-      <div class="legal">${legal}</div>
+      <div class="name" style="font-size:${size}">${esc(lh.brandName)}</div>
+      <div class="legal">${esc(legal)}</div>
     </div>
   </div>`;
 }
@@ -305,23 +376,23 @@ function documentCss(): string {
   `;
 }
 
-function header(title: string): string {
+function header(title: string, lh: InvoiceLetterhead): string {
+  const addr = esc(lh.address).replace(/\n/g, '<br/>');
   return `<div class="top">
     <div>
-      ${brandBlock('company')}
+      ${brandBlock(lh, 'company')}
       <div class="company-meta">
-        ${esc(COMPANY.street)}<br/>
-        ${esc(COMPANY.city)}<br/>
-        ${esc(COMPANY.phones)}<br/>
-        TIN: ${esc(COMPANY.tin)}
+        ${addr}<br/>
+        ${esc(lh.phones)}<br/>
+        TIN: ${esc(lh.tin)}
       </div>
     </div>
     <h1 class="doc-title">${esc(title)}</h1>
   </div>`;
 }
 
-function banksAndFooter(): string {
-  const rows = COMPANY_BANKS.map((b) =>
+function banksAndFooter(lh: InvoiceLetterhead): string {
+  const rows = (lh.banks || []).filter((b) => b.name || b.account).map((b) =>
     `<tr><td class="k">${esc(b.name)}</td><td class="colon">:</td><td>${esc(b.account)}</td></tr>`
   ).join('');
   return `<div class="foot">
@@ -329,15 +400,15 @@ function banksAndFooter(): string {
       <h3>Bankers: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; SLe A/C</h3>
       <table>${rows}</table>
     </div>
-    ${brandBlock('group', true)}
+    ${brandBlock(lh, 'group', true)}
   </div>`;
 }
 
-function signBlock(): string {
+function signBlock(lh: InvoiceLetterhead): string {
   return `<div class="sign">
-    <div class="scribble">A.G. Braima</div>
-    <div class="who">${esc(COMPANY_SIGNATORY.name)}</div>
-    <div class="role">${esc(COMPANY_SIGNATORY.title)}</div>
+    <div class="scribble">${esc(officerScribble(lh.officerName))}</div>
+    <div class="who">${esc(lh.officerName)}</div>
+    <div class="role">${esc(lh.officerTitle)}</div>
   </div>`;
 }
 
@@ -399,6 +470,7 @@ function totalsBlock(opts: {
 
 export function buildOfficialInvoiceHtml(inv: OfficialInvoiceInput): string {
   const parsed = parseInvoiceNotes(inv.notes);
+  const lh = mergeLetterhead(inv.letterhead || parsed.letterhead);
   const billName = inv.billToName || parsed.billToName || 'Client';
   const billAddress = [inv.billToAddress || parsed.billToAddress, inv.billToPhone, inv.billToEmail]
     .filter(Boolean)
@@ -417,7 +489,7 @@ export function buildOfficialInvoiceHtml(inv: OfficialInvoiceInput): string {
 <style>${documentCss()}</style>
 </head><body>
 <div class="sheet">
-  ${header('Invoice')}
+  ${header('Invoice', lh)}
   ${billToBlock(billName, billAddress, [
     { k: 'Invoice #', v: inv.invoiceNumber },
     { k: 'Invoice Date', v: formatDocDate(inv.issueDate) },
@@ -434,8 +506,8 @@ export function buildOfficialInvoiceHtml(inv: OfficialInvoiceInput): string {
   <div class="words">Amount in words: ${esc(amountInWords(net))}</div>
   ${extraNotes ? `<p style="margin-top:18px;font-size:12px;color:#444">${esc(extraNotes)}</p>` : ''}
   ${amountPaid > 0 && balance <= 0 ? '<div class="paid-stamp">PAID</div>' : ''}
-  ${signBlock()}
-  ${banksAndFooter()}
+  ${signBlock(lh)}
+  ${banksAndFooter(lh)}
 </div>
 </body></html>`;
 }
@@ -447,6 +519,7 @@ export function buildOfficialReceiptHtml(r: OfficialReceiptInput): string {
   const description = r.description || itemName;
   const method = (r.paymentMethod || 'payment').replace(/_/g, ' ');
   const address = [r.clientAddress, r.clientPhone, r.clientEmail].filter(Boolean).join('\n');
+  const lh = defaultLetterhead();
 
   return `<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"/>
@@ -454,7 +527,7 @@ export function buildOfficialReceiptHtml(r: OfficialReceiptInput): string {
 <style>${documentCss()}</style>
 </head><body>
 <div class="sheet">
-  ${header('Receipt')}
+  ${header('Receipt', lh)}
   ${billToBlock(r.clientName || 'Client', address, [
     { k: 'Receipt #', v: r.receiptNumber },
     { k: 'Invoice / Ref', v: r.reference },
@@ -477,8 +550,8 @@ export function buildOfficialReceiptHtml(r: OfficialReceiptInput): string {
   })}
   <div class="words">Amount in words: ${esc(amountInWords(amount))}</div>
   <div class="paid-stamp">PAID</div>
-  ${signBlock()}
-  ${banksAndFooter()}
+  ${signBlock(lh)}
+  ${banksAndFooter(lh)}
 </div>
 </body></html>`;
 }
