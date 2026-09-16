@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Clock, LogIn, LogOut, Calendar, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useFieldStaff } from '../FieldStaffContext';
+import { readCurrentLocation } from '../../lib/attendance';
 
 export function AttendanceScreen() {
   const { attendance, todayAttendance, clockIn, clockOut } = useFieldStaff();
@@ -8,13 +9,12 @@ export function AttendanceScreen() {
 
   const handleClockIn = async () => {
     setBusy(true);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        pos => { clockIn(pos.coords.latitude, pos.coords.longitude).finally(() => setBusy(false)); },
-        () => { clockIn().finally(() => setBusy(false)); },
-      );
-    } else {
-      await clockIn();
+    try {
+      const { lat, lng } = await readCurrentLocation();
+      await clockIn(lat, lng);
+    } catch {
+      /* keep UI usable if GPS or save fails */
+    } finally {
       setBusy(false);
     }
   };

@@ -76,7 +76,7 @@ export function SmartSortSubscriptionsTab() {
   const load = async () => {
     setLoading(true);
     setError('');
-    let q = supabase.from('smart_sort_subscriptions')
+    const q = supabase.from('smart_sort_subscriptions')
       .select('*, profiles(full_name, email)')
       .order('created_at', { ascending: false });
     const { data, error: err } = await q;

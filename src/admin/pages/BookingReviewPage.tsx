@@ -41,7 +41,7 @@ export function BookingReviewPage() {
     setLoading(true);
     setError('');
     try {
-      let query = supabase
+      const query = supabase
         .from('bookings')
         .select('id, service_id, contact_name, contact_phone, contact_email, scheduled_date, scheduled_time, location, notes, status, details, created_at, reviewed_by, reviewed_at, review_note, services(name)')
         .in('status', ['pending_review', 'approved', 'cancelled'])

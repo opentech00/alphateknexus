@@ -266,7 +266,7 @@ function UserDetail({ user, onBack }: { user: UserProfile; onBack: () => void })
 
     // Fetch admin names for notes
     const adminIds = [...new Set((notesRes.data || []).map((n: any) => n.admin_id))];
-    let adminNames: Record<string, string> = {};
+    const adminNames: Record<string, string> = {};
     if (adminIds.length > 0) {
       const { data: admins } = await supabase.from('profiles').select('id, full_name').in('id', adminIds);
       (admins || []).forEach((a: any) => { adminNames[a.id] = a.full_name || 'Admin'; });

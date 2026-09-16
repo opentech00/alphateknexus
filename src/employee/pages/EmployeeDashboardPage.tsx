@@ -18,7 +18,7 @@ import {
   PerformancePage,
 } from './ActivityPages';
 import { DelegatedTasksPage } from './DelegatedTasksPage';
-import { ManageDivisionPage } from './ManageDivisionPage';
+import { DivisionWorkspacePage } from './DivisionWorkspacePage';
 import { EmployeeNotificationsBell } from '../components/EmployeeNotificationsBell';
 import { EmployeeNotificationsPage } from './EmployeeNotificationsPage';
 import { EmployeeOverviewInsights } from '../components/EmployeeOverviewInsights';
@@ -27,7 +27,7 @@ import { LeaveAttendancePage } from './LeaveAttendancePage';
 import { HrFilesPage } from './HrFilesPage';
 import { isInternalDepartmentSlug } from '../../lib/capabilities';
 
-type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications' | 'bookings' | 'schedule' | 'documents' | 'report' | 'performance' | 'delegated-tasks' | 'manage-division' | 'work-queue' | 'leave' | 'hr-files';
+type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications' | 'bookings' | 'schedule' | 'documents' | 'report' | 'performance' | 'delegated-tasks' | 'manage-division' | 'division-workspace' | 'work-queue' | 'leave' | 'hr-files';
 
 export function EmployeeDashboardPage() {
   const { employee, signOut, hasCapability, isDivisionHead } = useAuth();
@@ -84,7 +84,7 @@ export function EmployeeDashboardPage() {
       ? [{ key: 'work-queue' as Page, label: isInternalDept ? 'Department inbox' : 'Work queue', icon: Inbox }]
       : []),
     ...(isDivisionHead || hasCapability('div.manage_staff_access')
-      ? [{ key: 'manage-division' as Page, label: 'Manage division', icon: Shield }]
+      ? [{ key: 'division-workspace' as Page, label: 'Division workspace', icon: Shield }]
       : []),
     { key: 'activities', label: 'My Activities', icon: ClipboardList },
     { key: 'leave', label: 'Leave & attendance', icon: CalendarDays },
@@ -212,12 +212,12 @@ export function EmployeeDashboardPage() {
 
       {/* Main content */}
       <div className="lg:ml-64 pt-14 lg:pt-0">
-        <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        <main className={`${page === 'division-workspace' || page === 'manage-division' ? 'max-w-6xl' : 'max-w-4xl'} mx-auto px-4 sm:px-6 py-6 space-y-6`}>
           {page === 'overview' && <OverviewPage employee={employee} idCard={idCard} cardLoading={cardLoading} cardStatus={cardStatus} sm={sm} onNavigate={handleNav} />}
           {page === 'work-queue' && <WorkQueuePage onOpenCash={() => handleNav('cash-collections')} />}
           {page === 'leave' && <LeaveAttendancePage />}
           {page === 'hr-files' && <HrFilesPage />}
-          {page === 'manage-division' && <ManageDivisionPage />}
+          {(page === 'division-workspace' || page === 'manage-division') && <DivisionWorkspacePage />}
           {page === 'activities' && <ActivitiesPage onNavigate={(k) => handleNav(k as Page)} />}
           {page === 'division' && <DivisionPage employee={employee} />}
           {page === 'role' && <RolePage employee={employee} />}
@@ -251,7 +251,9 @@ function OverviewPage({ employee, idCard, cardLoading, cardStatus, sm, onNavigat
   const isInternalDept = isInternalDepartmentSlug(employee.services?.slug);
 
   const tiles = [
-    ...(isDivisionHead ? [{ page: 'manage-division' as Page, label: 'Manage division', value: 'Team access', icon: Shield, color: 'text-violet-600', bg: 'bg-violet-50' }] : []),
+    ...(isDivisionHead || hasCapability('div.manage_staff_access')
+      ? [{ page: 'division-workspace' as Page, label: 'Division workspace', value: employee.services?.name || 'Operations', icon: Shield, color: 'text-violet-600', bg: 'bg-violet-50' }]
+      : []),
     { page: 'work-queue' as Page, label: isInternalDept ? 'Department inbox' : 'Work queue', value: isInternalDept ? 'Approvals & tasks' : 'Quotes & jobs', icon: Inbox, color: 'text-rose-600', bg: 'bg-rose-50' },
     { page: 'leave' as Page, label: 'Leave', value: 'Time off', icon: CalendarDays, color: 'text-sky-600', bg: 'bg-sky-50' },
     { page: 'hr-files' as Page, label: 'Payslips', value: 'HR files', icon: FolderOpen, color: 'text-emerald-700', bg: 'bg-emerald-50' },

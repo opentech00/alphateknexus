@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { Home, ClipboardList, Clock, Bell, BarChart3, MapPin, WifiOff, RefreshCw, Zap } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { FieldStaffProvider, useFieldStaff } from './FieldStaffContext';
 import { ToastContainer } from './components/Toast';
+import { FieldClockInPrompt } from '../components/FieldClockInPrompt';
 import { initPushNotifications } from '../../lib/pushNotifications';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { JobsScreen } from './screens/JobsScreen';
@@ -39,31 +40,29 @@ function FieldStaffContent() {
     );
   }
 
+  let body: ReactNode;
   if (selectedJobId) {
-    return (
+    body = (
       <JobDetailScreen
         assignmentId={selectedJobId}
         onBack={() => setSelectedJobId(null)}
       />
     );
-  }
+  } else if (showIncident) {
+    body = <IncidentReportScreen onBack={() => setShowIncident(false)} />;
+  } else {
+    const navItems: { key: Tab; label: string; icon: typeof Home }[] = [
+      { key: 'dashboard',   label: 'Home',       icon: Home },
+      ...(hasCapability('field.jobs') ? [
+        { key: 'offers' as Tab, label: 'Offers', icon: Zap },
+        { key: 'jobs' as Tab, label: 'Jobs', icon: ClipboardList },
+      ] : []),
+      ...(hasCapability('field.attendance') ? [{ key: 'attendance' as Tab, label: 'Attendance', icon: Clock }] : []),
+      { key: 'inbox',       label: 'Inbox',       icon: Bell },
+      { key: 'performance', label: 'Performance', icon: BarChart3 },
+    ];
 
-  if (showIncident) {
-    return <IncidentReportScreen onBack={() => setShowIncident(false)} />;
-  }
-
-  const navItems: { key: Tab; label: string; icon: typeof Home }[] = [
-    { key: 'dashboard',   label: 'Home',       icon: Home },
-    ...(hasCapability('field.jobs') ? [
-      { key: 'offers' as Tab, label: 'Offers', icon: Zap },
-      { key: 'jobs' as Tab, label: 'Jobs', icon: ClipboardList },
-    ] : []),
-    ...(hasCapability('field.attendance') ? [{ key: 'attendance' as Tab, label: 'Attendance', icon: Clock }] : []),
-    { key: 'inbox',       label: 'Inbox',       icon: Bell },
-    { key: 'performance', label: 'Performance', icon: BarChart3 },
-  ];
-
-  return (
+    body = (
     <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden">
       <ToastContainer />
 
@@ -146,6 +145,14 @@ function FieldStaffContent() {
         </div>
       </nav>
     </div>
+    );
+  }
+
+  return (
+    <>
+      {body}
+      <FieldClockInPrompt />
+    </>
   );
 }
 

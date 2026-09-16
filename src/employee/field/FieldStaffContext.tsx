@@ -7,6 +7,7 @@ import type {
   SyncQueueItem, JobMessage, FieldJobNote, FieldLocationPing, FieldJobScore,
 } from './types';
 import { haversineKm, haversineMeters, isInsideGeofence, estimateEtaMinutes, getBatteryLevel, watchPosition, type Coords } from './geo';
+import { isLateClockIn, localWorkDate } from '../lib/attendance';
 
 // Job event types that map to field_job_events table
 const JOB_EVENT_MAP: Record<string, string> = {
@@ -184,7 +185,7 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
       (scoreData || []).forEach((s: any) => { scoreMap[s.assignment_id] = s as FieldJobScore; });
       setJobScores(scoreMap);
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = localWorkDate();
       setTodayAttendance((attData || []).find((a: any) => a.work_date === today) as FieldAttendance | null || null);
     } catch (err: any) {
       setError(err.message || 'Failed to load field staff data');
@@ -484,27 +485,31 @@ export function FieldStaffProvider({ children }: { children: ReactNode }) {
 
   const clockIn = useCallback(async (lat?: number, lng?: number) => {
     if (!employee) return;
-    const today = new Date().toISOString().split('T')[0];
-    const nowIso = new Date().toISOString();
+    const today = localWorkDate();
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const status = isLateClockIn(now) ? 'late' : 'present';
     const tempAtt: FieldAttendance = {
       id: 'temp', employee_id: employee.id, work_date: today, clock_in: nowIso,
-      clock_out: null, latitude: lat || null, longitude: lng || null, status: 'present', created_at: nowIso,
+      clock_out: null, latitude: lat || null, longitude: lng || null, status, created_at: nowIso,
     };
     setTodayAttendance(tempAtt);
 
     const payload = {
       employee_id: employee.id, work_date: today, clock_in: nowIso,
-      latitude: lat || null, longitude: lng || null, status: 'present' as const,
+      latitude: lat || null, longitude: lng || null, status: status as FieldAttendance['status'],
     };
     if (!navigator.onLine) {
       enqueueSync({ table: 'field_attendance', operation: 'insert', recordId: 'temp', payload });
       setPendingSync(getPendingCount());
       return;
     }
-    try {
-      const { data } = await supabase.from('field_attendance').upsert(payload, { onConflict: 'employee_id,work_date' }).select('*').single();
-      if (data) setTodayAttendance(data as FieldAttendance);
-    } catch { /* ignore */ }
+    const { data, error } = await supabase.from('field_attendance').upsert(payload, { onConflict: 'employee_id,work_date' }).select('*').single();
+    if (error) {
+      setTodayAttendance(null);
+      throw new Error(error.message);
+    }
+    if (data) setTodayAttendance(data as FieldAttendance);
   }, [employee]);
 
   const clockOut = useCallback(async (lat?: number, lng?: number) => {

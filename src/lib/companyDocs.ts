@@ -1,4 +1,7 @@
-/** Official Alphatek Global SL Limited invoice / receipt documents. */
+/**
+ * Official Alphatek Global SL Limited invoice / receipt documents.
+ * Keep in sync with supabase/functions/_shared/companyDocs.ts (browser vs Deno runtimes).
+ */
 
 export const COMPANY = {
   legalName: 'Alphatek Global SL Limited',
@@ -594,16 +597,15 @@ export function buildReceiptHtmlFromRow(
 }
 
 export function openPrintableHtml(html: string, filename = 'document.html'): void {
-  const w = (globalThis as { window?: { open: Function; document: { createElement: Function; body: { appendChild: Function } }; setTimeout: Function } }).window;
-  if (!w) return;
-  const tab = w.open('', '_blank', 'noopener,noreferrer');
+  if (typeof window === 'undefined') return;
+  const tab = window.open('', '_blank', 'noopener,noreferrer');
   if (!tab) {
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
-    const a = w.document.createElement('a');
+    const a = window.document.createElement('a');
     a.href = url;
     a.download = filename;
-    w.document.body.appendChild(a);
+    window.document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
@@ -613,7 +615,7 @@ export function openPrintableHtml(html: string, filename = 'document.html'): voi
   tab.document.write(html);
   tab.document.close();
   tab.focus();
-  w.setTimeout(() => {
+  window.setTimeout(() => {
     try { tab.print(); } catch { /* ignore */ }
   }, 350);
 }

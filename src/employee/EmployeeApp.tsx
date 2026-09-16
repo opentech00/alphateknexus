@@ -6,6 +6,7 @@ import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CashCollectionsPage } from './pages/CashCollectionsPage';
 import { FieldStaffApp } from './field/FieldStaffApp';
 import { IdleWarningModal } from '../components/IdleWarningModal';
+import { OfficeClockInPrompt } from './components/OfficeClockInPrompt';
 import { Loader2, ShieldAlert } from 'lucide-react';
 
 function IdleWarningWrapper() {
@@ -65,6 +66,7 @@ function EmployeeContent() {
   return (
     <EmployeeNotificationsProvider>
       <EmployeeDashboardPage />
+      <OfficeClockInPrompt />
       <IdleWarningWrapper />
     </EmployeeNotificationsProvider>
   );

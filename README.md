@@ -4,38 +4,50 @@ A multi-service business management platform with client portal, employee portal
 
 ## Prerequisites
 
-- **Node.js** 18 or higher — download from https://nodejs.org/
+- **Node.js 24.x** — download from https://nodejs.org/ (matches Vercel production)
 - **npm** (comes with Node.js)
 
 ## Quick Start (Web)
 
-1. **Unzip the project** and open a terminal in the project folder.
+1. Copy environment variables:
 
-2. **Install dependencies:**
    ```bash
-   npm install
+   cp .env.example .env
    ```
 
-3. **Start the development server:**
+   Then fill in real values from the Supabase dashboard. Do not commit `.env`.
+
+2. Install dependencies:
+
+   ```bash
+   npm ci
+   ```
+
+3. Start the development server:
+
    ```bash
    npm run dev
    ```
+
    The app will be available at `http://localhost:5173`.
 
-4. **Build for production:**
+4. Build for production:
+
    ```bash
    npm run build
    ```
+
    This outputs to the `dist/` folder.
 
 ## Environment Variables
 
-The `.env` file is already configured with all API credentials:
-- `VITE_SUPABASE_URL` — your Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` — your Supabase anonymous key
-- `VITE_MAPBOX_ACCESS_TOKEN` — Mapbox public token (pk.) for maps. Restrict it by URL in the Mapbox dashboard. Also set `MAPBOX_ACCESS_TOKEN` as a Supabase Edge Function secret so address search and driving directions use Mapbox.
+Create a local `.env` from `.env.example`. Required client variables:
 
-No additional API setup is required. The database, authentication, edge functions, and file storage are all hosted on Supabase and ready to use.
+- `VITE_SUPABASE_URL` — your Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` — your Supabase anonymous/publishable key
+- `VITE_MAPBOX_ACCESS_TOKEN` — Mapbox public token (`pk.`). Restrict it by URL in the Mapbox dashboard. Also set `MAPBOX_ACCESS_TOKEN` as a Supabase Edge Function secret so address search and driving directions use Mapbox.
+
+Never put `SUPABASE_SERVICE_ROLE_KEY` or Monime secrets in Vercel or any `VITE_*` variable.
 
 Production is deployed on **Vercel**. See [docs/vercel-production.md](docs/vercel-production.md) for env vars and pretty URLs (`/admin`, `/employee`, `/field`).
 
@@ -51,6 +63,15 @@ The project has four separate web apps, each with its own HTML entry point:
 | Field Staff App | `/field` (field.html) | Mobile field staff interface (jobs, attendance, GPS) |
 
 During development, visit `http://localhost:5173/employee.html` or `http://localhost:5173/field.html` to access the employee and field apps directly.
+
+## Scripts
+
+```bash
+npm run dev          # Vite dev server
+npm run typecheck    # TypeScript project build
+npm run lint         # ESLint
+npm run build        # typecheck + production bundle
+```
 
 ## Android Build (Optional)
 
@@ -89,8 +110,9 @@ To build the Android APK:
 
 ## Tech Stack
 
-- **Frontend:** React 18, TypeScript, Tailwind CSS, Vite
+- **Frontend:** React 18, TypeScript, Tailwind CSS 3, Vite 5
 - **Icons:** lucide-react
 - **Backend:** Supabase (PostgreSQL, Auth, Edge Functions, Storage)
 - **Hosting:** Vercel
+- **PWA:** vite-plugin-pwa (client portal)
 - **Mobile:** Capacitor 8 (Android)

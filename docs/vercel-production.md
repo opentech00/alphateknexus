@@ -49,5 +49,7 @@ supabase functions deploy address-search --project-ref your_project_ref
 
 ```bash
 npm ci
+npm run typecheck
+npm run lint
 npm run build
 ```

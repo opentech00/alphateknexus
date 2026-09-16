@@ -1,7 +1,5 @@
-/**
- * useHaptics — native haptic vibration feedback for mobile.
- * Detects Capacitor native Haptics plugin or falls back to Web Vibration API.
- */
+import { Capacitor } from '@capacitor/core';
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 
 export type HapticPattern = 'light' | 'medium' | 'heavy' | 'selection' | 'success' | 'warning' | 'error';
 
@@ -15,32 +13,41 @@ const PATTERNS: Record<HapticPattern, number | number[]> = {
   error: [35, 70, 35, 70, 35],
 };
 
+const IMPACT: Record<'light' | 'medium' | 'heavy', ImpactStyle> = {
+  light: ImpactStyle.Light,
+  medium: ImpactStyle.Medium,
+  heavy: ImpactStyle.Heavy,
+};
+
+const NOTIFICATION: Record<'success' | 'warning' | 'error', NotificationType> = {
+  success: NotificationType.Success,
+  warning: NotificationType.Warning,
+  error: NotificationType.Error,
+};
+
 export function useHaptics() {
   const vibrate = (pattern: HapticPattern = 'light') => {
     try {
-      // Check Capacitor native Haptics if available on window
-      const capacitorWindow = window as any;
-      if (capacitorWindow?.Capacitor?.isNativePlatform() && capacitorWindow?.Capacitor?.Plugins?.Haptics) {
-        const Haptics = capacitorWindow.Capacitor.Plugins.Haptics;
+      if (Capacitor.isNativePlatform()) {
         if (pattern === 'selection') {
-          Haptics.selectionStart();
-        } else if (pattern === 'success' || pattern === 'warning' || pattern === 'error') {
-          Haptics.notification({ type: pattern.toUpperCase() });
-        } else {
-          Haptics.impact({ style: pattern === 'heavy' ? 'HEAVY' : pattern === 'medium' ? 'MEDIUM' : 'LIGHT' });
+          void Haptics.selectionStart();
+          return;
         }
+        if (pattern === 'success' || pattern === 'warning' || pattern === 'error') {
+          void Haptics.notification({ type: NOTIFICATION[pattern] });
+          return;
+        }
+        void Haptics.impact({ style: IMPACT[pattern] });
         return;
       }
 
-      // Web Vibration API fallback
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         navigator.vibrate(PATTERNS[pattern]);
       }
     } catch {
-      // Ignore vibration errors gracefully on unsupported platforms
+      // Ignore vibration errors on unsupported platforms
     }
   };
 
   return { vibrate };
 }
-

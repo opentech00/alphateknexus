@@ -83,7 +83,7 @@ export function CashCollectionsPage({ onBack }: { onBack: () => void }) {
 
     const rows = (data || []) as any[];
     const userIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
-    let profileMap: Record<string, { full_name: string; email: string }> = {};
+    const profileMap: Record<string, { full_name: string; email: string }> = {};
     if (userIds.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')
@@ -93,7 +93,7 @@ export function CashCollectionsPage({ onBack }: { onBack: () => void }) {
     }
 
     const bookingIds = rows.filter(r => r.payable_type === 'booking' && r.payable_id).map(r => r.payable_id);
-    let bookingMap: Record<string, { scheduled_date: string; service_name: string }> = {};
+    const bookingMap: Record<string, { scheduled_date: string; service_name: string }> = {};
     if (bookingIds.length > 0) {
       const { data: bookings } = await supabase
         .from('bookings')

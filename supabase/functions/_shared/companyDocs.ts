@@ -1,4 +1,7 @@
-/** Official Alphatek Global SL Limited invoice / receipt documents. */
+/**
+ * Official Alphatek Global SL Limited invoice / receipt documents.
+ * Keep in sync with src/lib/companyDocs.ts (browser vs Deno runtimes).
+ */
 
 export const COMPANY = {
   legalName: 'Alphatek Global SL Limited',
@@ -594,7 +597,10 @@ export function buildReceiptHtmlFromRow(
 }
 
 export function openPrintableHtml(html: string, filename = 'document.html'): void {
-  const w = (globalThis as { window?: { open: Function; document: { createElement: Function; body: { appendChild: Function } }; setTimeout: Function } }).window;
+  const g = globalThis as typeof globalThis & {
+    window?: Window & typeof globalThis;
+  };
+  const w = g.window;
   if (!w) return;
   const tab = w.open('', '_blank', 'noopener,noreferrer');
   if (!tab) {

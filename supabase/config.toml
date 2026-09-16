@@ -1,5 +1,15 @@
+# Cloud project is the source of truth for schema and secrets.
+# This file only documents Edge Function JWT exceptions. Do not put secrets here.
+
+# Public signup: the function validates input and uses the service role internally.
 [functions.create-account]
 verify_jwt = false
 
+# Guest/booking address lookup may run without a session.
+# Mapbox credentials stay in Edge Function secrets; keep this rate-limited in the function.
 [functions.address-search]
+verify_jwt = false
+
+# Monime signs payloads with HMAC, not a Supabase JWT.
+[functions.monime-webhook]
 verify_jwt = false

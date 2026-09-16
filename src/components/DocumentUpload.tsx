@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import { AuthContext } from '../contexts/AuthContext';
 import { openDocument } from '../lib/storageUrls';
 import { SignedImage } from './SignedImage';
 import { Upload, Image, FileText, File, Trash2, X } from 'lucide-react';
@@ -21,6 +21,7 @@ interface DocumentUploadProps {
   bookingId: string;
   readOnly?: boolean;
   serviceSlug?: string;
+  actor?: { id: string; isAdmin?: boolean };
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -55,8 +56,10 @@ function getFileIcon(fileType: string) {
   return <File className="w-6 h-6 text-slate-500" />;
 }
 
-export function DocumentUpload({ bookingId, readOnly = false, serviceSlug }: DocumentUploadProps) {
-  const { user, isAdmin } = useAuth();
+export function DocumentUpload({ bookingId, readOnly = false, serviceSlug, actor }: DocumentUploadProps) {
+  const ctx = useContext(AuthContext);
+  const user = actor ? { id: actor.id } : ctx?.user;
+  const isAdmin = actor ? !!actor.isAdmin : !!ctx?.isAdmin;
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);

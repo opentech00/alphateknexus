@@ -194,7 +194,7 @@ export function WorkQueuePage({ onOpenCash }: { onOpenCash: () => void }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold text-slate-900">Work queue</h1>
-          <p className="text-sm text-slate-400">Approve quotes, assign jobs, and clear overdue work.</p>
+          <p className="text-sm text-slate-400">Approve quotes, assign jobs, and clear overdue work. The full pipeline lives in Division workspace.</p>
         </div>
         <ServiceRequestExportMenu
           documentTitle="Client Service Requests — Work Queue"

@@ -3,6 +3,11 @@ import { AlertCircle, Calendar, CheckCircle2, Clock, Loader2, LogIn, LogOut } fr
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { fmtDate } from '../types';
+import {
+  ATTENDANCE_UPDATED_EVENT,
+  clockInOffice,
+  localWorkDate,
+} from '../lib/attendance';
 
 interface LeaveRow {
   id: string;
@@ -33,7 +38,7 @@ const LEAVE_TYPES = [
 export function LeaveAttendancePage() {
   const { employee, user, isDivisionHead, hasCapability } = useAuth();
   const canReview = isDivisionHead || hasCapability('div.manage_staff_access');
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localWorkDate();
 
   const [leaveType, setLeaveType] = useState('annual');
   const [startDate, setStartDate] = useState(today);
@@ -76,21 +81,22 @@ export function LeaveAttendancePage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    const onUpdated = () => { void load(); };
+    window.addEventListener(ATTENDANCE_UPDATED_EVENT, onUpdated);
+    return () => window.removeEventListener(ATTENDANCE_UPDATED_EVENT, onUpdated);
+  }, [load]);
+
   const clockIn = async () => {
     if (!employee || !user) return;
     setSaving(true); setError('');
-    const now = new Date();
-    const late = now.getHours() >= 9 && now.getMinutes() > 15;
-    const { error: err } = await supabase.from('office_attendance').upsert({
-      employee_id: employee.id,
-      user_id: user.id,
-      service_id: employee.service_id,
-      work_date: today,
-      clock_in_at: now.toISOString(),
-      status: late ? 'late' : 'present',
-    }, { onConflict: 'employee_id,work_date' });
-    if (err) setError(err.message);
-    else setOk('Clocked in.');
+    const { error: err, late } = await clockInOffice({
+      employeeId: employee.id,
+      userId: user.id,
+      serviceId: employee.service_id,
+    });
+    if (err) setError(err);
+    else setOk(late ? 'Clocked in (marked late).' : 'Clocked in.');
     setSaving(false);
     await load();
   };

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Loader2, Users, Shield, Briefcase, Check, AlertCircle, Smartphone,
-  GitBranch, Plus,
+  GitBranch, Plus, Search, UserPlus, X, UserMinus,
 } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { supabase } from '../lib/supabase';
@@ -10,7 +10,7 @@ import {
   type CapabilityKey,
 } from '../../lib/capabilities';
 
-interface TeamMember {
+export interface TeamMember {
   id: string;
   full_name: string;
   employee_number: string;
@@ -29,15 +29,34 @@ interface TeamMember {
 
 type Tab = 'team' | 'access' | 'tasks';
 
-export function ManageDivisionPage() {
+interface SearchHit {
+  id: string;
+  full_name: string;
+  employee_number: string;
+  email: string;
+  photo_url: string | null;
+  current_division: string | null;
+}
+
+export function ManageDivisionPage({
+  embed = false,
+  tabs,
+  initialTab = 'team',
+}: {
+  embed?: boolean;
+  tabs?: Tab[];
+  initialTab?: Tab;
+}) {
   const { employee, refreshEmployee } = useAuth();
-  const [tab, setTab] = useState<Tab>('access');
+  const visibleTabs = tabs ?? (['access', 'team', 'tasks'] as Tab[]);
+  const [tab, setTab] = useState<Tab>(visibleTabs.includes(initialTab) ? initialTab : visibleTabs[0]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [ceiling, setCeiling] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -107,36 +126,60 @@ export function ManageDivisionPage() {
     setSaving(false);
   };
 
+  const unassign = async (member: TeamMember) => {
+    if (!confirm(`Remove ${member.full_name} from this division? They keep their login. HR can reassign them later.`)) return;
+    setSaving(true);
+    setError('');
+    const { error: rpcErr } = await supabase.rpc('unassign_employee_from_division', { target_employee_id: member.id });
+    if (rpcErr) setError(rpcErr.message);
+    if (selectedId === member.id) setSelectedId(null);
+    await load();
+    setSaving(false);
+  };
+
+  const onAttached = async (id: string) => {
+    setAddOpen(false);
+    await load();
+    setSelectedId(id);
+    if (visibleTabs.includes('access')) setTab('access');
+  };
+
   if (loading) {
     return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 text-slate-400 animate-spin" /></div>;
   }
 
+  const tabMeta: { key: Tab; label: string; icon: typeof Shield }[] = [
+    { key: 'access', label: 'Access', icon: Shield },
+    { key: 'team', label: 'Team', icon: Users },
+    { key: 'tasks', label: 'Tasks', icon: GitBranch },
+  ];
+
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-lg font-bold text-slate-900">Manage my division</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
-          Grant {employee?.services?.name || 'your division'} staff only the work they need. Super Admins keep company-wide Admin access.
-        </p>
-      </div>
+      {!embed && (
+        <div>
+          <h1 className="text-lg font-bold text-slate-900">Manage my division</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Grant {employee?.services?.name || 'your division'} staff only the work they need. Super Admins keep company-wide Admin access.
+          </p>
+        </div>
+      )}
 
-      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
-        {([
-          { key: 'access' as Tab, label: 'Access', icon: Shield },
-          { key: 'team' as Tab, label: 'Team', icon: Users },
-          { key: 'tasks' as Tab, label: 'Tasks', icon: GitBranch },
-        ]).map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              tab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <t.icon className="w-4 h-4" /> {t.label}
-          </button>
-        ))}
-      </div>
+      {visibleTabs.length > 1 && (
+        <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+          {tabMeta.filter(t => visibleTabs.includes(t.key)).map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                tab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <t.icon className="w-4 h-4" /> {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
@@ -145,9 +188,20 @@ export function ManageDivisionPage() {
       )}
 
       {tab === 'team' && (
-        <div className="space-y-2">
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800"
+            >
+              <UserPlus className="w-4 h-4" /> Add teammate
+            </button>
+          </div>
           {staff.length === 0 ? (
-            <p className="text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl p-6">No other staff in this division yet.</p>
+            <p className="text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl p-6">
+              No other staff in this division yet. Attach someone HR has already created an account for.
+            </p>
           ) : staff.map(m => (
             <div key={m.id} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
               {m.photo_url ? (
@@ -164,6 +218,17 @@ export function ManageDivisionPage() {
               <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 bg-slate-50 px-2 py-1 rounded-md">
                 {m.app_type}
               </span>
+              {m.org_role !== 'division_head' && m.org_role !== 'super_admin' && (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void unassign(m)}
+                  className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  title="Remove from division"
+                >
+                  <UserMinus className="w-4 h-4" />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -185,7 +250,7 @@ export function ManageDivisionPage() {
               </button>
             ))}
             {staff.filter(m => m.org_role !== 'division_head').length === 0 && (
-              <p className="text-sm text-slate-500">No staff to grant access to.</p>
+              <p className="text-sm text-slate-500">No staff to grant access to. Add a teammate first.</p>
             )}
           </div>
           <div className="lg:col-span-3 bg-white border border-slate-200 rounded-2xl p-5">
@@ -250,11 +315,118 @@ export function ManageDivisionPage() {
       )}
 
       {tab === 'tasks' && <HeadDelegateForm team={staff} serviceId={employee?.service_id || null} />}
+
+      {addOpen && (
+        <AddTeammateModal
+          onClose={() => setAddOpen(false)}
+          onAttached={onAttached}
+        />
+      )}
     </div>
   );
 }
 
-function HeadDelegateForm({ team, serviceId }: { team: TeamMember[]; serviceId: string | null }) {
+function AddTeammateModal({
+  onClose,
+  onAttached,
+}: {
+  onClose: () => void;
+  onAttached: (id: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [attaching, setAttaching] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const search = useCallback(async (q: string) => {
+    setLoading(true);
+    setError('');
+    const { data, error: err } = await supabase.rpc('search_unassigned_employees', { p_query: q });
+    if (err) setError(err.message);
+    else setHits((data as SearchHit[]) || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { void search(''); }, [search]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => { void search(query); }, 250);
+    return () => window.clearTimeout(t);
+  }, [query, search]);
+
+  const attach = async (id: string) => {
+    setAttaching(id);
+    setError('');
+    const { error: err } = await supabase.rpc('assign_employee_to_division', { target_employee_id: id });
+    if (err) {
+      setError(err.message);
+      setAttaching(null);
+      return;
+    }
+    onAttached(id);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col shadow-xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <div>
+            <h2 className="font-bold text-slate-900">Add teammate</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Search people HR has already given a login. You cannot create accounts here.</p>
+          </div>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100">
+            <X className="w-5 h-5 text-slate-500" />
+          </button>
+        </div>
+        <div className="p-4 border-b border-slate-100">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Name, email, or employee number"
+              className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+              autoFocus
+            />
+          </div>
+        </div>
+        {error && <p className="px-5 pt-3 text-sm text-red-600">{error}</p>}
+        <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
+          ) : hits.length === 0 ? (
+            <p className="text-sm text-slate-500 p-4">No matching staff with a login outside this division.</p>
+          ) : hits.map(h => (
+            <div key={h.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50">
+              {h.photo_url ? (
+                <img src={h.photo_url} alt="" className="w-9 h-9 rounded-full object-cover" />
+              ) : (
+                <div className="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center text-sm font-semibold text-slate-600">
+                  {h.full_name[0]}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-slate-900 truncate">{h.full_name}</p>
+                <p className="text-xs text-slate-400 truncate">{h.employee_number} · {h.email}{h.current_division ? ` · ${h.current_division}` : ' · Unassigned'}</p>
+              </div>
+              <button
+                type="button"
+                disabled={attaching === h.id}
+                onClick={() => void attach(h.id)}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
+              >
+                {attaching === h.id ? 'Adding…' : 'Attach'}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function HeadDelegateForm({ team, serviceId }: { team: TeamMember[]; serviceId: string | null }) {
   const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');

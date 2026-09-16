@@ -4,9 +4,7 @@ This document explains how to set up Supabase for local development and link to 
 
 Prerequisites
 
-Prerequisites
-
-- Node.js 18+ and `npm` installed
+- Node.js 24.x and `npm` installed
 - Supabase CLI: https://supabase.com/docs/guides/cli
 
 Steps

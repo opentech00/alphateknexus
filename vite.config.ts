@@ -59,15 +59,6 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-data',
-              networkTimeoutSeconds: 4,
-              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 10 },
-            },
-          },
-          {
             urlPattern: /\.(?:png|jpg|jpeg|svg|webp|gif)$/i,
             handler: 'StaleWhileRevalidate',
             options: {

@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { Send, MessageSquare, Shield, X, ImagePlus, Loader2, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { openDocument } from '../lib/storageUrls';
 import { SignedImage } from './SignedImage';
-import { useAuth } from '../contexts/AuthContext';
+import { AuthContext } from '../contexts/AuthContext';
 
 interface Message {
   id: string;
@@ -20,13 +20,16 @@ interface Message {
 interface MessageThreadProps {
   bookingId: string;
   onClose?: () => void;
+  actor?: { id: string; name?: string; isAdmin?: boolean };
 }
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
-export function MessageThread({ bookingId, onClose }: MessageThreadProps) {
-  const { user, isAdmin } = useAuth();
+export function MessageThread({ bookingId, onClose, actor }: MessageThreadProps) {
+  const ctx = useContext(AuthContext);
+  const user = actor ? { id: actor.id, email: undefined, user_metadata: { full_name: actor.name } } : ctx?.user;
+  const isAdmin = actor ? !!actor.isAdmin : !!ctx?.isAdmin;
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
