@@ -57,6 +57,7 @@ interface AuthLayoutProps {
   heroTitle?: string;
   heroDesc?: string;
   onCta?: () => void;
+  companyName?: string;
 }
 
 function AnimatedHeadline({ text, animKey, exiting }: { text: string; animKey: number; exiting: boolean }) {
@@ -78,7 +79,7 @@ function AnimatedHeadline({ text, animKey, exiting }: { text: string; animKey: n
   );
 }
 
-export function AuthLayout({ children, slides = DEFAULT_SLIDES, heroTitle, heroDesc, onCta }: AuthLayoutProps) {
+export function AuthLayout({ children, slides = DEFAULT_SLIDES, heroTitle, heroDesc, onCta, companyName = 'Alphatek Nexus' }: AuthLayoutProps) {
   const { url: logoUrl } = useAppLogo();
   const { images: loginImages } = useLoginCarouselImages();
   const [slideIdx, setSlideIdx] = useState(0);
@@ -146,10 +147,10 @@ export function AuthLayout({ children, slides = DEFAULT_SLIDES, heroTitle, heroD
         <div className="relative z-10 flex flex-col justify-end lg:justify-between h-full p-4 lg:px-12 lg:py-10 xl:px-16 xl:py-12">
           <div className="hidden lg:flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-lg shadow-black/20">
-              <img src={logoUrl} alt="Alphatek Nexus" className="w-8 h-8 object-contain" />
+              <img src={logoUrl} alt={companyName} className="w-8 h-8 object-contain" />
             </div>
             <div>
-              <p className="text-white font-bold text-lg leading-tight">Alphatek Nexus</p>
+              <p className="text-white font-bold text-lg leading-tight">{companyName}</p>
               <p className="text-slate-300 text-sm">Client Portal</p>
             </div>
           </div>
@@ -221,6 +222,8 @@ export function AuthLayout({ children, slides = DEFAULT_SLIDES, heroTitle, heroD
                 <p className="text-white text-lg xl:text-xl font-semibold leading-snug">
                   Your services, bookings and payments — all in one place.
                 </p>
+                {onCta && (
+                  <>
                 <p className="mt-3 text-slate-300 text-sm leading-relaxed">
                   Create your free account to book trusted services, track every job live, receive instant quotes, and pay securely — from any device.
                 </p>
@@ -229,9 +232,11 @@ export function AuthLayout({ children, slides = DEFAULT_SLIDES, heroTitle, heroD
                   onClick={onCta}
                   className="mt-5 inline-flex items-center gap-2 text-emerald-300 text-sm font-semibold hover:text-emerald-200 transition-colors group"
                 >
-                  Join hundreds already moving smarter with Alphatek
+                  Join hundreds already moving smarter with {companyName}
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </button>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -242,10 +247,10 @@ export function AuthLayout({ children, slides = DEFAULT_SLIDES, heroTitle, heroD
         <div className="w-full max-w-sm">
           <div className="flex lg:hidden items-center gap-2.5 mb-5">
             <div className="w-9 h-9 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
-              <img src={logoUrl} alt="Alphatek Nexus" className="w-6 h-6 object-contain" />
+              <img src={logoUrl} alt={companyName} className="w-6 h-6 object-contain" />
             </div>
             <div>
-              <p className="text-slate-900 font-bold text-base leading-tight">Alphatek Nexus</p>
+              <p className="text-slate-900 font-bold text-base leading-tight">{companyName}</p>
               <p className="text-slate-500 text-xs">Client App</p>
             </div>
           </div>

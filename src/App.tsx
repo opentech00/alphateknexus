@@ -21,6 +21,8 @@ import { SplashScreen } from './components/mobile/SplashScreen';
 import { FinanceToastContainer } from './components/FinanceToast';
 import { IdleWarningModal } from './components/IdleWarningModal';
 import { PwaProvider } from './components/pwa/PwaProvider';
+import { PortalMaintenanceScreen } from './components/PortalMaintenanceScreen';
+import { usePortalSettings } from './hooks/usePortalSettings';
 
 
 function FailedLoginBanner() {
@@ -65,8 +67,22 @@ function IdleWarningWrapper() {
   );
 }
 
+function PortalAnnouncement({ enabled, text }: { enabled: boolean; text: string }) {
+  const [hidden, setHidden] = useState(false);
+  if (!enabled || !text.trim() || hidden) return null;
+  return (
+    <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-sm text-amber-900 flex items-start gap-2">
+      <span className="flex-1">{text}</span>
+      <button type="button" onClick={() => setHidden(true)} className="text-amber-700 font-semibold px-1" aria-label="Dismiss announcement">
+        ×
+      </button>
+    </div>
+  );
+}
+
 function PortalContent() {
-  const { user, loading, needs2FA, needsEmailVerification, pending2FAEmail, pending2FAPassword, clear2FA, refreshVerification, signOut } = useAuth();
+  const { user, isAdmin, loading, needs2FA, needsEmailVerification, pending2FAEmail, pending2FAPassword, clear2FA, refreshVerification, signOut } = useAuth();
+  const portal = usePortalSettings();
   const [page, setPage] = useState('home');
   const [authView, setAuthView] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
   const [devAdmin] = useState(false);
@@ -118,6 +134,16 @@ function PortalContent() {
     );
   }
 
+  if (portal.loaded && !portal.portal_enabled && !isAdmin) {
+    return (
+      <PortalMaintenanceScreen
+        companyName={portal.portal_company_name}
+        supportEmail={portal.portal_support_email || undefined}
+        onSignOut={user ? () => { void signOut(); } : undefined}
+      />
+    );
+  }
+
   if (!user) {
     if (needs2FA) {
       return (
@@ -138,14 +164,20 @@ function PortalContent() {
       return <ForgotPasswordPage onBack={() => setAuthView('login')} />;
     }
 
-    return authView === 'login' ? (
-      <LoginPage onSwitch={() => setAuthView('register')} onForgot={() => setAuthView('forgot')} />
+    return authView === 'login' || !portal.registration_enabled ? (
+      <LoginPage
+        onSwitch={() => setAuthView('register')}
+        onForgot={() => setAuthView('forgot')}
+        allowRegister={portal.registration_enabled}
+        companyName={portal.portal_company_name}
+        tagline={portal.portal_tagline}
+      />
     ) : (
-      <RegisterPage onNavigate={() => setAuthView('login')} />
+      <RegisterPage onNavigate={() => setAuthView('login')} companyName={portal.portal_company_name} />
     );
   }
 
-  if (needsEmailVerification && user) {
+  if (needsEmailVerification && user && portal.require_email_verification) {
     return (
       <EmailVerificationPage
         email={user.email || ''}
@@ -183,7 +215,8 @@ function PortalContent() {
         </div>
         <div className="hidden md:block min-h-screen bg-slate-50">
           <TopNav currentPage={page} onNavigate={handleNavigate} devAdmin={devAdmin} onToggleDevAdmin={() => {}} />
-          <main className="pt-16 min-h-screen">
+        <main className="pt-16 min-h-screen">
+            <PortalAnnouncement enabled={portal.portal_announcement_enabled} text={portal.portal_announcement} />
             <BookingPage service={bookingService} onNavigate={handleNavigate} rebookData={rebookData} mode={bookingMode} />
           </main>
         </div>
@@ -201,7 +234,8 @@ function PortalContent() {
         </div>
         <div className="hidden md:block min-h-screen bg-slate-50">
           <TopNav currentPage={page} onNavigate={handleNavigate} devAdmin={devAdmin} onToggleDevAdmin={() => {}} />
-          <main className="pt-16 min-h-screen">
+        <main className="pt-16 min-h-screen">
+            <PortalAnnouncement enabled={portal.portal_announcement_enabled} text={portal.portal_announcement} />
             <SmartSortSubscriptionsPage onNavigate={handleNavigate} />
           </main>
         </div>
@@ -214,6 +248,7 @@ function PortalContent() {
   return (
     <>
       <div className="block md:hidden fixed inset-0 h-[100dvh] w-full overflow-hidden bg-slate-50">
+        <PortalAnnouncement enabled={portal.portal_announcement_enabled} text={portal.portal_announcement} />
         <MobileShell
           onNavigate={handleNavigate}
           onSelectService={handleSelectService}
@@ -230,6 +265,7 @@ function PortalContent() {
           onToggleDevAdmin={() => {}}
         />
         <main className="pt-16 min-h-screen">
+          <PortalAnnouncement enabled={portal.portal_announcement_enabled} text={portal.portal_announcement} />
           {page === 'home'     && <DashboardPage onNavigate={handleNavigate} onSelectService={handleSelectService} onQuickBook={handleQuickBook} />}
           {page === 'services' && <ServicesPage onNavigate={handleNavigate} onSelectService={handleSelectService} />}
           {page === 'bookings' && <BookingsPage onNavigate={handleNavigate} onRebook={handleRebook} />}

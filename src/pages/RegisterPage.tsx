@@ -5,6 +5,7 @@ import { AuthLayout } from '../components/auth/AuthLayout';
 
 interface RegisterPageProps {
   onNavigate: (page: string) => void;
+  companyName?: string;
 }
 
 function getPasswordStrength(password: string) {
@@ -26,7 +27,7 @@ function getPasswordStrength(password: string) {
   return { checks, score, label, color };
 }
 
-export function RegisterPage({ onNavigate }: RegisterPageProps) {
+export function RegisterPage({ onNavigate, companyName = 'Alphatek Nexus' }: RegisterPageProps) {
   const { signUp } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -62,10 +63,10 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
   };
 
   return (
-    <AuthLayout>
+    <AuthLayout companyName={companyName}>
       <div className="mb-4">
         <h1 className="text-xl lg:text-2xl font-bold text-slate-900">Create your account</h1>
-        <p className="mt-1 text-slate-500 text-sm">Get started with Alphatek Nexus today</p>
+        <p className="mt-1 text-slate-500 text-sm">Get started with {companyName} today</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-3">

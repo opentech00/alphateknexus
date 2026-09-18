@@ -56,7 +56,7 @@ ALTER TABLE division_permissions
     'private-security',
     'procurement'
   ));
-
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
 -- ── 4. Ensure employee_id column exists and is backfilled ─────────────────
 ALTER TABLE division_permissions
   ADD COLUMN IF NOT EXISTS employee_id uuid REFERENCES employees(id) ON DELETE CASCADE;

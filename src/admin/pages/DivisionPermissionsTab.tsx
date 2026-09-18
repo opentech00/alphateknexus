@@ -19,6 +19,7 @@ interface DivisionPermission {
   can_delete_records: boolean;
   updated_at: string;
   profile?: { full_name: string | null; email: string | null };
+  
 }
 
 type PermKey = keyof Pick<

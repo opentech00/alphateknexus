@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme, type ThemeMode } from '../contexts/ThemeContext';
 import { NotificationsPanel } from './NotificationsPanel';
 import { useAppLogo } from '../lib/media';
+import { usePortalSettings } from '../hooks/usePortalSettings';
 
 interface TopNavProps {
   currentPage: string;
@@ -27,6 +28,7 @@ export function TopNav({ currentPage, onNavigate, devAdmin, onToggleDevAdmin }: 
   const { profile, signOut, isAdmin } = useAuth();
   const { theme, setTheme } = useTheme();
   const { url: logoUrl } = useAppLogo();
+  const { portal_company_name } = usePortalSettings();
   const effectiveAdmin = isAdmin || devAdmin;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -85,13 +87,13 @@ export function TopNav({ currentPage, onNavigate, devAdmin, onToggleDevAdmin }: 
               <div className="relative p-1 rounded-xl group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/30 transition-colors">
                 <img
                   src={logoUrl}
-                  alt="Alphatek Nexus"
+                  alt={portal_company_name}
                   className="h-8 w-auto object-contain transition-transform group-hover:scale-105 group-active:scale-95"
                 />
               </div>
               <div className="hidden sm:block text-left">
                 <div className="flex items-center gap-1.5">
-                  <p className="font-bold text-slate-900 dark:text-slate-100 text-sm tracking-tight leading-tight">Alphatek Nexus</p>
+                  <p className="font-bold text-slate-900 dark:text-slate-100 text-sm tracking-tight leading-tight">{portal_company_name}</p>
                   <span className="px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-full">Portal</span>
                 </div>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-medium">Divisions & Services</p>

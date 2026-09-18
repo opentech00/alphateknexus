@@ -6,9 +6,12 @@ import { AuthLayout } from '../components/auth/AuthLayout';
 interface LoginPageProps {
   onSwitch: () => void;
   onForgot: () => void;
+  allowRegister?: boolean;
+  companyName?: string;
+  tagline?: string;
 }
 
-export function LoginPage({ onSwitch, onForgot }: LoginPageProps) {
+export function LoginPage({ onSwitch, onForgot, allowRegister = true, companyName = 'Alphatek Nexus', tagline }: LoginPageProps) {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,11 +40,15 @@ export function LoginPage({ onSwitch, onForgot }: LoginPageProps) {
   };
 
   return (
-    <AuthLayout onCta={onSwitch}>
+    <AuthLayout onCta={allowRegister ? onSwitch : undefined} companyName={companyName}>
       <div className="mb-5">
         <h1 className="text-xl lg:text-2xl font-bold text-slate-900">Welcome back</h1>
         <p className="mt-1 text-slate-500 text-sm">Sign in to your client portal</p>
-        <p className="mt-2 text-xs text-emerald-600 font-medium italic">"Great service starts with a single sign-in."</p>
+        {tagline ? (
+          <p className="mt-2 text-xs text-emerald-600 font-medium italic">{tagline}</p>
+        ) : (
+          <p className="mt-2 text-xs text-emerald-600 font-medium italic">"Great service starts with a single sign-in."</p>
+        )}
       </div>
 
       {error && (
@@ -131,16 +138,20 @@ export function LoginPage({ onSwitch, onForgot }: LoginPageProps) {
         </button>
       </div>
 
-      <p className="text-center text-sm text-slate-500 pt-1">
-        Don't have an account?{' '}
-        <button
-          type="button"
-          onClick={onSwitch}
-          className="text-emerald-600 font-semibold hover:text-emerald-700 transition-colors"
-        >
-          Create one
-        </button>
-      </p>
+      {allowRegister ? (
+        <p className="text-center text-sm text-slate-500 pt-1">
+          Don't have an account?{' '}
+          <button
+            type="button"
+            onClick={onSwitch}
+            className="text-emerald-600 font-semibold hover:text-emerald-700 transition-colors"
+          >
+            Create one
+          </button>
+        </p>
+      ) : (
+        <p className="text-center text-sm text-slate-500 pt-1">New registrations are currently closed.</p>
+      )}
 
       <div className="flex items-center justify-center gap-4 pt-3 border-t border-slate-100 mt-4">
         <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-400 hover:text-emerald-600 transition-colors">Privacy Policy</a>

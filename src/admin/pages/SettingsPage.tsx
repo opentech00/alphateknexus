@@ -5,6 +5,8 @@ import {
 import { PageHeader } from '../components/ui';
 import { supabase } from '../../lib/supabase';
 import { NotificationPreferencesPanel } from '../../components/NotificationPreferencesPanel';
+import { PortalSettingsPanel } from '../components/PortalSettingsPanel';
+import { SecuritySettingsPanel } from '../components/SecuritySettingsPanel';
 import { CURRENCY_META, DISPLAY_CURRENCIES, isDisplayCurrency, type DisplayCurrency } from '../../lib/currency';
 
 interface AppSettings {
@@ -19,13 +21,15 @@ interface FxRateRow {
   rate_to_sle: number;
 }
 
-export function SettingsPage() {
+export function SettingsPage({ onNavigate }: { onNavigate?: (page: string) => void }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [showNotifPrefs, setShowNotifPrefs] = useState(false);
+  const [showPortal, setShowPortal] = useState(true);
+  const [showSecurity, setShowSecurity] = useState(false);
   const [fxRates, setFxRates] = useState<FxRateRow[]>([]);
   const [rateDrafts, setRateDrafts] = useState<Record<string, string>>({});
   const [savingCurrency, setSavingCurrency] = useState(false);
@@ -320,25 +324,54 @@ export function SettingsPage() {
             <NotificationPreferencesPanel />
           </div>
         )}
-        <SettingCard
-          icon={<Globe className="w-5 h-5 text-emerald-600" />}
-          title="Portal Settings"
-          description="Manage client portal visibility, branding, and access controls"
-        />
-        <SettingCard
-          icon={<Shield className="w-5 h-5 text-amber-600" />}
-          title="Security"
-          description="Two-factor authentication, session management, and audit logs"
-        />
+        <button
+          type="button"
+          onClick={() => setShowPortal(!showPortal)}
+          className="w-full bg-white rounded-xl border border-slate-200 p-5 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer group text-left"
+        >
+          <div className="w-11 h-11 bg-slate-50 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <Globe className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-slate-900">Portal Settings</h3>
+            <p className="text-sm text-slate-500 mt-0.5">Manage client portal visibility, branding, and access controls</p>
+          </div>
+          <ChevronDown className={`w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-transform flex-shrink-0 ${showPortal ? 'rotate-180' : ''}`} />
+        </button>
+        {showPortal && (
+          <div className="mt-2">
+            <PortalSettingsPanel />
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => setShowSecurity(!showSecurity)}
+          className="w-full bg-white rounded-xl border border-slate-200 p-5 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer group text-left"
+        >
+          <div className="w-11 h-11 bg-slate-50 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <Shield className="w-5 h-5 text-amber-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-slate-900">Security</h3>
+            <p className="text-sm text-slate-500 mt-0.5">Two-factor authentication, session management, and audit logs</p>
+          </div>
+          <ChevronDown className={`w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-transform flex-shrink-0 ${showSecurity ? 'rotate-180' : ''}`} />
+        </button>
+        {showSecurity && (
+          <div className="mt-2">
+            <SecuritySettingsPanel onOpenSessions={onNavigate ? () => onNavigate('admin-sessions') : undefined} />
+          </div>
+        )}
         <SettingCard
           icon={<Database className="w-5 h-5 text-slate-600" />}
           title="Data & Exports"
-          description="Export reports, manage backups, and configure data retention policies"
+          description="Open Data Backup for snapshots. Finance reports stay in the Finance module."
+          onClick={onNavigate ? () => onNavigate('backup') : undefined}
         />
         <SettingCard
           icon={<Settings className="w-5 h-5 text-rose-600" />}
           title="System"
-          description="API keys, webhook configuration, and integrations"
+          description="API keys and webhooks stay in Supabase and Vercel. They cannot be stored in this dashboard."
         />
       </div>
     </div>
@@ -394,21 +427,25 @@ function FeatureToggleRow({
   );
 }
 
-function SettingCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer group">
-      <div className="w-11 h-11 bg-slate-50 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+function SettingCard({ icon, title, description, onClick }: { icon: React.ReactNode; title: string; description: string; onClick?: () => void }) {
+  const className = `bg-white rounded-xl border border-slate-200 p-5 flex items-center gap-4 ${onClick ? 'hover:shadow-md transition-shadow cursor-pointer group' : ''}`;
+  const inner = (
+    <>
+      <div className={`w-11 h-11 bg-slate-50 rounded-xl flex items-center justify-center flex-shrink-0 ${onClick ? 'group-hover:scale-105 transition-transform' : ''}`}>
         {icon}
       </div>
       <div className="flex-1">
         <h3 className="font-semibold text-slate-900">{title}</h3>
         <p className="text-sm text-slate-500 mt-0.5">{description}</p>
       </div>
-      <div className="text-slate-300 group-hover:text-slate-500 transition-colors">
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </div>
-    </div>
+    </>
   );
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={`${className} w-full text-left`}>
+        {inner}
+      </button>
+    );
+  }
+  return <div className={className}>{inner}</div>;
 }

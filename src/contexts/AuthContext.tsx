@@ -295,6 +295,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUpInProgressRef.current = true;
 
     try {
+      const { data: portal } = await supabase
+        .from('app_settings')
+        .select('registration_enabled')
+        .eq('id', 1)
+        .maybeSingle();
+      if (portal && portal.registration_enabled === false) {
+        return { error: 'New registrations are currently closed. Please sign in if you already have an account.' };
+      }
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-account`, {
         method: 'POST',
         headers: {

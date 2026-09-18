@@ -46,6 +46,19 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+    const { data: portal } = await supabase
+      .from("app_settings")
+      .select("registration_enabled")
+      .eq("id", 1)
+      .maybeSingle();
+
+    if (portal && portal.registration_enabled === false) {
+      return new Response(
+        JSON.stringify({ error: "New registrations are currently closed. Please sign in if you already have an account." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // Create the user via admin API — no confirmation email is sent
     const { data: userData, error: createError } =
       await supabase.auth.admin.createUser({

@@ -223,7 +223,7 @@ function AdminContent() {
       case 'media-library':
         return <MediaLibraryPage />;
       case 'settings':
-        return <SettingsPage />;
+        return <SettingsPage onNavigate={setCurrentPage} />;
       case 'notification-log':
         return <NotificationLogPage />;
       default:
