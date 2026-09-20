@@ -19,8 +19,8 @@ const DEFAULT_SLIDES: AuthSlide[] = [
     desc: 'Trained janitorial teams for offices, estates, and commercial floors — scheduled, deep-clean, or on demand.',
   },
   {
-    src: fallbackLoginImage('smart-sort'),
-    key: 'smart-sort',
+    src: fallbackLoginImage('waste-management'),
+    key: 'waste-management',
     badge: 'Smart Sort Waste',
     title: 'Less waste. Cleaner sites. Smarter pickups.',
     desc: 'Scheduled collections, recycling streams, and bin subscriptions that keep homes and businesses compliant.',

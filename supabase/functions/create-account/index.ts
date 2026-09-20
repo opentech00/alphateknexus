@@ -1,5 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { normalizePhone } from "../_shared/phone.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -7,7 +8,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    let payload: { email?: string; password?: string; fullName?: string };
+    let payload: { email?: string; password?: string; fullName?: string; phone?: string };
     try {
       payload = await req.json();
     } catch {
@@ -17,7 +18,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { email, password, fullName } = payload;
+    const { email, password, fullName, phone } = payload;
 
     if (!email || !password || !fullName) {
       return new Response(
@@ -26,9 +27,24 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    if (!phone) {
+      return new Response(
+        JSON.stringify({ error: "A valid WhatsApp phone number is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     if (password.length < 10) {
       return new Response(
         JSON.stringify({ error: "Password must be at least 10 characters" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const normalized = normalizePhone(phone);
+    if (!normalized.ok) {
+      return new Response(
+        JSON.stringify({ error: normalized.error }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -59,13 +75,25 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Create the user via admin API — no confirmation email is sent
+    const { data: existingPhone } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("phone_e164", normalized.value.e164)
+      .maybeSingle();
+
+    if (existingPhone) {
+      return new Response(
+        JSON.stringify({ error: "An account with this phone number already exists. Please sign in instead." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const { data: userData, error: createError } =
       await supabase.auth.admin.createUser({
         email: email.trim().toLowerCase(),
         password,
-        email_confirm: true, // auto-confirm so they can sign in immediately
-        user_metadata: { full_name: fullName.trim() },
+        email_confirm: true,
+        user_metadata: { full_name: fullName.trim(), phone: normalized.value.e164 },
       });
 
     if (createError) {
@@ -90,7 +118,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Create the profile row (service role bypasses RLS)
     const { error: profileError } = await supabase.from("profiles").upsert(
       {
         id: userData.user.id,
@@ -98,12 +125,28 @@ Deno.serve(async (req: Request) => {
         full_name: fullName.trim(),
         role: "user",
         is_verified: false,
+        phone: normalized.value.display,
+        phone_e164: normalized.value.e164,
+        phone_verified_at: null,
+        phone_verification_required: true,
       },
       { onConflict: "id" },
     );
 
     if (profileError) {
+      const dup = profileError.message.toLowerCase().includes("phone") || profileError.code === "23505";
+      await supabase.auth.admin.deleteUser(userData.user.id);
+      if (dup) {
+        return new Response(
+          JSON.stringify({ error: "An account with this phone number already exists. Please sign in instead." }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       console.error("create-account: profile insert failed:", profileError.message);
+      return new Response(
+        JSON.stringify({ error: "Account was created but profile setup failed. Please try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     return new Response(
@@ -111,6 +154,7 @@ Deno.serve(async (req: Request) => {
         success: true,
         userId: userData.user.id,
         email: userData.user.email,
+        phone: normalized.value.e164,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

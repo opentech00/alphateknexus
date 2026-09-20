@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
 import type { MediaAsset, MediaCategory } from '../types';
 
-// Fallback static paths — used when the media library has no active asset
-// for a given key, so the app never shows a broken image during transition.
+export const MAX_MEDIA_FILE_SIZE = 50 * 1024 * 1024;
+export const MEDIA_ACCEPT = 'image/*,video/*,.pdf,.doc,.docx,.txt';
+export const FALLBACK_SPLASH = '/splash_screen.png';
+
 const FALLBACK_LOGO = '/alphateknexus_logo_transparent.webp';
 
 const FALLBACK_SERVICE_IMAGES: Record<string, string> = {
@@ -16,6 +18,7 @@ const FALLBACK_SERVICE_IMAGES: Record<string, string> = {
 };
 
 const FALLBACK_LOGIN_SLIDES: Record<string, string> = {
+  'waste-management': '/login-smart-sort.webp',
   'smart-sort': '/login-smart-sort.webp',
   'clearing-forwarding': '/login-clearing-forwarding.webp',
   'private-security': '/login-private-security.webp',
@@ -23,16 +26,109 @@ const FALLBACK_LOGIN_SLIDES: Record<string, string> = {
   'procurement': '/login-procurement.webp',
 };
 
+export const SERVICE_MEDIA_KEYS = [
+  { value: 'clearing-forwarding', label: 'Clearing & Forwarding' },
+  { value: 'waste-management', label: 'Smart Sort / Recycling' },
+  { value: 'cleaning-janitorial', label: 'Cleaning & Janitorial' },
+  { value: 'private-security', label: 'Private Security' },
+  { value: 'procurement', label: 'Procurement' },
+] as const;
+
+export type MediaWriteResult =
+  | { ok: true; asset: MediaAsset }
+  | { ok: false; error: string };
+
+export interface SaveMediaMeta {
+  category: MediaCategory;
+  key: string;
+  title?: string;
+  altText?: string;
+  displayOrder?: number;
+  isActive?: boolean;
+}
+
+/** Canonical service slug: login/legacy `smart-sort` maps to `waste-management`. */
+export function canonicalizeMediaKey(key: string): string {
+  return key === 'smart-sort' ? 'waste-management' : key;
+}
+
+export function aliasKeysForLookup(key: string): string[] {
+  const canonical = canonicalizeMediaKey(key);
+  if (canonical === 'waste-management') return ['waste-management', 'smart-sort'];
+  return [key];
+}
+
+export function keysForCategory(category: MediaCategory): { value: string; label: string }[] {
+  switch (category) {
+    case 'app_logo':
+      return [{ value: 'app-logo', label: 'App Logo' }];
+    case 'service_branding':
+    case 'login_carousel':
+      return SERVICE_MEDIA_KEYS.map((k) => ({ value: k.value, label: k.label }));
+    case 'splash':
+      return [{ value: 'splash-hero', label: 'Splash welcome' }, ...SERVICE_MEDIA_KEYS.map((k) => ({ value: k.value, label: k.label }))];
+    case 'campaign':
+      return [{ value: 'campaign', label: 'Campaign' }];
+    case 'general':
+      return [{ value: 'general', label: 'General' }];
+  }
+}
+
+export function defaultKeyForCategory(category: MediaCategory): string {
+  return keysForCategory(category)[0]?.value || 'general';
+}
+
+export function formatFileSize(bytes: number | null | undefined): string {
+  if (!bytes) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function isImageFile(fileType: string | null | undefined, fileName = ''): boolean {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  return Boolean(fileType?.startsWith('image/')) || ['webp', 'png', 'jpg', 'jpeg', 'gif', 'svg'].includes(ext);
+}
+
+export function isVideoFile(fileType: string | null | undefined, fileName = ''): boolean {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  return Boolean(fileType?.startsWith('video/')) || ['mp4', 'webm', 'mov', 'avi'].includes(ext);
+}
+
+export function validateMediaFile(file: File): string | null {
+  if (file.size > MAX_MEDIA_FILE_SIZE) {
+    return `File exceeds 50MB limit (${formatFileSize(file.size)})`;
+  }
+  return null;
+}
+
 export function fallbackLogo(): string {
   return FALLBACK_LOGO;
 }
 
 export function fallbackServiceImage(slug: string): string {
-  return FALLBACK_SERVICE_IMAGES[slug] || FALLBACK_SERVICE_IMAGES['smart-sort'];
+  return FALLBACK_SERVICE_IMAGES[slug] || FALLBACK_SERVICE_IMAGES['waste-management'];
 }
 
 export function fallbackLoginImage(slug: string): string {
-  return FALLBACK_LOGIN_SLIDES[slug] || FALLBACK_LOGIN_SLIDES['smart-sort'];
+  return FALLBACK_LOGIN_SLIDES[slug] || FALLBACK_LOGIN_SLIDES['waste-management'];
+}
+
+export function fallbackSplashImage(key = 'splash-hero'): string {
+  if (canonicalizeMediaKey(key) === 'splash-hero' || key === 'splash-hero') return FALLBACK_SPLASH;
+  return fallbackServiceImage(key);
+}
+
+function findAssetByKey(assets: MediaAsset[], key: string): MediaAsset | undefined {
+  const canonical = canonicalizeMediaKey(key);
+  return assets.find((a) => canonicalizeMediaKey(a.key) === canonical);
+}
+
+function withSmartSortAlias(map: Record<string, string>): Record<string, string> {
+  if (map['waste-management'] && !map['smart-sort']) {
+    map['smart-sort'] = map['waste-management'];
+  }
+  return map;
 }
 
 /**
@@ -50,7 +146,10 @@ export async function fetchMediaAssets(
     .eq('is_active', true)
     .order('display_order', { ascending: true });
 
-  if (key) query = query.eq('key', key);
+  if (key) {
+    const keys = aliasKeysForLookup(key);
+    query = keys.length === 1 ? query.eq('key', keys[0]) : query.in('key', keys);
+  }
 
   const { data, error } = await query;
   if (error || !data) return [];
@@ -69,9 +168,131 @@ export async function fetchMediaAsset(
   return assets.length > 0 ? assets[0] : null;
 }
 
-/**
- * Hook: returns the app logo URL from the media library, falling back to the static file.
- */
+export async function nextDisplayOrder(category: MediaCategory, key: string): Promise<number> {
+  const { data } = await supabase
+    .from('media_assets')
+    .select('display_order')
+    .eq('category', category)
+    .eq('key', key)
+    .order('display_order', { ascending: false })
+    .limit(1);
+  return ((data?.[0] as { display_order?: number } | undefined)?.display_order ?? -1) + 1;
+}
+
+export async function saveMediaAsset(file: File, meta: SaveMediaMeta): Promise<MediaWriteResult> {
+  const sizeErr = validateMediaFile(file);
+  if (sizeErr) return { ok: false, error: sizeErr };
+
+  const key = canonicalizeMediaKey(meta.key) || defaultKeyForCategory(meta.category);
+  const uploaded = await uploadMediaFile(file, meta.category);
+  if (!uploaded) return { ok: false, error: 'Failed to upload file to storage' };
+
+  let width: number | null = null;
+  let height: number | null = null;
+  if (file.type.startsWith('image/')) {
+    const dims = await getImageDimensions(file);
+    width = dims.width || null;
+    height = dims.height || null;
+  }
+
+  const displayOrder = meta.displayOrder ?? await nextDisplayOrder(meta.category, key);
+  const { data: userData } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from('media_assets')
+    .insert({
+      category: meta.category,
+      key,
+      title: meta.title || file.name,
+      alt_text: meta.altText || '',
+      file_name: file.name,
+      file_path: uploaded.path,
+      file_url: uploaded.url,
+      file_type: file.type,
+      file_size: file.size,
+      width,
+      height,
+      display_order: displayOrder,
+      is_active: meta.isActive ?? true,
+      uploaded_by: userData.user?.id || null,
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    await deleteMediaFile(uploaded.path);
+    return { ok: false, error: error?.message || 'Failed to save media record' };
+  }
+  return { ok: true, asset: data as MediaAsset };
+}
+
+export async function replaceMediaAsset(asset: MediaAsset, file: File): Promise<MediaWriteResult> {
+  const sizeErr = validateMediaFile(file);
+  if (sizeErr) return { ok: false, error: sizeErr };
+
+  const uploaded = await uploadMediaFile(file, asset.category);
+  if (!uploaded) return { ok: false, error: 'Failed to upload replacement file' };
+
+  let width: number | null = null;
+  let height: number | null = null;
+  if (file.type.startsWith('image/')) {
+    const dims = await getImageDimensions(file);
+    width = dims.width || null;
+    height = dims.height || null;
+  }
+
+  const { data, error } = await supabase
+    .from('media_assets')
+    .update({
+      file_name: file.name,
+      file_path: uploaded.path,
+      file_url: uploaded.url,
+      file_type: file.type,
+      file_size: file.size,
+      width,
+      height,
+    })
+    .eq('id', asset.id)
+    .select()
+    .single();
+
+  if (error || !data) {
+    await deleteMediaFile(uploaded.path);
+    return { ok: false, error: error?.message || 'Failed to update file reference' };
+  }
+
+  await deleteMediaFile(asset.file_path);
+  return { ok: true, asset: data as MediaAsset };
+}
+
+/** Assign an existing asset to a live slot; hide previous occupants of that category+key. */
+export async function assignMediaAssetSlot(
+  assetId: string,
+  category: MediaCategory,
+  key: string,
+): Promise<{ error?: string }> {
+  const slotKey = canonicalizeMediaKey(key);
+  const { error: hideErr } = await supabase
+    .from('media_assets')
+    .update({ is_active: false })
+    .eq('category', category)
+    .in('key', aliasKeysForLookup(slotKey))
+    .eq('is_active', true)
+    .neq('id', assetId);
+  if (hideErr) return { error: hideErr.message };
+
+  const { error } = await supabase
+    .from('media_assets')
+    .update({
+      category,
+      key: slotKey,
+      is_active: true,
+      display_order: 0,
+    })
+    .eq('id', assetId);
+  if (error) return { error: error.message };
+  return {};
+}
+
 export function useAppLogo(): { url: string; loading: boolean } {
   const [url, setUrl] = useState(fallbackLogo());
   const [loading, setLoading] = useState(true);
@@ -91,11 +312,6 @@ export function useAppLogo(): { url: string; loading: boolean } {
   return { url, loading };
 }
 
-/**
- * Hook: returns a map of service slug → branding image URL.
- * Uses the services table branding_image_url if set, otherwise checks the media
- * library, otherwise falls back to the static file.
- */
 export function useServiceBrandingImages(): {
   images: Record<string, string>;
   loading: boolean;
@@ -107,33 +323,25 @@ export function useServiceBrandingImages(): {
     let cancelled = false;
 
     async function load() {
-      // Fetch all services to get their slugs + branding_image_url
       const { data: services } = await supabase
         .from('services')
         .select('slug, branding_image_url')
         .eq('is_active', true)
         .eq('is_internal', false);
 
-      // Fetch service_branding assets from media library
       const mediaAssets = await fetchMediaAssets('service_branding');
-
       const map: Record<string, string> = {};
       for (const svc of services || []) {
-        // Priority: services.branding_image_url → media library → static fallback
         if (svc.branding_image_url) {
           map[svc.slug] = svc.branding_image_url;
         } else {
-          const mediaMatch = mediaAssets.find((a) => a.key === svc.slug);
-          if (mediaMatch) {
-            map[svc.slug] = mediaMatch.file_url;
-          } else {
-            map[svc.slug] = fallbackServiceImage(svc.slug);
-          }
+          const mediaMatch = findAssetByKey(mediaAssets, svc.slug);
+          map[svc.slug] = mediaMatch ? mediaMatch.file_url : fallbackServiceImage(svc.slug);
         }
       }
 
       if (!cancelled) {
-        setImages(map);
+        setImages(withSmartSortAlias(map));
         setLoading(false);
       }
     }
@@ -145,11 +353,6 @@ export function useServiceBrandingImages(): {
   return { images, loading };
 }
 
-/**
- * Hook: returns a map of service slug → login carousel image URL.
- * Uses the services table login_image_url if set, otherwise checks the media
- * library, otherwise falls back to the static file.
- */
 export function useLoginCarouselImages(): {
   images: Record<string, string>;
   loading: boolean;
@@ -168,23 +371,18 @@ export function useLoginCarouselImages(): {
         .eq('is_internal', false);
 
       const mediaAssets = await fetchMediaAssets('login_carousel');
-
       const map: Record<string, string> = {};
       for (const svc of services || []) {
         if (svc.login_image_url) {
           map[svc.slug] = svc.login_image_url;
         } else {
-          const mediaMatch = mediaAssets.find((a) => a.key === svc.slug);
-          if (mediaMatch) {
-            map[svc.slug] = mediaMatch.file_url;
-          } else {
-            map[svc.slug] = fallbackLoginImage(svc.slug);
-          }
+          const mediaMatch = findAssetByKey(mediaAssets, svc.slug);
+          map[svc.slug] = mediaMatch ? mediaMatch.file_url : fallbackLoginImage(svc.slug);
         }
       }
 
       if (!cancelled) {
-        setImages(map);
+        setImages(withSmartSortAlias(map));
         setLoading(false);
       }
     }
@@ -196,9 +394,39 @@ export function useLoginCarouselImages(): {
   return { images, loading };
 }
 
-/**
- * Upload a file to the media storage bucket and return the public URL + path.
- */
+/** Active splash assets keyed by canonical key. Always includes splash-hero fallback. */
+export function useSplashImages(): {
+  images: Record<string, string>;
+  loading: boolean;
+} {
+  const [images, setImages] = useState<Record<string, string>>({ 'splash-hero': FALLBACK_SPLASH });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      const assets = await fetchMediaAssets('splash');
+      const map: Record<string, string> = {};
+      for (const asset of assets) {
+        const key = canonicalizeMediaKey(asset.key);
+        if (!(key in map)) map[key] = asset.file_url;
+      }
+      if (!map['splash-hero']) map['splash-hero'] = FALLBACK_SPLASH;
+
+      if (!cancelled) {
+        setImages(withSmartSortAlias(map));
+        setLoading(false);
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  return { images, loading };
+}
+
 export async function uploadMediaFile(
   file: File,
   folder: string = 'general',
@@ -222,17 +450,11 @@ export async function uploadMediaFile(
   return { path: fileName, url: urlData.publicUrl };
 }
 
-/**
- * Delete a file from the media storage bucket.
- */
 export async function deleteMediaFile(filePath: string): Promise<boolean> {
   const { error } = await supabase.storage.from('media').remove([filePath]);
   return !error;
 }
 
-/**
- * Get image dimensions from a File (for images/videos only).
- */
 export function getImageDimensions(
   file: File,
 ): Promise<{ width: number; height: number }> {

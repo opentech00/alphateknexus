@@ -2,6 +2,8 @@ import { useState, useMemo, FormEvent } from 'react';
 import { Eye, EyeOff, ArrowRight, Check, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthLayout } from '../components/auth/AuthLayout';
+import { PhoneInput } from '../components/auth/PhoneInput';
+import { DEFAULT_COUNTRY_DIGITS, normalizePhone } from '../lib/phone';
 
 interface RegisterPageProps {
   onNavigate: (page: string) => void;
@@ -32,6 +34,9 @@ export function RegisterPage({ onNavigate, companyName = 'Alphatek Nexus' }: Reg
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [countryDigits, setCountryDigits] = useState(DEFAULT_COUNTRY_DIGITS);
+  const [localPhone, setLocalPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -44,6 +49,13 @@ export function RegisterPage({ onNavigate, companyName = 'Alphatek Nexus' }: Reg
 
     if (!fullName.trim()) { setError('Please enter your full name'); return; }
     if (!email.trim()) { setError('Please enter your email address'); return; }
+    const phoneResult = normalizePhone(localPhone, countryDigits);
+    if (!phoneResult.ok) {
+      setPhoneError(phoneResult.error);
+      setError(phoneResult.error);
+      return;
+    }
+    setPhoneError('');
     if (password.length < 10) { setError('Password must be at least 10 characters'); return; }
     if (!/[A-Z]/.test(password)) { setError('Password must include an uppercase letter'); return; }
     if (!/[0-9]/.test(password)) { setError('Password must include a number'); return; }
@@ -51,7 +63,7 @@ export function RegisterPage({ onNavigate, companyName = 'Alphatek Nexus' }: Reg
     if (strength.score < 4) { setError('Please choose a stronger password'); return; }
 
     setLoading(true);
-    const { error } = await signUp(email.trim().toLowerCase(), password, fullName.trim());
+    const { error } = await signUp(email.trim().toLowerCase(), password, fullName.trim(), phoneResult.value.e164);
     if (error) {
       setError(error);
       setLoading(false);
@@ -101,6 +113,15 @@ export function RegisterPage({ onNavigate, companyName = 'Alphatek Nexus' }: Reg
             placeholder="you@example.com"
           />
         </div>
+
+        <PhoneInput
+          countryDigits={countryDigits}
+          localNumber={localPhone}
+          onCountryChange={(digits) => { setCountryDigits(digits); setPhoneError(''); }}
+          onLocalChange={(value) => { setLocalPhone(value); setPhoneError(''); }}
+          disabled={loading}
+          error={phoneError}
+        />
 
         <div>
           <label className="block text-sm font-semibold text-slate-800 mb-1.5">Password</label>

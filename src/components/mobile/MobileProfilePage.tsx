@@ -22,6 +22,9 @@ import { MobileServiceHistoryModal } from './MobileServiceHistoryModal';
 import { Portal } from '../../lib/portal';
 import { LocationAutocomplete } from '../LocationAutocomplete';
 import { useDisplayCurrency } from '../../hooks/useDisplayCurrency';
+import { PhoneInput } from '../auth/PhoneInput';
+import { DEFAULT_COUNTRY_DIGITS, normalizePhone, splitPhoneInput } from '../../lib/phone';
+import { sendChangePhoneOtp, verifyChangePhoneOtp } from '../../lib/changePhoneOtp';
 
 type ModalType = null | 'wallet' | 'favorites' | 'appearance' | 'edit-profile' | 'address' | 'benefits' | 'payment' | 'history' | 'notifications' | 'help';
 
@@ -470,9 +473,14 @@ function NotificationsInfo({ unreadCount, onOpenPanel }: { unreadCount: number; 
 /* ── Edit Profile Form ── */
 
 function EditProfileForm({ onDone }: { onDone: () => void }) {
-  const { profile, user } = useAuth();
+  const { profile, user, refreshVerification } = useAuth();
+  const initialPhone = splitPhoneInput(profile?.phone_e164 || profile?.phone || '');
   const [fullName, setFullName] = useState(profile?.full_name || '');
-  const [phone, setPhone] = useState(profile?.phone || '');
+  const [countryDigits, setCountryDigits] = useState(initialPhone.countryDigits || DEFAULT_COUNTRY_DIGITS);
+  const [localPhone, setLocalPhone] = useState(initialPhone.local);
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [pendingPhone, setPendingPhone] = useState('');
   const [address, setAddress] = useState(profile?.address || '');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile?.avatar_url || null);
   const [saving, setSaving] = useState(false);
@@ -517,12 +525,77 @@ function EditProfileForm({ onDone }: { onDone: () => void }) {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true); setError(''); setSaved(false);
-    const { error } = await supabase
+    const { error: saveErr } = await supabase
       .from('profiles')
-      .update({ full_name: fullName.trim() || null, phone: phone.trim() || null, address: address.trim() || null })
+      .update({ full_name: fullName.trim() || null, address: address.trim() || null })
       .eq('id', user!.id);
-    if (error) setError(error.message);
-    else { setSaved(true); setTimeout(() => setSaved(false), 3000); }
+    if (saveErr) {
+      setError(saveErr.message);
+      setSaving(false);
+      return;
+    }
+
+    if (!localPhone.trim()) {
+      await refreshVerification();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      setSaving(false);
+      return;
+    }
+
+    const currentE164 = profile?.phone_e164 || '';
+    const nextPhone = normalizePhone(localPhone, countryDigits);
+    if (!nextPhone.ok) {
+      setError(nextPhone.error);
+      setSaving(false);
+      return;
+    }
+
+    if (nextPhone.value.e164 === currentE164 && profile?.phone_verified_at) {
+      await refreshVerification();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      setSaving(false);
+      return;
+    }
+
+    if (phoneOtpSent && pendingPhone === nextPhone.value.e164) {
+      if (!/^\d{6}$/.test(phoneOtp)) {
+        setError('Enter the 6-digit WhatsApp code.');
+        setSaving(false);
+        return;
+      }
+      const verified = await verifyChangePhoneOtp(nextPhone.value.e164, phoneOtp);
+      if (verified.error) {
+        setError(verified.error);
+        setSaving(false);
+        return;
+      }
+      await refreshVerification();
+      setPhoneOtp('');
+      setPhoneOtpSent(false);
+      setPendingPhone('');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      setSaving(false);
+      return;
+    }
+
+    const sent = await sendChangePhoneOtp(nextPhone.value.e164);
+    if (sent.error) {
+      setError(sent.error);
+      setSaving(false);
+      return;
+    }
+    if (sent.unchanged) {
+      await refreshVerification();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      setSaving(false);
+      return;
+    }
+    setPendingPhone(nextPhone.value.e164);
+    setPhoneOtpSent(true);
     setSaving(false);
   };
 
@@ -571,10 +644,27 @@ function EditProfileForm({ onDone }: { onDone: () => void }) {
             <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
               className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white outline-none transition-all" />
           </Field>
-          <Field label="Phone" icon={Phone}>
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-              className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white outline-none transition-all" />
-          </Field>
+          <PhoneInput
+            countryDigits={countryDigits}
+            localNumber={localPhone}
+            onCountryChange={(digits) => { setCountryDigits(digits); setPhoneOtpSent(false); setPhoneOtp(''); }}
+            onLocalChange={(value) => { setLocalPhone(value); setPhoneOtpSent(false); setPhoneOtp(''); }}
+            disabled={saving}
+          />
+          {phoneOtpSent && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">WhatsApp code</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={phoneOtp}
+                onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="6-digit code"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">Address</label>
             <LocationAutocomplete
@@ -593,7 +683,7 @@ function EditProfileForm({ onDone }: { onDone: () => void }) {
             <button type="submit" disabled={saving}
               className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm">
               <Save className="w-4 h-4" />
-              {saving ? 'Saving…' : 'Save Changes'}
+              {saving ? 'Saving…' : phoneOtpSent ? 'Verify & save' : 'Save Changes'}
             </button>
             <button type="button" onClick={onDone}
               className="px-5 py-3 text-sm text-slate-500 font-medium hover:text-slate-700 transition-colors">

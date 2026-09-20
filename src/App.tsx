@@ -8,6 +8,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { TwoFactorPage } from './pages/TwoFactorPage';
 import { EmailVerificationPage } from './pages/EmailVerificationPage';
+import { PhoneVerificationPage } from './pages/PhoneVerificationPage';
 import { ServicesPage } from './pages/ServicesPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { BookingsPage } from './pages/BookingsPage';
@@ -81,7 +82,7 @@ function PortalAnnouncement({ enabled, text }: { enabled: boolean; text: string 
 }
 
 function PortalContent() {
-  const { user, isAdmin, loading, needs2FA, needsEmailVerification, pending2FAEmail, pending2FAPassword, clear2FA, refreshVerification, signOut } = useAuth();
+  const { user, isAdmin, loading, needs2FA, needsEmailVerification, needsPhoneVerification, pending2FAEmail, pending2FAPassword, clear2FA, refreshVerification, signOut, profile } = useAuth();
   const portal = usePortalSettings();
   const [page, setPage] = useState('home');
   const [authView, setAuthView] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
@@ -174,6 +175,16 @@ function PortalContent() {
       />
     ) : (
       <RegisterPage onNavigate={() => setAuthView('login')} companyName={portal.portal_company_name} />
+    );
+  }
+
+  if (needsPhoneVerification && user && portal.require_phone_verification) {
+    return (
+      <PhoneVerificationPage
+        phone={profile?.phone_e164 || profile?.phone || (typeof user.user_metadata?.phone === 'string' ? user.user_metadata.phone : '')}
+        onBack={() => { signOut(); setAuthView('login'); }}
+        onVerified={() => { refreshVerification(); }}
+      />
     );
   }
 

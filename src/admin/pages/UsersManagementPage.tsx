@@ -15,6 +15,8 @@ interface UserProfile {
   email: string;
   full_name: string | null;
   phone: string | null;
+  phone_e164: string | null;
+  phone_verified_at: string | null;
   role: 'user' | 'admin';
   created_at: string;
   is_suspended: boolean;
@@ -85,7 +87,7 @@ export function UsersManagementPage() {
     setError('');
     const { data, error: err } = await supabase
       .from('profiles')
-      .select('id, email, full_name, phone, role, created_at, is_suspended, is_verified, suspended_reason, suspended_at')
+      .select('id, email, full_name, phone, phone_e164, phone_verified_at, role, created_at, is_suspended, is_verified, suspended_reason, suspended_at')
       .order('created_at', { ascending: false });
     if (err) { setError(err.message); setLoading(false); return; }
     setUsers(data as UserProfile[]);
@@ -106,7 +108,7 @@ export function UsersManagementPage() {
   const filtered = users.filter(u => {
     if (search) {
       const q = search.toLowerCase();
-      if (!u.email.toLowerCase().includes(q) && !(u.full_name || '').toLowerCase().includes(q) && !(u.phone || '').includes(q)) return false;
+      if (!u.email.toLowerCase().includes(q) && !(u.full_name || '').toLowerCase().includes(q) && !(u.phone || '').includes(q) && !(u.phone_e164 || '').includes(q)) return false;
     }
     if (statusFilter === 'active' && u.is_suspended) return false;
     if (statusFilter === 'suspended' && !u.is_suspended) return false;
@@ -127,10 +129,10 @@ export function UsersManagementPage() {
   };
 
   const handleExport = () => {
-    const headers = ['Email', 'Full Name', 'Phone', 'Role', 'Created', 'Suspended', 'Verified'];
+    const headers = ['Email', 'Full Name', 'Phone', 'Role', 'Created', 'Suspended', 'Email Verified', 'Phone Verified'];
     const rows = filtered.map(u => [
-      u.email, u.full_name || '', u.phone || '', u.role,
-      fmtDate(u.created_at), u.is_suspended ? 'Yes' : 'No', u.is_verified ? 'Yes' : 'No',
+      u.email, u.full_name || '', u.phone_e164 || u.phone || '', u.role,
+      fmtDate(u.created_at), u.is_suspended ? 'Yes' : 'No', u.is_verified ? 'Yes' : 'No', u.phone_verified_at ? 'Yes' : 'No',
     ]);
     const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -215,6 +217,7 @@ export function UsersManagementPage() {
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold text-slate-900 text-sm">{u.full_name || 'Unnamed'}</h3>
                         {u.is_verified && <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />}
+                        {u.phone_verified_at && <Phone className="w-3.5 h-3.5 text-emerald-500" />}
                         {u.is_suspended && <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase bg-red-100 text-red-700 rounded">Suspended</span>}
                         {u.role === 'admin' && <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700 rounded">Admin</span>}
                       </div>
@@ -326,6 +329,16 @@ function UserDetail({ user, onBack }: { user: UserProfile; onBack: () => void })
     setActionLoading(false); fetchDetail();
   };
 
+  const handleTogglePhoneVerify = async () => {
+    setActionLoading(true);
+    const next = user.phone_verified_at ? null : new Date().toISOString();
+    const { error: err } = await supabase.from('profiles').update({ phone_verified_at: next }).eq('id', user.id);
+    if (err) { setActionLoading(false); return; }
+    await logAction(next ? 'verify_phone' : 'unverify_phone');
+    user.phone_verified_at = next;
+    setActionLoading(false); fetchDetail();
+  };
+
   const [deleteError, setDeleteError] = useState('');
 
   const handleDelete = async () => {
@@ -396,12 +409,13 @@ function UserDetail({ user, onBack }: { user: UserProfile; onBack: () => void })
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg font-bold text-slate-900">{user.full_name || 'Unnamed User'}</h1>
               {user.is_verified && <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-blue-50 text-blue-700 border border-blue-200"><ShieldCheck className="w-3 h-3" />Verified</span>}
+              {user.phone_verified_at && <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"><Phone className="w-3 h-3" />WhatsApp</span>}
               {user.is_suspended && <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-red-50 text-red-700 border border-red-200"><Ban className="w-3 h-3" />Suspended</span>}
               {user.role === 'admin' && <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"><ShieldCheck className="w-3 h-3" />Admin</span>}
             </div>
             <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500">
               <span className="inline-flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" />{user.email}</span>
-              {user.phone && <span className="inline-flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{user.phone}</span>}
+              {user.phone && <span className="inline-flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{user.phone_e164 || user.phone}</span>}
               <span className="inline-flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" />Joined {fmtDate(user.created_at)}</span>
             </div>
             {user.is_suspended && user.suspended_reason && (
@@ -424,7 +438,10 @@ function UserDetail({ user, onBack }: { user: UserProfile; onBack: () => void })
             </button>
           )}
           <button onClick={handleToggleVerify} disabled={actionLoading} className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors disabled:opacity-50">
-            <ShieldCheck className="w-4 h-4" />{user.is_verified ? 'Unverify' : 'Verify'}
+            <ShieldCheck className="w-4 h-4" />{user.is_verified ? 'Unverify email' : 'Verify email'}
+          </button>
+          <button onClick={handleTogglePhoneVerify} disabled={actionLoading} className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors disabled:opacity-50">
+            <Phone className="w-4 h-4" />{user.phone_verified_at ? 'Unverify phone' : 'Verify phone'}
           </button>
           <button onClick={() => setShowAnnounceModal(true)} className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors">
             <Send className="w-4 h-4" />Send Message

@@ -5,6 +5,7 @@ export interface PortalSettings {
   portal_enabled: boolean;
   registration_enabled: boolean;
   require_email_verification: boolean;
+  require_phone_verification: boolean;
   portal_company_name: string;
   portal_tagline: string;
   portal_support_email: string;
@@ -16,6 +17,7 @@ export const DEFAULT_PORTAL_SETTINGS: PortalSettings = {
   portal_enabled: true,
   registration_enabled: true,
   require_email_verification: true,
+  require_phone_verification: true,
   portal_company_name: 'Alphatek Nexus',
   portal_tagline: '',
   portal_support_email: '',
@@ -27,6 +29,7 @@ const SELECT_COLS = [
   'portal_enabled',
   'registration_enabled',
   'require_email_verification',
+  'require_phone_verification',
   'portal_company_name',
   'portal_tagline',
   'portal_support_email',
@@ -41,6 +44,7 @@ function normalize(row: Partial<PortalSettings> | null | undefined): PortalSetti
     portal_enabled: row?.portal_enabled !== false,
     registration_enabled: row?.registration_enabled !== false,
     require_email_verification: row?.require_email_verification !== false,
+    require_phone_verification: row?.require_phone_verification !== false,
     portal_company_name: (row?.portal_company_name || DEFAULT_PORTAL_SETTINGS.portal_company_name).trim(),
     portal_tagline: (row?.portal_tagline || '').trim(),
     portal_support_email: (row?.portal_support_email || '').trim(),

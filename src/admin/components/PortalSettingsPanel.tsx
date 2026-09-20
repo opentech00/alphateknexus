@@ -24,7 +24,7 @@ export function PortalSettingsPanel() {
     (async () => {
       const { data, error: err } = await supabase
         .from('app_settings')
-        .select('portal_enabled, registration_enabled, require_email_verification, portal_company_name, portal_tagline, portal_support_email, portal_announcement, portal_announcement_enabled, updated_at')
+        .select('portal_enabled, registration_enabled, require_email_verification, require_phone_verification, portal_company_name, portal_tagline, portal_support_email, portal_announcement, portal_announcement_enabled, updated_at')
         .eq('id', 1)
         .maybeSingle();
       if (!mounted) return;
@@ -37,6 +37,7 @@ export function PortalSettingsPanel() {
           portal_enabled: data.portal_enabled !== false,
           registration_enabled: data.registration_enabled !== false,
           require_email_verification: data.require_email_verification !== false,
+          require_phone_verification: data.require_phone_verification !== false,
           portal_company_name: data.portal_company_name || DEFAULT_PORTAL_SETTINGS.portal_company_name,
           portal_tagline: data.portal_tagline || '',
           portal_support_email: data.portal_support_email || '',
@@ -80,6 +81,7 @@ export function PortalSettingsPanel() {
         portal_enabled: draft.portal_enabled,
         registration_enabled: draft.registration_enabled,
         require_email_verification: draft.require_email_verification,
+        require_phone_verification: draft.require_phone_verification,
         portal_announcement_enabled: draft.portal_announcement_enabled,
         portal_company_name: company,
         portal_tagline: sanitizeLocal(draft.portal_tagline, 160),
@@ -150,6 +152,12 @@ export function PortalSettingsPanel() {
             description="New clients must confirm their email before using bookings and wallet."
             enabled={draft.require_email_verification}
             onToggle={() => setDraft((s) => ({ ...s, require_email_verification: !s.require_email_verification }))}
+          />
+          <ToggleRow
+            title="Require WhatsApp phone verification"
+            description="New sign-ups must prove a unique phone number with a WhatsApp OTP. Meta Cloud API secrets and an Authentication template must be configured or users will be stuck on the code screen."
+            enabled={draft.require_phone_verification}
+            onToggle={() => setDraft((s) => ({ ...s, require_phone_verification: !s.require_phone_verification }))}
           />
         </div>
       </div>

@@ -69,12 +69,16 @@ export interface Profile {
   email: string;
   full_name: string | null;
   phone: string | null;
+  phone_e164?: string | null;
+  phone_verified_at?: string | null;
+  phone_verification_required?: boolean;
   role: 'user' | 'admin';
   created_at: string;
   referral_code: string | null;
   avatar_url: string | null;
   address: string | null;
   admin_role_id: string | null;
+  is_verified?: boolean;
 }
 
 export type BookingStatus =

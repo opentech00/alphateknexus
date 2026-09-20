@@ -98,6 +98,33 @@ supabase functions deploy monime-webhook
 supabase functions deploy process-monime-payout
 ```
 
+WhatsApp Cloud API (client signup OTP)
+
+New client accounts require a unique E.164 phone number. A 6-digit code is sent with a Meta **Authentication** template (not a free-form message). Login remains email + password.
+
+Set these as **Supabase Edge Function secrets** only (never `VITE_*`, never Vercel):
+
+- `WHATSAPP_TOKEN` — Meta Cloud API access token
+- `WHATSAPP_PHONE_NUMBER_ID` — sending phone number ID from the Meta developer app
+- `WHATSAPP_TEMPLATE_NAME` — approved Authentication template name
+- `WHATSAPP_TEMPLATE_LANG` — template language code (for example `en`)
+- `PHONE_OTP_PEPPER` — long random string used to hash OTP codes at rest
+- Optional: `WHATSAPP_TEMPLATE_BUTTON=0` if the template has a body parameter only (no copy-code / URL button)
+
+Approve a template similar to: “Your {{1}} AlphaTek Nexus code. It expires in 10 minutes. Do not share it.”
+
+If Meta is not ready yet, turn off **Require WhatsApp phone verification** in Admin → Portal Settings so email signup still works. Existing accounts without a phone are not gated.
+
+After changing these functions:
+
+```bash
+supabase db push --project-ref "$SUPABASE_PROJECT_REF"
+supabase functions deploy create-account
+supabase functions deploy send-whatsapp-otp
+supabase functions deploy verify-whatsapp-otp
+supabase functions deploy change-phone-otp
+```
+
 Optional: Running Supabase locally
 
 Supabase provides a local emulator for some workflows; consult Supabase docs if you prefer a fully local stack.

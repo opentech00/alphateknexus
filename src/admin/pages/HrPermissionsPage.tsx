@@ -51,6 +51,7 @@ const MANAGED_PAGES = [
   { key: 'admin-sessions', label: 'Admin Sessions' },
   { key: 'notification-log', label: 'Notification Log' },
   { key: 'settings', label: 'Settings' },
+  { key: 'media-library', label: 'Media Library' },
   { key: 'hr-dashboard', label: 'HR Dashboard' },
   { key: 'hr-employees', label: 'Employees' },
   { key: 'hr-roles', label: 'Roles' },

@@ -23,6 +23,9 @@ import { SpendingDashboard } from '../components/SpendingDashboard';
 import { ReceiptsPanel } from '../components/ReceiptsPanel';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { Portal } from '../lib/portal';
+import { PhoneInput } from '../components/auth/PhoneInput';
+import { DEFAULT_COUNTRY_DIGITS, normalizePhone, splitPhoneInput } from '../lib/phone';
+import { sendChangePhoneOtp, verifyChangePhoneOtp } from '../lib/changePhoneOtp';
 
 interface AccountPageProps {
   onNavigate: (page: string) => void;
@@ -608,15 +611,20 @@ function ComingSoon({ label }: { label: string }) {
 /* ───────────────────────── Main page ───────────────────────── */
 
 export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
-  const { profile, user, signOut } = useAuth();
+  const { profile, user, signOut, refreshVerification } = useAuth();
   const { referral_enabled, wallet_enabled } = useFeatureFlags();
   const [tab, setTab] = useState<AccountTab>('overview');
   const [modal, setModal] = useState<ModalKind>(null);
   const [referralOpen, setReferralOpen] = useState(false);
 
   // Profile edit
+  const initialPhone = splitPhoneInput(profile?.phone_e164 || profile?.phone || '');
   const [fullName, setFullName] = useState(profile?.full_name || '');
-  const [phone, setPhone] = useState(profile?.phone || '');
+  const [countryDigits, setCountryDigits] = useState(initialPhone.countryDigits || DEFAULT_COUNTRY_DIGITS);
+  const [localPhone, setLocalPhone] = useState(initialPhone.local);
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [pendingPhone, setPendingPhone] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [editError, setEditError] = useState('');
@@ -644,9 +652,76 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true); setEditError(''); setSaved(false);
-    const { error } = await supabase.from('profiles').update({ full_name: fullName.trim(), phone: phone.trim() || null }).eq('id', user!.id);
-    if (error) setEditError(error.message);
-    else { setSaved(true); setTimeout(() => setSaved(false), 3000); }
+
+    const { error: nameErr } = await supabase.from('profiles').update({ full_name: fullName.trim() }).eq('id', user!.id);
+    if (nameErr) {
+      setEditError(nameErr.message);
+      setSaving(false);
+      return;
+    }
+
+    if (!localPhone.trim()) {
+      await refreshVerification();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      setSaving(false);
+      return;
+    }
+
+    const currentE164 = profile?.phone_e164 || '';
+    const nextPhone = normalizePhone(localPhone, countryDigits);
+    if (!nextPhone.ok) {
+      setEditError(nextPhone.error);
+      setSaving(false);
+      return;
+    }
+
+    if (nextPhone.value.e164 === currentE164 && profile?.phone_verified_at) {
+      await refreshVerification();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      setSaving(false);
+      return;
+    }
+
+    if (phoneOtpSent && pendingPhone === nextPhone.value.e164) {
+      if (!/^\d{6}$/.test(phoneOtp)) {
+        setEditError('Enter the 6-digit WhatsApp code.');
+        setSaving(false);
+        return;
+      }
+      const verified = await verifyChangePhoneOtp(nextPhone.value.e164, phoneOtp);
+      if (verified.error) {
+        setEditError(verified.error);
+        setSaving(false);
+        return;
+      }
+      await refreshVerification();
+      setPhoneOtp('');
+      setPhoneOtpSent(false);
+      setPendingPhone('');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      setSaving(false);
+      return;
+    }
+
+    const sent = await sendChangePhoneOtp(nextPhone.value.e164);
+    if (sent.error) {
+      setEditError(sent.error);
+      setSaving(false);
+      return;
+    }
+    if (sent.unchanged) {
+      await refreshVerification();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      setSaving(false);
+      return;
+    }
+    setPendingPhone(nextPhone.value.e164);
+    setPhoneOtpSent(true);
+    setEditError('');
     setSaving(false);
   };
 
@@ -739,6 +814,12 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">
                 Premium Client
               </span>
+              {profile?.phone_verified_at && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
+                  <CheckCircle2 className="w-3 h-3" />
+                  WhatsApp verified
+                </span>
+              )}
               <button
                 onClick={() => setModal('benefits')}
                 className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 transition-colors"
@@ -886,16 +967,33 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Phone</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white outline-none transition-all"
-                />
-              </div>
+              <PhoneInput
+                countryDigits={countryDigits}
+                localNumber={localPhone}
+                onCountryChange={(digits) => { setCountryDigits(digits); setPhoneOtpSent(false); setPhoneOtp(''); }}
+                onLocalChange={(value) => { setLocalPhone(value); setPhoneOtpSent(false); setPhoneOtp(''); }}
+                disabled={saving}
+              />
+              {profile?.phone_verified_at && (
+                <p className="mt-1 text-xs text-emerald-600 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> Current number is verified
+                </p>
+              )}
+              {phoneOtpSent && (
+                <div className="mt-3">
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">WhatsApp code</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={phoneOtp}
+                    onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="6-digit code"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Enter the code sent to your WhatsApp, then save again.</p>
+                </div>
+              )}
             </div>
           </div>
           <div>
@@ -908,7 +1006,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
           <div className="flex items-center gap-3">
             <button type="submit" disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm">
               <Save className="w-4 h-4" />
-              {saving ? 'Saving…' : 'Save Changes'}
+              {saving ? 'Saving…' : phoneOtpSent ? 'Verify & save' : 'Save Changes'}
             </button>
             <button type="button" onClick={() => setModal(null)} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
           </div>

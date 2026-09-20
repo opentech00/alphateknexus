@@ -25,7 +25,7 @@ Set these in the Vercel project (**Settings → Environment Variables**), for Pr
 
 `VITE_*` values are baked into the client bundle at build time. After changing them, trigger a new deploy.
 
-**Do not** add `SUPABASE_SERVICE_ROLE_KEY` (or any other server secret) to Vercel. This frontend must never ship the service role key.
+**Do not** add `SUPABASE_SERVICE_ROLE_KEY`, `WHATSAPP_TOKEN`, `PHONE_OTP_PEPPER`, or any other server secret to Vercel. This frontend must never ship those values. WhatsApp OTP secrets belong only in Supabase Edge Function secrets.
 
 Mapbox geocoding/directions use the `MAPBOX_ACCESS_TOKEN` **Supabase Edge Function secret**, not a Vercel variable.
 

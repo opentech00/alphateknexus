@@ -3,7 +3,7 @@ import {
   Sparkles, Truck, Shield, ShoppingCart, Recycle, ArrowRight,
   CheckCircle2, Star,
 } from 'lucide-react';
-import { useAppLogo, useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
+import { useAppLogo, useServiceBrandingImages, useSplashImages, fallbackServiceImage } from '../../lib/media';
 
 interface SplashScreenProps {
   onGetStarted: () => void;
@@ -28,6 +28,7 @@ const SLIDES = [
     accent: 'from-blue-50 via-white to-white',
     bubbleColor: 'bg-blue-100',
     image: '/splash_screen.png',
+    imageKey: 'splash-hero',
     features: ['5 services in one app', 'Secure payments', 'Real-time tracking'],
   },
   {
@@ -138,6 +139,7 @@ const AUTO_INTERVAL = 4500;
 export function SplashScreen({ onGetStarted, onLogin }: SplashScreenProps) {
   const { url: logoUrl } = useAppLogo();
   const { images: serviceImages } = useServiceBrandingImages();
+  const { images: splashImages } = useSplashImages();
   const [current, setCurrent] = useState(0);
   const [animDir, setAnimDir] = useState<'next' | 'prev' | null>(null);
   const [transitioning, setTransitioning] = useState(false);
@@ -185,7 +187,8 @@ export function SplashScreen({ onGetStarted, onLogin }: SplashScreenProps) {
 
   const slide = SLIDES[current];
   const Icon = slide.icon;
-  const slideImage = ('imageKey' in slide && slide.imageKey && serviceImages[slide.imageKey]) || slide.image;
+  const slideKey = slide.imageKey;
+  const slideImage = splashImages[slideKey] || serviceImages[slideKey] || slide.image;
 
   const exitClass = animDir === 'next'
     ? 'animate-splash-exit-left'

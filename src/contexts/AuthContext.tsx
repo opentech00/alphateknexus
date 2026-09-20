@@ -13,10 +13,11 @@ interface AuthContextValue {
   loading: boolean;
   needs2FA: boolean;
   needsEmailVerification: boolean;
+  needsPhoneVerification: boolean;
   pending2FAEmail: string;
   pending2FAPassword: string;
   signIn: (email: string, password: string, rememberMe?: boolean) => Promise<{ error: string | null; needs2FA?: boolean }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   signOutAll: () => Promise<{ error: string | null }>;
   clear2FA: () => void;
@@ -46,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [needs2FA, setNeeds2FA] = useState(false);
   const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
+  const [needsPhoneVerification, setNeedsPhoneVerification] = useState(false);
   const [pending2FAEmail, setPending2FAEmail] = useState('');
   const [pending2FAPassword, setPending2FAPassword] = useState('');
   const lastActivityRef = useRef<number>(Date.now());
@@ -104,13 +106,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [session, profile, idleWarningVisible]);
 
+  const applyVerificationFlags = (prof: Pick<Profile, 'is_verified' | 'phone_verified_at' | 'phone_verification_required'> | null | undefined) => {
+    setNeedsEmailVerification(!prof?.is_verified);
+    setNeedsPhoneVerification(Boolean(prof?.phone_verification_required) && !prof?.phone_verified_at);
+  };
+
   const fetchProfile = async (uid: string) => {
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', uid)
       .maybeSingle();
-    setProfile(data as Profile | null);
+    const next = data as Profile | null;
+    setProfile(next);
+    return next;
   };
 
   const checkFailedLoginAlert = async (userId: string) => {
@@ -132,18 +141,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Calling from() inside onAuthStateChange can drop the session.
       window.setTimeout(() => {
         if (cancelled) return;
-        fetchProfile(uid).then(async () => {
+        fetchProfile(uid).then(async (prof) => {
           if (cancelled) return;
           initPushNotifications('client').catch(() => {});
           if (signUpInProgressRef.current) return;
-          const { data: prof } = await supabase
-            .from('profiles')
-            .select('is_verified')
-            .eq('id', uid)
-            .maybeSingle();
-          if (!cancelled && prof) {
-            setNeedsEmailVerification(!prof.is_verified);
-          }
+          if (!cancelled) applyVerificationFlags(prof);
         }).finally(() => {
           if (!cancelled) setLoading(false);
         });
@@ -161,6 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setProfile(null);
       setNeedsEmailVerification(false);
+      setNeedsPhoneVerification(false);
       setFailedLoginAlert(null);
       setLoading(false);
     };
@@ -218,11 +221,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: profData } = await supabase
       .from('profiles')
-      .select('is_verified')
+      .select('is_verified, phone_verified_at, phone_verification_required')
       .eq('id', data.user.id)
       .maybeSingle();
-    if (!profData?.is_verified) {
-      setNeedsEmailVerification(true);
+    applyVerificationFlags(profData);
+    if (!profData?.is_verified || (profData.phone_verification_required && !profData.phone_verified_at)) {
       return { error: null };
     }
 
@@ -281,28 +284,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshVerification = async () => {
     const { data: sessionData } = await supabase.auth.refreshSession();
     if (sessionData.session?.user) {
-      await fetchProfile(sessionData.session.user.id);
-      const { data: prof } = await supabase
-        .from('profiles')
-        .select('is_verified')
-        .eq('id', sessionData.session.user.id)
-        .maybeSingle();
-      setNeedsEmailVerification(!prof?.is_verified);
+      const prof = await fetchProfile(sessionData.session.user.id);
+      applyVerificationFlags(prof);
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, password: string, fullName: string, phone: string) => {
     signUpInProgressRef.current = true;
 
     try {
       const { data: portal } = await supabase
         .from('app_settings')
-        .select('registration_enabled')
+        .select('registration_enabled, require_email_verification, require_phone_verification')
         .eq('id', 1)
         .maybeSingle();
       if (portal && portal.registration_enabled === false) {
         return { error: 'New registrations are currently closed. Please sign in if you already have an account.' };
       }
+
+      const requirePhone = portal?.require_phone_verification !== false;
+      const requireEmail = portal?.require_email_verification !== false;
 
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-account`, {
         method: 'POST',
@@ -310,7 +311,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Content-Type': 'application/json',
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password, fullName: fullName.trim() }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+          fullName: fullName.trim(),
+          phone,
+        }),
       });
       const fnData = await response.json().catch(() => null) as Record<string, unknown> | null;
 
@@ -336,22 +342,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         await supabase.auth.refreshSession();
-        const res = await supabase.functions.invoke('send-verification-code');
-        if (res.error) {
-          const fnErr = res.error as { message?: string; context?: Response };
-          let detail = fnErr.message;
-          if (fnErr.context) {
-            try {
-              const body = await fnErr.context.json();
-              if (body?.error) detail = body.error;
-            } catch { /* not JSON */ }
+        if (requirePhone) {
+          const res = await supabase.functions.invoke('send-whatsapp-otp');
+          if (res.error) {
+            const fnErr = res.error as { message?: string; context?: Response };
+            let detail = fnErr.message;
+            if (fnErr.context) {
+              try {
+                const body = await fnErr.context.json();
+                if (body?.error) detail = body.error;
+              } catch { /* not JSON */ }
+            }
+            console.error('signUp: send-whatsapp-otp error:', detail);
           }
-          console.error('signUp: send-verification-code error:', detail);
+        }
+        if (requireEmail && !requirePhone) {
+          const res = await supabase.functions.invoke('send-verification-code');
+          if (res.error) {
+            console.error('signUp: send-verification-code error:', res.error);
+          }
         }
       } catch (e) {
-        console.error('signUp: send-verification-code exception:', e);
+        console.error('signUp: verification send exception:', e);
       }
 
+      setNeedsPhoneVerification(requirePhone);
       setNeedsEmailVerification(true);
       return { error: null };
     } catch {
@@ -377,6 +392,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
     setNeeds2FA(false);
     setNeedsEmailVerification(false);
+    setNeedsPhoneVerification(false);
     setPending2FAEmail('');
     setPending2FAPassword('');
     setFailedLoginAlert(null);
@@ -393,6 +409,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null);
       setNeeds2FA(false);
       setNeedsEmailVerification(false);
+      setNeedsPhoneVerification(false);
       setFailedLoginAlert(null);
       return { error: null };
     } catch {
@@ -405,7 +422,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      session, user, profile, isAdmin: adminRole, loading, needs2FA, needsEmailVerification,
+      session, user, profile, isAdmin: adminRole, loading, needs2FA, needsEmailVerification, needsPhoneVerification,
       pending2FAEmail, pending2FAPassword, signIn, signUp, signOut, signOutAll, clear2FA,
       refreshVerification, hasAdminPermission, isSuperAdmin, refreshAdminPermissions,
       idleWarningVisible, idleWarningSecondsLeft, dismissIdleWarning,

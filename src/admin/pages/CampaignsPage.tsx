@@ -5,9 +5,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { uploadMediaFile } from '../../lib/media';
+import { saveMediaAsset } from '../../lib/media';
 import { PageHeader, EmptyState, Spinner, ErrorBanner } from '../components/ui';
-import type { Campaign, CampaignKind, CampaignStatus, MediaAsset } from '../../types';
+import { MediaPicker } from '../components/MediaPicker';
+import type { Campaign, CampaignKind, CampaignStatus } from '../../types';
 
 const SERVICES = [
   { slug: 'clearing-forwarding', label: 'Clearing & Forwarding' },
@@ -124,7 +125,6 @@ export function CampaignsPage() {
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
   const [confirmSend, setConfirmSend] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [library, setLibrary] = useState<MediaAsset[]>([]);
   const [uploading, setUploading] = useState(false);
   const [detail, setDetail] = useState<Campaign | null>(null);
 
@@ -285,25 +285,17 @@ export function CampaignsPage() {
       return;
     }
     setUploading(true);
-    const uploaded = await uploadMediaFile(file, 'campaign');
+    const result = await saveMediaAsset(file, {
+      category: 'campaign',
+      key: 'campaign',
+      title: file.name,
+    });
     setUploading(false);
-    if (!uploaded) {
-      setError('Image upload failed.');
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
-    setDraft((d) => ({ ...d, media_url: uploaded.url, media_path: uploaded.path }));
-  };
-
-  const openLibrary = async () => {
-    const { data } = await supabase
-      .from('media_assets')
-      .select('*')
-      .in('category', ['campaign', 'general'])
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(40);
-    setLibrary((data as MediaAsset[]) || []);
-    setLibraryOpen(true);
+    setDraft((d) => ({ ...d, media_url: result.asset.file_url, media_path: result.asset.file_path }));
   };
 
   if (loading && view === 'list') {
@@ -415,7 +407,7 @@ export function CampaignsPage() {
                 </label>
               )}
               {!locked && (
-                <button type="button" onClick={() => void openLibrary()} className="mt-2 text-xs font-semibold text-emerald-600">
+                <button type="button" onClick={() => setLibraryOpen(true)} className="mt-2 text-xs font-semibold text-emerald-600">
                   Choose from media library
                 </button>
               )}
@@ -594,31 +586,14 @@ export function CampaignsPage() {
           </div>
         )}
 
-        {libraryOpen && (
-          <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-2xl w-full p-5 max-h-[80vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-slate-900">Media library</h3>
-                <button type="button" onClick={() => setLibraryOpen(false)}><X className="w-4 h-4" /></button>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {library.map((asset) => (
-                  <button
-                    key={asset.id}
-                    type="button"
-                    onClick={() => {
-                      setDraft((d) => ({ ...d, media_url: asset.file_url, media_path: asset.file_path }));
-                      setLibraryOpen(false);
-                    }}
-                    className="rounded-xl overflow-hidden border border-slate-200 hover:border-emerald-400"
-                  >
-                    <img src={asset.file_url} alt={asset.alt_text || ''} className="w-full h-24 object-cover" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+        <MediaPicker
+          open={libraryOpen}
+          onClose={() => setLibraryOpen(false)}
+          categories={['campaign', 'general']}
+          onSelect={(asset) => {
+            setDraft((d) => ({ ...d, media_url: asset.file_url, media_path: asset.file_path }));
+          }}
+        />
       </div>
     );
   }
