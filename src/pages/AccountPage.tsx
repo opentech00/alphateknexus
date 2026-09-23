@@ -3,8 +3,8 @@ import {
   User, Mail, Phone, Save, Shield, Key, CheckCircle2, LogOut,
   Wallet, CreditCard, Receipt, Clock, Gift, Bell, Palette,
   HelpCircle, Pencil, X, Heart, Calendar, ChevronRight,
-  Star, Loader2, CalendarDays, Package, CheckCheck, AlertCircle,
-  MapPin, Monitor, Activity, Plus, Smartphone, Trash2, Lock, BarChart3,
+  Star, Loader2, CalendarDays, Package, CheckCheck,
+  MapPin, Monitor, Activity, Plus, Smartphone, Trash2, Lock, BarChart3, LifeBuoy,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -18,6 +18,7 @@ import { TwoFactorPanel } from '../components/TwoFactorPanel';
 import { SessionManagerPanel } from '../components/SessionManagerPanel';
 import { LoginActivityPanel } from '../components/LoginActivityPanel';
 import { AddressPage } from '../components/AddressPage';
+import { toast } from '../components/toast/toast';
 import { PremiumBenefitsPage } from './PremiumBenefitsPage';
 import { SpendingDashboard } from '../components/SpendingDashboard';
 import { ReceiptsPanel } from '../components/ReceiptsPanel';
@@ -50,7 +51,7 @@ const MODULE_GRID = [
   { id: 'referral',        label: 'Referral Credits', sub: 'Earn rewards for referrals',         icon: Gift,         color: 'text-rose-600',    bg: 'bg-rose-50' },
   { id: 'notifications',   label: 'Notifications',    sub: 'Alerts & preferences',               icon: Bell,         color: 'text-amber-600',   bg: 'bg-amber-50' },
   { id: 'appearance',      label: 'Appearance',       sub: 'Theme & display',                    icon: Palette,      color: 'text-cyan-600',    bg: 'bg-cyan-50' },
-  { id: 'help',            label: 'Help & Support',   sub: 'Contact our team by email or ticket', icon: HelpCircle,   color: 'text-slate-600',   bg: 'bg-slate-100' },
+  { id: 'help',            label: 'Help & Support',   sub: 'Tickets and email',                  icon: HelpCircle,   color: 'text-slate-600',   bg: 'bg-slate-100' },
 ] as const;
 
 const statusColors: Record<string, string> = {
@@ -564,10 +565,24 @@ function NotificationsList({ notifications, loading }: { notifications: any[]; l
 
 /* ───────────────────────── Help & Support ───────────────────────── */
 
-function HelpSupport() {
+function HelpSupport({ onOpenTickets }: { onOpenTickets: () => void }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-600">Reach our support team directly — we're here to help.</p>
+      <button
+        type="button"
+        onClick={onOpenTickets}
+        className="w-full flex items-center gap-4 p-4 bg-emerald-50 rounded-xl border border-emerald-200 hover:bg-emerald-100 transition-all text-left min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+      >
+        <div className="w-10 h-10 bg-white rounded-xl border border-emerald-100 flex items-center justify-center flex-shrink-0">
+          <LifeBuoy className="w-5 h-5 text-emerald-600" />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-slate-800">Open a ticket</p>
+          <p className="text-xs text-slate-500">Track replies inside the portal</p>
+        </div>
+        <ChevronRight className="w-4 h-4 text-emerald-600" />
+      </button>
       <div className="space-y-3">
         <a
           href="mailto:support@alphateknexus.com"
@@ -582,15 +597,6 @@ function HelpSupport() {
           </div>
           <ChevronRight className="w-4 h-4 text-slate-300 ml-auto group-hover:text-slate-500 transition-colors" />
         </a>
-        <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-          <div className="w-10 h-10 bg-white rounded-xl border border-slate-200 flex items-center justify-center flex-shrink-0">
-            <AlertCircle className="w-5 h-5 text-slate-400" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-800">Submit a Ticket</p>
-            <p className="text-xs text-amber-600 font-medium mt-0.5">Coming soon</p>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -656,6 +662,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
     const { error: nameErr } = await supabase.from('profiles').update({ full_name: fullName.trim() }).eq('id', user!.id);
     if (nameErr) {
       setEditError(nameErr.message);
+      toast.error(nameErr.message);
       setSaving(false);
       return;
     }
@@ -663,6 +670,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
     if (!localPhone.trim()) {
       await refreshVerification();
       setSaved(true);
+      toast.success('Profile updated');
       setTimeout(() => setSaved(false), 3000);
       setSaving(false);
       return;
@@ -679,6 +687,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
     if (nextPhone.value.e164 === currentE164 && profile?.phone_verified_at) {
       await refreshVerification();
       setSaved(true);
+      toast.success('Profile updated');
       setTimeout(() => setSaved(false), 3000);
       setSaving(false);
       return;
@@ -701,6 +710,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
       setPhoneOtpSent(false);
       setPendingPhone('');
       setSaved(true);
+      toast.success('Profile updated');
       setTimeout(() => setSaved(false), 3000);
       setSaving(false);
       return;
@@ -715,6 +725,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
     if (sent.unchanged) {
       await refreshVerification();
       setSaved(true);
+      toast.success('Profile updated');
       setTimeout(() => setSaved(false), 3000);
       setSaving(false);
       return;
@@ -973,6 +984,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
                 onCountryChange={(digits) => { setCountryDigits(digits); setPhoneOtpSent(false); setPhoneOtp(''); }}
                 onLocalChange={(value) => { setLocalPhone(value); setPhoneOtpSent(false); setPhoneOtp(''); }}
                 disabled={saving}
+                hint="Changing this number sends a one-time WhatsApp code to confirm it."
               />
               {profile?.phone_verified_at && (
                 <p className="mt-1 text-xs text-emerald-600 flex items-center gap-1">
@@ -1208,7 +1220,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
         iconColor="text-slate-600"
         iconBg="bg-slate-100"
       >
-        <HelpSupport />
+        <HelpSupport onOpenTickets={() => { setModal(null); onNavigate('support'); }} />
       </Modal>
 
       {/* Spending Insights */}

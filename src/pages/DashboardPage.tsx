@@ -17,6 +17,7 @@ import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { CurrencySwitcher } from '../components/CurrencySwitcher';
 import { ExploreServicesCarousel } from '../components/ExploreServicesCarousel';
 import { CampaignPromoBanner } from '../components/CampaignPromoBanner';
+import { DueInvoicesBanner } from '../components/portal/DueInvoicesBanner';
 import { fallbackServiceImage, useServiceBrandingImages } from '../lib/media';
 
 interface DashboardPageProps {
@@ -312,8 +313,11 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
         </div>
       )}
 
-      {/* ── Hero ──────────────────────────────────────────── */}
-      <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 transition-all duration-700 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+        <DueInvoicesBanner onOpen={() => onNavigate?.('billing')} />
+      </div>
+
+      <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 transition-all duration-700 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div className="relative bg-gradient-to-br from-slate-900 via-slate-850 to-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-slate-800/80">
           <div className="absolute -top-24 -right-20 w-80 h-80 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none animate-pulse-glow" />
           <div className="absolute -bottom-28 -left-16 w-72 h-72 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />

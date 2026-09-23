@@ -8,6 +8,7 @@ interface PhoneInputProps {
   disabled?: boolean;
   error?: string;
   id?: string;
+  hint?: string;
 }
 
 export function PhoneInput({
@@ -18,11 +19,12 @@ export function PhoneInput({
   disabled,
   error,
   id = 'phone',
+  hint = 'Must be unique. Used for bookings and account contact.',
 }: PhoneInputProps) {
   return (
     <div>
       <label htmlFor={id} className="block text-sm font-semibold text-slate-800 mb-1.5">
-        WhatsApp number
+        Phone number
       </label>
       <div className="flex gap-2">
         <select
@@ -52,7 +54,7 @@ export function PhoneInput({
           }`}
         />
       </div>
-      <p className="mt-1 text-xs text-slate-400">We’ll send a one-time code on WhatsApp to this number.</p>
+      <p className="mt-1 text-xs text-slate-400">{hint}</p>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );

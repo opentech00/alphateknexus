@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard, EmptyState, Spinner, ErrorBanner } from '../components/ui';
+import { toast } from '../../components/toast/toast';
 import type { Employee } from '../hr/types';
 
 const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none transition-colors bg-white placeholder-slate-400';
@@ -326,9 +327,11 @@ function UploadDocumentModal({ employees, onClose, onUploaded }: {
       if (insertErr) {
         await supabase.storage.from('employee-documents').remove([filePath]);
         setError(insertErr.message);
+        toast.error(insertErr.message);
         setLoading(false);
         return;
       }
+      toast.success('HR file uploaded');
       onUploaded();
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');

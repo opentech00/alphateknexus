@@ -98,11 +98,11 @@ supabase functions deploy monime-webhook
 supabase functions deploy process-monime-payout
 ```
 
-WhatsApp Cloud API (client signup OTP)
+WhatsApp Cloud API (optional, not used at signup)
 
-New client accounts require a unique E.164 phone number. A 6-digit code is sent with a Meta **Authentication** template (not a free-form message). Login remains email + password.
+Client sign-up collects a unique E.164 phone and verifies **email** (Resend). WhatsApp OTP is not sent on create-account.
 
-Set these as **Supabase Edge Function secrets** only (never `VITE_*`, never Vercel):
+Phone change on the account page can still use WhatsApp if these Edge Function secrets are set (never `VITE_*`, never Vercel):
 
 - `WHATSAPP_TOKEN` — Meta Cloud API access token
 - `WHATSAPP_PHONE_NUMBER_ID` — sending phone number ID from the Meta developer app
@@ -113,7 +113,7 @@ Set these as **Supabase Edge Function secrets** only (never `VITE_*`, never Verc
 
 Approve a template similar to: “Your {{1}} AlphaTek Nexus code. It expires in 10 minutes. Do not share it.”
 
-If Meta is not ready yet, turn off **Require WhatsApp phone verification** in Admin → Portal Settings so email signup still works. Existing accounts without a phone are not gated.
+Signup is not blocked if Meta is unconfigured. **Require WhatsApp phone verification** in Portal Settings defaults off.
 
 After changing these functions:
 

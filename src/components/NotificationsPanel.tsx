@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Bell, Calendar, MessageCircle, Info, Check, CheckCheck, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { openIncomingNotification } from './toast/toast';
 
 interface Notification {
   id: string;
@@ -202,6 +203,7 @@ export function NotificationsPanel({ dark }: { dark?: boolean } = {}) {
                   onClick={() => {
                     if (!notification.read) markAsRead(notification.id);
                     setIsOpen(false);
+                    openIncomingNotification(notification);
                   }}
                   role="menuitem"
                 >

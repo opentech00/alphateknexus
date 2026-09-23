@@ -7,7 +7,9 @@ import { AdminLoginPage } from './pages/AdminLoginPage';
 import { TwoFactorPage } from '../pages/TwoFactorPage';
 import { AdminSidebar } from './AdminSidebar';
 import { IdleWarningModal } from '../components/IdleWarningModal';
-import { FinanceToastContainer } from '../components/FinanceToast';
+import { ToastContainer } from '../components/toast/ToastContainer';
+import { registerToastNotificationOpener } from '../components/toast/toast';
+import { destinationForAdminNotification } from '../lib/notificationDestinations';
 import { OverviewPage } from './pages/OverviewPage';
 import { BookingsManagementPage } from './pages/BookingsManagementPage';
 import { ClientsPage } from './pages/ClientsPage';
@@ -36,6 +38,7 @@ import { HrActivityPage } from './pages/HrActivityPage';
 import { HrDirectoryPage } from './pages/HrDirectoryPage';
 import { HrPermissionsPage } from './pages/HrPermissionsPage';
 import { HrDocumentsPage } from './pages/HrDocumentsPage';
+import { HrPayslipsPage } from './pages/HrPayslipsPage';
 import { BackupPage } from './pages/BackupPage';
 import { UsersManagementPage } from './pages/UsersManagementPage';
 import { BundlesManagementPage } from './pages/BundlesManagementPage';
@@ -45,6 +48,7 @@ const FieldDispatchPage = lazy(() =>
 );
 import { BookingReviewPage } from './pages/BookingReviewPage';
 import { MessagesPage } from './pages/MessagesPage';
+import { AdminSupportPage } from './pages/AdminSupportPage';
 import { FieldJobReviewPage } from './pages/FieldJobReviewPage';
 import { FieldIncidentsPage } from './pages/FieldIncidentsPage';
 import { AdminSessionsPage } from './pages/AdminSessionsPage';
@@ -67,6 +71,12 @@ function AdminIdleWarning() {
 function AdminContent() {
   const [currentPage, setCurrentPage] = useState('overview');
   const { user, isAdmin, loading, needs2FA, pending2FAEmail, pending2FAPassword, clear2FA, signOut, hasAdminPermission, isSuperAdmin } = useAuth();
+
+  useEffect(() => {
+    return registerToastNotificationOpener((n) => {
+      setCurrentPage(destinationForAdminNotification(n));
+    });
+  }, []);
 
   useEffect(() => {
     if (user && isAdmin) {
@@ -140,6 +150,8 @@ function AdminContent() {
         return <BookingsManagementPage />;
       case 'messages':
         return <MessagesPage />;
+      case 'support':
+        return <AdminSupportPage />;
       case 'clients':
         return <ClientsPage />;
       case 'divisions':
@@ -208,6 +220,8 @@ function AdminContent() {
         return <HrPermissionsPage />;
       case 'hr-documents':
         return <HrDocumentsPage />;
+      case 'hr-payslips':
+        return <HrPayslipsPage />;
       case 'backup':
         return <BackupPage />;
       case 'users':
@@ -242,7 +256,7 @@ function AdminContent() {
         </div>
       </main>
       <AdminIdleWarning />
-      <FinanceToastContainer />
+      <ToastContainer />
     </div>
   );
 }

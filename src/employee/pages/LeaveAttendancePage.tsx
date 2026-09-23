@@ -6,8 +6,10 @@ import { fmtDate } from '../types';
 import {
   ATTENDANCE_UPDATED_EVENT,
   clockInOffice,
+  clockOutOffice,
   localWorkDate,
 } from '../lib/attendance';
+import { toast } from '../../components/toast/toast';
 
 interface LeaveRow {
   id: string;
@@ -95,8 +97,14 @@ export function LeaveAttendancePage() {
       userId: user.id,
       serviceId: employee.service_id,
     });
-    if (err) setError(err);
-    else setOk(late ? 'Clocked in (marked late).' : 'Clocked in.');
+    if (err) {
+      setError(err);
+      toast.error(err);
+    } else {
+      const msg = late ? 'Clocked in (marked late).' : 'Clocked in.';
+      setOk(msg);
+      toast.success(msg);
+    }
     setSaving(false);
     await load();
   };
@@ -104,11 +112,14 @@ export function LeaveAttendancePage() {
   const clockOut = async () => {
     if (!todayAtt) return;
     setSaving(true); setError('');
-    const { error: err } = await supabase.from('office_attendance').update({
-      clock_out_at: new Date().toISOString(),
-    }).eq('id', todayAtt.id);
-    if (err) setError(err.message);
-    else setOk('Clocked out.');
+    const { error: err } = await clockOutOffice(todayAtt.id);
+    if (err) {
+      setError(err);
+      toast.error(err);
+    } else {
+      setOk('Clocked out.');
+      toast.success('Clocked out.');
+    }
     setSaving(false);
     await load();
   };
@@ -127,9 +138,12 @@ export function LeaveAttendancePage() {
       reason: reason.trim() || null,
       status: 'pending',
     });
-    if (err) setError(err.message);
-    else {
+    if (err) {
+      setError(err.message);
+      toast.error(err.message);
+    } else {
       setOk('Leave request sent.');
+      toast.success('Leave request sent.');
       setReason('');
     }
     setSaving(false);
@@ -143,14 +157,24 @@ export function LeaveAttendancePage() {
       reviewed_by: user?.id || null,
       reviewed_at: new Date().toISOString(),
     }).eq('id', id);
-    if (err) setError(err.message);
+    if (err) {
+      setError(err.message);
+      toast.error(err.message);
+    } else {
+      toast.success(status === 'approved' ? 'Leave approved' : 'Leave rejected');
+    }
     setSaving(false);
     await load();
   };
 
   const cancelMine = async (id: string) => {
     const { error: err } = await supabase.from('leave_requests').update({ status: 'cancelled' }).eq('id', id);
-    if (err) setError(err.message);
+    if (err) {
+      setError(err.message);
+      toast.error(err.message);
+    } else {
+      toast.success('Leave request cancelled');
+    }
     await load();
   };
 

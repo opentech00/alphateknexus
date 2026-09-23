@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { supabase } from '../lib/supabase';
 import { fmtDate } from '../types';
+import { toast } from '../../components/toast/toast';
 
 interface DelegatedTask {
   id: string;
@@ -105,8 +106,13 @@ export function DelegatedTasksPage({ onBack }: { onBack: () => void }) {
 
   const updateTask = async (taskId: string, updates: Record<string, unknown>) => {
     setActionLoading(taskId);
-    await supabase.from('task_delegations').update(updates).eq('id', taskId);
+    const { error: err } = await supabase.from('task_delegations').update(updates).eq('id', taskId);
     setActionLoading(null);
+    if (err) {
+      toast.error(err.message);
+      return;
+    }
+    toast.success('Task updated');
     fetchTasks();
     if (expandedId === taskId) fetchProgress(taskId);
   };

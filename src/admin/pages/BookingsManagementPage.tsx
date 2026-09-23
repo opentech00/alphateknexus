@@ -11,6 +11,7 @@ import { ServiceDetailsPanel } from '../../components/ServiceDetailsPanel';
 import { PageHeader, EmptyState, Spinner } from '../components/ui';
 import { ServiceRequestExportMenu } from '../../components/ServiceRequestExportMenu';
 import { bookingToExportRow } from '../../lib/exportServiceRequests';
+import { toast } from '../../components/toast/toast';
 
 interface BookingDetails {
   // C&F hire
@@ -326,15 +327,6 @@ export function BookingsManagementPage() {
         .eq('id', bookingId)
         .maybeSingle();
       if (bookingData?.user_id) {
-        await supabase.from('notifications').insert({
-          user_id: bookingData.user_id,
-          title: 'Booking Status Updated',
-          body: `Your booking for ${booking.services.name} has been updated to "${statusLabels[newStatus]}".`,
-          type: 'booking_update',
-          booking_id: bookingId,
-        });
-
-        // Send email notification (fire-and-forget)
         supabase.functions.invoke('send-booking-email', {
           body: {
             eventType: newStatus === 'completed' ? 'review_prompt' : 'status_update',
@@ -347,6 +339,7 @@ export function BookingsManagementPage() {
       }
     }
 
+    toast.success('Booking status updated');
     await fetchBookings();
     setUpdatingId(null);
   };

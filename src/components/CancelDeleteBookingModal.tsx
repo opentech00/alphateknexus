@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, AlertTriangle, Loader2, Trash2, Ban } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { toast } from './toast/toast';
 
 interface Props {
   bookingId: string;
@@ -73,19 +74,14 @@ export function CancelDeleteBookingModal({
 
     if (err) {
       setError('We could not cancel this booking. Please try again.');
+      toast.error('We could not cancel this booking. Please try again.');
       setSubmitting(false);
       return;
     }
 
     await supabase.rpc('refund_booking_to_wallet', { p_booking_id: bookingId });
 
-    await supabase.from('notifications').insert({
-      title: 'Booking Cancelled',
-      body: `Your ${serviceName} booking has been cancelled. Reason: ${finalReason}`,
-      type: 'booking_update',
-      booking_id: bookingId,
-    });
-
+    toast.success('Booking cancelled');
     setSubmitting(false);
     onSuccess();
   };
@@ -100,9 +96,12 @@ export function CancelDeleteBookingModal({
 
     if (err) {
       setError('We could not delete this booking. Please try again.');
+      toast.error('We could not delete this booking. Please try again.');
       setSubmitting(false);
       return;
     }
+
+    toast.success('Booking removed');
 
     setSubmitting(false);
     onSuccess();

@@ -8,6 +8,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { openDocument, signedDocumentUrl } from '../../lib/storageUrls';
 import { PageHeader, EmptyState } from '../components/ui';
+import { toast } from '../../components/toast/toast';
 
 interface DocumentRow {
   id: string;
@@ -557,13 +558,7 @@ export function DocumentsManagementPage() {
       .update({ payment_status: 'verified' })
       .eq('id', verif.booking_id);
 
-    await supabase.from('notifications').insert({
-      user_id: verif.user_id,
-      title: 'Payment Verified',
-      body: `Your bank payment for ${verif.bookings?.services?.name || 'booking'} has been verified and confirmed.`,
-      type: 'payment_verification',
-      booking_id: verif.booking_id,
-    });
+    toast.success('Payment verified');
 
     // Send confirmation email
     supabase.functions.invoke('send-booking-email', {
@@ -596,13 +591,7 @@ export function DocumentsManagementPage() {
       .update({ payment_status: 'rejected' })
       .eq('id', rejectModal.booking_id);
 
-    await supabase.from('notifications').insert({
-      user_id: rejectModal.user_id,
-      title: 'Payment Rejected',
-      body: `Your bank payment for ${rejectModal.bookings?.services?.name || 'booking'} was rejected. Reason: ${rejectReason.trim()}`,
-      type: 'payment_verification',
-      booking_id: rejectModal.booking_id,
-    });
+    toast.success('Payment rejected');
 
     // Send rejection email
     supabase.functions.invoke('send-booking-email', {

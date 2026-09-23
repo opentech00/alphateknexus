@@ -1,10 +1,12 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { Home, ClipboardList, Clock, Bell, BarChart3, MapPin, WifiOff, RefreshCw, Zap } from 'lucide-react';
+import { Home, ClipboardList, Clock, Bell, BarChart3, WifiOff, RefreshCw, Zap } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { FieldStaffProvider, useFieldStaff } from './FieldStaffContext';
-import { ToastContainer } from './components/Toast';
+import { ToastContainer } from '../../components/toast/ToastContainer';
+import { registerToastNotificationOpener } from '../../components/toast/toast';
 import { FieldClockInPrompt } from '../components/FieldClockInPrompt';
 import { initPushNotifications } from '../../lib/pushNotifications';
+import { useAppLogo } from '../../lib/media';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { JobsScreen } from './screens/JobsScreen';
 import { JobDetailScreen } from './screens/JobDetailScreen';
@@ -18,10 +20,15 @@ type Tab = 'dashboard' | 'offers' | 'jobs' | 'attendance' | 'inbox' | 'performan
 
 function FieldStaffContent() {
   const { employee, signOut, hasCapability } = useAuth();
+  const { url: logoUrl } = useAppLogo();
   const { loading, error, online, pendingSync, refresh } = useFieldStaff();
   const [tab, setTab] = useState<Tab>('dashboard');
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showIncident, setShowIncident] = useState(false);
+
+  useEffect(() => {
+    return registerToastNotificationOpener(() => setTab('inbox'));
+  }, []);
 
   useEffect(() => {
     if (employee) {
@@ -33,6 +40,7 @@ function FieldStaffContent() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-3">
+          <img src={logoUrl} alt="Alphatek Nexus" className="w-12 h-12 object-contain" />
           <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-slate-400">Loading your workspace…</p>
         </div>
@@ -64,16 +72,13 @@ function FieldStaffContent() {
 
     body = (
     <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden">
-      <ToastContainer />
 
       {/* Top bar */}
       <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-20">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center">
-            <MapPin className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <p className="font-bold text-slate-900 text-sm leading-tight">Field Staff</p>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <img src={logoUrl} alt="Alphatek Nexus" className="w-9 h-9 rounded-xl object-contain p-0.5 flex-shrink-0" />
+          <div className="min-w-0">
+            <p className="font-bold text-slate-900 text-sm leading-tight truncate">Field Staff</p>
             <p className="text-[10px] text-slate-400 uppercase tracking-widest">Alphatek Nexus</p>
           </div>
         </div>
@@ -151,6 +156,7 @@ function FieldStaffContent() {
   return (
     <>
       {body}
+      <ToastContainer position="top-center" />
       <FieldClockInPrompt />
     </>
   );

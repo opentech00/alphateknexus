@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { supabase } from '../lib/supabase';
+import { toast } from '../../components/toast/toast';
 
 interface CashPayment {
   id: string;
@@ -187,7 +188,7 @@ export function CashCollectionsPage({ onBack }: { onBack: () => void }) {
       status: 'pending_confirmation',
     });
 
-    if (collErr) { setError(collErr.message); setSubmitting(false); return; }
+    if (collErr) { setError(collErr.message); toast.error(collErr.message); setSubmitting(false); return; }
 
     await supabase.from('payments').update({
       status: 'collected',
@@ -196,6 +197,7 @@ export function CashCollectionsPage({ onBack }: { onBack: () => void }) {
     }).eq('id', selected.id);
 
     setSuccess('Cash collection submitted. An admin will confirm it shortly.');
+    toast.success('Cash collection submitted. An admin will confirm it shortly.');
     setSubmitting(false);
     setSelected(null);
     setAmountReceived('');

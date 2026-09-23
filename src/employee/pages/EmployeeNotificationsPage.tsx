@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import {
   Bell, Calendar, MessageCircle, Info, Check, CheckCheck,
-  Briefcase, Banknote, Shield, AlertTriangle, Star, Package, Loader2,
+  Briefcase, Banknote, AlertTriangle, Star, Package, Loader2,
 } from 'lucide-react';
 import { useEmployeeNotifications, type EmployeeNotification } from '../contexts/EmployeeNotificationsContext';
 import { NotificationPreferencesPanel } from '../../components/NotificationPreferencesPanel';
+import { destinationForNotification, type NavTarget } from '../lib/workNav';
 
 const TYPE_ICON: Record<string, typeof Bell> = {
   booking_update: Calendar,
@@ -63,7 +64,7 @@ function fmtFull(dateString: string): string {
   });
 }
 
-export function EmployeeNotificationsPage() {
+export function EmployeeNotificationsPage({ onNavigate }: { onNavigate?: (target: NavTarget) => void }) {
   const { notifications, unreadCount, loading, markAsRead, markAllAsRead } = useEmployeeNotifications();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [showPrefs, setShowPrefs] = useState(false);
@@ -97,25 +98,31 @@ export function EmployeeNotificationsPage() {
           <Bell className="w-5 h-5 text-slate-600" />
         </div>
         <div className="flex-1">
-          <h1 className="text-lg font-bold text-slate-900">Notifications</h1>
+          <h1 id="employee-page-title" tabIndex={-1} className="text-lg font-bold text-slate-900 outline-none">Notifications</h1>
           <p className="text-sm text-slate-400">Stay updated on activities across all divisions</p>
         </div>
       </div>
 
       {/* Filter bar */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+        <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg" role="tablist" aria-label="Notification filters">
           <button
+            type="button"
+            role="tab"
+            aria-selected={filter === 'all'}
             onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+            className={`min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
               filter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             All
           </button>
           <button
+            type="button"
+            role="tab"
+            aria-selected={filter === 'unread'}
             onClick={() => setFilter('unread')}
-            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+            className={`min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
               filter === 'unread' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
@@ -169,40 +176,56 @@ export function EmployeeNotificationsPage() {
             {filtered.map((n: EmployeeNotification) => {
               const Icon = TYPE_ICON[n.type] ?? Bell;
               const colorCls = TYPE_COLOR[n.type] ?? 'text-slate-400 bg-slate-100';
+              const dest = destinationForNotification(n);
               return (
-                <div
+                <article
                   key={n.id}
                   className={`group flex gap-4 px-5 py-4 transition-colors duration-150 ${
                     n.read ? 'hover:bg-slate-50' : 'bg-emerald-50/40 hover:bg-emerald-50/70'
                   }`}
                 >
-                  <div className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl ${colorCls}`}>
+                  <div className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl ${colorCls}`} aria-hidden="true">
                     <Icon className="w-5 h-5" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
-                          {!n.read && <span className="flex-shrink-0 w-2 h-2 bg-emerald-500 rounded-full" />}
-                          <p className={`text-sm truncate ${n.read ? 'text-slate-700 font-normal' : 'text-slate-900 font-semibold'}`}>
+                          {!n.read && <span className="flex-shrink-0 w-2 h-2 bg-emerald-500 rounded-full" aria-label="Unread" />}
+                          <h2 className={`text-sm truncate ${n.read ? 'text-slate-700 font-normal' : 'text-slate-900 font-semibold'}`}>
                             {n.title}
-                          </p>
+                          </h2>
                         </div>
                         <p className="text-sm text-slate-500 leading-relaxed">{n.body}</p>
                       </div>
-                      {!n.read && (
-                        <button
-                          onClick={() => markAsRead(n.id)}
-                          className="flex-shrink-0 p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors opacity-0 group-hover:opacity-100"
-                          title="Mark as read"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {onNavigate && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!n.read) markAsRead(n.id);
+                              onNavigate(dest);
+                            }}
+                            className="min-h-[44px] px-3 text-sm font-semibold text-emerald-700 hover:text-emerald-800 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                          >
+                            Open
+                          </button>
+                        )}
+                        {!n.read && (
+                          <button
+                            type="button"
+                            onClick={() => markAsRead(n.id)}
+                            className="min-h-[44px] min-w-[44px] p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                            aria-label="Mark as read"
+                          >
+                            <Check className="w-4 h-4" aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[11px] text-slate-400">{fmtFull(n.created_at)}</span>
-                      <span className="text-[11px] text-slate-300">·</span>
+                      <time className="text-[11px] text-slate-400" dateTime={n.created_at}>{fmtFull(n.created_at)}</time>
+                      <span className="text-[11px] text-slate-300" aria-hidden="true">·</span>
                       <span className="text-[11px] text-slate-400">{timeAgo(n.created_at)}</span>
                       {TYPE_LABEL[n.type] && (
                         <span className="px-1.5 py-0.5 text-[10px] font-medium text-slate-500 bg-slate-100 rounded">
@@ -211,7 +234,7 @@ export function EmployeeNotificationsPage() {
                       )}
                     </div>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>

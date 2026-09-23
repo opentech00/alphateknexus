@@ -116,8 +116,8 @@ export function ActivitiesPage({ onNavigate }: { onNavigate: (key: string) => vo
           <ClipboardList className="w-5 h-5 text-slate-600" />
         </div>
         <div>
-          <h1 className="text-lg font-bold text-slate-900">My Activities</h1>
-          <p className="text-sm text-slate-400">Tasks and pages available for your role{employee?.hr_roles?.name ? `: ${employee.hr_roles.name}` : ''}</p>
+          <h1 id="employee-page-title" tabIndex={-1} className="text-lg font-bold text-slate-900 outline-none">More work</h1>
+          <p className="text-sm text-slate-400">Documents, reports, and other pages for your role{employee?.hr_roles?.name ? `: ${employee.hr_roles.name}` : ''}</p>
         </div>
       </div>
 
@@ -140,8 +140,9 @@ export function ActivitiesPage({ onNavigate }: { onNavigate: (key: string) => vo
           return (
             <button
               key={activity.id}
+              type="button"
               onClick={() => onNavigate(activity.activity_key)}
-              className="group bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-all text-left"
+              className="group bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-all text-left min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
             >
               <div className="flex items-start gap-3">
                 <div className={`w-11 h-11 ${meta.bg} rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform`}>

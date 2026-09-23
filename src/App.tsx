@@ -16,10 +16,15 @@ import { AccountPage } from './pages/AccountPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { BookingPage } from './pages/BookingPage';
 import { SmartSortSubscriptionsPage } from './pages/SmartSortSubscriptionsPage';
+import { BillingPage } from './pages/BillingPage';
+import { QuotesPage } from './pages/QuotesPage';
+import { SupportPage } from './pages/SupportPage';
 import { TopNav } from './components/TopNav';
 import { MobileShell } from './components/mobile/MobileShell';
 import { SplashScreen } from './components/mobile/SplashScreen';
-import { FinanceToastContainer } from './components/FinanceToast';
+import { ToastContainer } from './components/toast/ToastContainer';
+import { registerToastNotificationOpener } from './components/toast/toast';
+import { destinationForClientNotification } from './lib/notificationDestinations';
 import { IdleWarningModal } from './components/IdleWarningModal';
 import { PwaProvider } from './components/pwa/PwaProvider';
 import { PortalMaintenanceScreen } from './components/PortalMaintenanceScreen';
@@ -90,6 +95,12 @@ function PortalContent() {
   const [bookingService, setBookingService] = useState<any>(null);
   const [bookingMode, setBookingMode] = useState<'hire' | 'quote' | 'pickup' | 'subscribe'>('hire');
   const [rebookData, setRebookData] = useState<any>(null);
+
+  useEffect(() => {
+    return registerToastNotificationOpener((n) => {
+      setPage(destinationForClientNotification(n));
+    });
+  }, []);
 
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false
@@ -237,6 +248,30 @@ function PortalContent() {
     );
   }
 
+  if (page === 'billing' || page === 'quotes' || page === 'support') {
+    const body = page === 'billing'
+      ? <BillingPage onBack={() => setPage('home')} />
+      : page === 'quotes'
+        ? <QuotesPage onBack={() => setPage('home')} />
+        : <SupportPage onBack={() => setPage('home')} />;
+    return (
+      <>
+        <div className="block md:hidden fixed inset-0 h-[100dvh] w-full overflow-y-auto bg-slate-50 safe-area-pt">
+          {body}
+        </div>
+        <div className="hidden md:block min-h-screen bg-slate-50">
+          <TopNav currentPage={page} onNavigate={handleNavigate} devAdmin={devAdmin} onToggleDevAdmin={() => {}} />
+          <main className="pt-16 min-h-screen">
+            <PortalAnnouncement enabled={portal.portal_announcement_enabled} text={portal.portal_announcement} />
+            {body}
+          </main>
+        </div>
+        <IdleWarningWrapper />
+        <FailedLoginBanner />
+      </>
+    );
+  }
+
   if (page === 'smart-sort-subs') {
     return (
       <>
@@ -284,7 +319,6 @@ function PortalContent() {
           {page === 'calendar' && <CalendarPage onNavigate={handleNavigate} />}
         </main>
       </div>
-      <FinanceToastContainer />
       <IdleWarningWrapper />
       <FailedLoginBanner />
     </>
@@ -296,6 +330,7 @@ export default function App() {
     <AuthProvider>
       <ThemeProvider>
         <PortalContent />
+        <ToastContainer />
         <PwaProvider />
       </ThemeProvider>
     </AuthProvider>

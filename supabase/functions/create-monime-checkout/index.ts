@@ -54,11 +54,19 @@ Deno.serve(async (req: Request) => {
 
     // Validate ownership of related_id for invoice payments
     if (purpose === "invoice" && related_id) {
-      const { data: invoice, error: invErr } = await supabase
-        .from("smart_sort_invoices")
-        .select("id, user_id")
+      const { data: financeInv } = await supabase
+        .from("invoices")
+        .select("id, user_id, status")
         .eq("id", related_id)
         .maybeSingle();
+      const { data: smartInv, error: invErr } = financeInv
+        ? { data: null, error: null }
+        : await supabase
+          .from("smart_sort_invoices")
+          .select("id, user_id, status")
+          .eq("id", related_id)
+          .maybeSingle();
+      const invoice = financeInv || smartInv;
 
       if (invErr || !invoice) {
         return new Response(JSON.stringify({ error: "Invoice not found" }), {
@@ -68,6 +76,11 @@ Deno.serve(async (req: Request) => {
       if (invoice.user_id !== user.id) {
         return new Response(JSON.stringify({ error: "You do not own this invoice" }), {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (invoice.status === "draft" || invoice.status === "cancelled" || invoice.status === "void" || invoice.status === "paid") {
+        return new Response(JSON.stringify({ error: "This invoice cannot be paid online." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     }

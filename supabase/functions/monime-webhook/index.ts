@@ -57,27 +57,60 @@ async function fulfillMonimePayment(
       }
     }
   } else if (monimePayment.purpose === "invoice" && monimePayment.related_id) {
-    const { data: existingPay } = await supabase
-      .from("smart_sort_payments")
-      .select("id")
-      .eq("monime_payment_id", monimePayment.id)
+    const { data: financeInv } = await supabase
+      .from("invoices")
+      .select("id, total, status")
+      .eq("id", monimePayment.related_id)
       .maybeSingle();
 
-    if (!existingPay) {
-      await supabase.from("smart_sort_payments").insert({
-        invoice_id: monimePayment.related_id,
-        user_id: monimePayment.user_id,
-        amount_sle: monimePayment.amount_sle,
-        method: "monime",
-        reference,
-        status: "confirmed",
-        monime_payment_id: monimePayment.id,
-      });
-      const { error: rpcErr } = await supabase.rpc("increment_invoice_paid", {
-        p_invoice_id: monimePayment.related_id,
-        p_amount: Math.round(Number(monimePayment.amount_sle)),
-      });
-      if (rpcErr) console.error("Failed to update invoice paid amount:", rpcErr.message);
+    if (financeInv) {
+      if (financeInv.status !== "paid") {
+        await supabase.from("invoices").update({
+          status: "paid",
+          amount_paid: financeInv.total,
+          paid_at: new Date().toISOString(),
+          payment_method: "monime",
+        }).eq("id", financeInv.id);
+        const { data: existingPay } = await supabase
+          .from("payments")
+          .select("id")
+          .eq("payable_type", "invoice")
+          .eq("payable_id", financeInv.id)
+          .maybeSingle();
+        if (!existingPay) {
+          await supabase.from("payments").insert({
+            user_id: monimePayment.user_id,
+            payable_type: "invoice",
+            payable_id: financeInv.id,
+            amount_sle: monimePayment.amount_sle,
+            method: "monime",
+            status: "confirmed",
+          });
+        }
+      }
+    } else {
+      const { data: existingPay } = await supabase
+        .from("smart_sort_payments")
+        .select("id")
+        .eq("monime_payment_id", monimePayment.id)
+        .maybeSingle();
+
+      if (!existingPay) {
+        await supabase.from("smart_sort_payments").insert({
+          invoice_id: monimePayment.related_id,
+          user_id: monimePayment.user_id,
+          amount_sle: monimePayment.amount_sle,
+          method: "monime",
+          reference,
+          status: "confirmed",
+          monime_payment_id: monimePayment.id,
+        });
+        const { error: rpcErr } = await supabase.rpc("increment_invoice_paid", {
+          p_invoice_id: monimePayment.related_id,
+          p_amount: Math.round(Number(monimePayment.amount_sle)),
+        });
+        if (rpcErr) console.error("Failed to update invoice paid amount:", rpcErr.message);
+      }
     }
   } else if (monimePayment.purpose === "booking" && monimePayment.related_id) {
     await supabase.from("bookings").update({

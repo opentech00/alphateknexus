@@ -77,14 +77,42 @@ body {
 .auth-dot-progress {
   animation: authDotProgress 3s linear forwards;
 }
+.emp-fade-in {
+  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.toast-enter {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.toast-progress {
+  width: 100%;
+  animation: shrink linear forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter {
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .toast-progress {
+    animation: none !important;
+    width: 0% !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .auth-kenburns-active,
   .auth-line-in,
   .auth-word-in,
   .auth-line-out,
   .auth-word-out,
-  .auth-dot-progress {
-    animation: none;
+  .auth-dot-progress,
+  .emp-fade-in,
+  .animate-fadeIn,
+  .animate-scaleIn,
+  .animate-slideUp {
+    animation: none !important;
   }
 }
 

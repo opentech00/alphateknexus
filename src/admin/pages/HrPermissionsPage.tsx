@@ -60,6 +60,7 @@ const MANAGED_PAGES = [
   { key: 'hr-directory', label: 'Staff Directory' },
   { key: 'hr-permissions', label: 'Permissions' },
   { key: 'hr-documents', label: 'HR Documents' },
+  { key: 'hr-payslips', label: 'Payslips' },
 ];
 
 export function HrPermissionsPage() {

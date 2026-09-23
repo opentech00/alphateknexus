@@ -334,6 +334,20 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
               Our support team is available to help with any questions about your bookings, payments, or account.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => onNavigate('support')}
+            className="w-full flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl text-left min-h-[44px] active:scale-[0.98] transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          >
+            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
+              <Headphones className="w-5 h-5 text-emerald-600" aria-hidden="true" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-slate-800">Open a ticket</p>
+              <p className="text-xs text-slate-500">Track replies in the portal</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-emerald-600" aria-hidden="true" />
+          </button>
           <a href="mailto:support@alphateknexus.com"
             className="flex items-center gap-3 p-4 bg-white border border-slate-100 rounded-2xl shadow-sm active:scale-[0.98] transition-transform">
             <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center">
@@ -650,6 +664,7 @@ function EditProfileForm({ onDone }: { onDone: () => void }) {
             onCountryChange={(digits) => { setCountryDigits(digits); setPhoneOtpSent(false); setPhoneOtp(''); }}
             onLocalChange={(value) => { setLocalPhone(value); setPhoneOtpSent(false); setPhoneOtp(''); }}
             disabled={saving}
+            hint="Changing this number sends a one-time WhatsApp code to confirm it."
           />
           {phoneOtpSent && (
             <div>

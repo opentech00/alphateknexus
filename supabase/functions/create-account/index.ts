@@ -29,7 +29,7 @@ Deno.serve(async (req: Request) => {
 
     if (!phone) {
       return new Response(
-        JSON.stringify({ error: "A valid WhatsApp phone number is required" }),
+        JSON.stringify({ error: "A valid phone number is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -128,7 +128,7 @@ Deno.serve(async (req: Request) => {
         phone: normalized.value.display,
         phone_e164: normalized.value.e164,
         phone_verified_at: null,
-        phone_verification_required: true,
+        phone_verification_required: false,
       },
       { onConflict: "id" },
     );

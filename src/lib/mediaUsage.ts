@@ -12,7 +12,7 @@ export function getMediaUsageLabels(asset: MediaAsset, campaignTitles: string[] 
   const key = canonicalizeMediaKey(asset.key);
   switch (asset.category) {
     case 'app_logo':
-      return ['App nav', 'Invoices', 'Splash', 'Employee login'];
+      return ['App nav', 'Admin', 'Employee dashboard', 'Field', 'Invoices', 'Splash', 'Employee login'];
     case 'service_branding':
       return [`Dashboards (${serviceLabel(key)})`, 'Bookings', 'Mobile', 'Splash service slides'];
     case 'login_carousel':

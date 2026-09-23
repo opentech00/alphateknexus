@@ -15,6 +15,7 @@ import { NotificationsPanel } from '../NotificationsPanel';
 import { useDisplayCurrency } from '../../hooks/useDisplayCurrency';
 import { ExploreServicesCarousel } from '../ExploreServicesCarousel';
 import { CampaignPromoBanner } from '../CampaignPromoBanner';
+import { DueInvoicesBanner } from '../portal/DueInvoicesBanner';
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -323,6 +324,26 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
           Hello, {firstName} <span className="align-middle text-2xl">👋</span>
         </h1>
         <p className="text-base text-slate-500 dark:text-slate-400 mt-1">What service do you need today?</p>
+      </div>
+
+      <div className="px-5">
+        <DueInvoicesBanner onOpen={() => onNavigate('billing')} />
+      </div>
+      <div className="px-5 mb-4 grid grid-cols-3 gap-2">
+        {([
+          ['quotes', 'Quotes'],
+          ['billing', 'Billing'],
+          ['support', 'Support'],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onNavigate(id)}
+            className="min-h-[44px] rounded-2xl bg-white border border-slate-200 text-sm font-semibold text-slate-800 shadow-sm active:scale-[0.98] transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Search */}

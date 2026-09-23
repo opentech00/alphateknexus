@@ -69,7 +69,6 @@ export function RegisterPage({ onNavigate, companyName = 'Alphatek Nexus' }: Reg
       setLoading(false);
     } else {
       // User is auto-signed-in; the email verification gate will show automatically
-      // Do NOT navigate away — stay on the current view so the verification screen renders
       setLoading(false);
     }
   };

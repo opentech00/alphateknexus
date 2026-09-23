@@ -4,6 +4,7 @@ import { AuthContext } from '../contexts/AuthContext';
 import { openDocument } from '../lib/storageUrls';
 import { SignedImage } from './SignedImage';
 import { Upload, Image, FileText, File, Trash2, X } from 'lucide-react';
+import { toast } from './toast/toast';
 
 interface Document {
   id: string;
@@ -164,10 +165,11 @@ export function DocumentUpload({ bookingId, readOnly = false, serviceSlug, actor
 
       if (insertError) {
         setError(`Failed to save document record: ${insertError.message}`);
-        // Attempt cleanup
+        toast.error('Failed to save document record');
         await supabase.storage.from('documents').remove([filePath]);
       } else {
         setUploadProgress(100);
+        toast.success('Document uploaded');
         await fetchDocuments();
       }
     } catch (err) {

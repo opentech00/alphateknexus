@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Bell, Calendar, MessageCircle, Info, Check, CheckCheck, X, ArrowRight } from 'lucide-react';
+import { destinationForAdminNotification } from '../lib/notificationDestinations';
 import { useAdminNotifications } from '../admin/contexts/AdminNotificationsContext';
 
 interface Notification {
@@ -60,7 +61,13 @@ function getNotificationIcon(type: Notification['type']) {
   }
 }
 
-export function AdminNotificationsBell({ onNavigate }: { onNavigate?: (page: string) => void } = {}) {
+export function AdminNotificationsBell({
+  onNavigate,
+  tone = 'light',
+}: {
+  onNavigate?: (page: string) => void;
+  tone?: 'light' | 'dark';
+} = {}) {
   const { notifications, unreadCount, markAsRead, markAllAsRead, loading } = useAdminNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -83,10 +90,7 @@ export function AdminNotificationsBell({ onNavigate }: { onNavigate?: (page: str
 
   const handleClickNotification = (notification: Notification) => {
     if (!notification.read) markAsRead(notification.id);
-    if (notification.service_slug && onNavigate) {
-      const page = SLUG_TO_PAGE[notification.service_slug];
-      if (page) onNavigate(page);
-    }
+    onNavigate?.(destinationForAdminNotification(notification));
     setIsOpen(false);
   };
 
@@ -94,13 +98,19 @@ export function AdminNotificationsBell({ onNavigate }: { onNavigate?: (page: str
     <div className="relative" ref={panelRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-slate-400 hover:text-white hover:bg-slate-700/50"
-        aria-label="Notifications"
+        className={`relative p-2 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 ${
+          tone === 'dark'
+            ? 'text-slate-300 hover:text-white hover:bg-slate-800'
+            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+        }`}
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         aria-expanded={isOpen}
       >
-        <Bell className="w-6 h-6" />
+        <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-white bg-emerald-500 rounded-full ring-2 ring-slate-900 shadow-sm shadow-emerald-500/30 animate-pulse-slow">
+          <span className={`absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-emerald-500 rounded-full shadow-sm ${
+            tone === 'dark' ? 'ring-2 ring-slate-900' : 'ring-2 ring-white'
+          }`}>
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  LayoutDashboard, Briefcase, CalendarDays, UserCircle,
+  LayoutDashboard, Briefcase, CalendarDays, UserCircle, FileText, Receipt,
   LogOut, Menu, X, Shield, ChevronDown,
   Sun, Moon, Monitor, Circle,
 } from 'lucide-react';
@@ -21,6 +21,8 @@ const navItems = [
   { label: 'Home',     page: 'home',     icon: LayoutDashboard },
   { label: 'Services', page: 'services', icon: Briefcase },
   { label: 'Bookings', page: 'bookings', icon: CalendarDays },
+  { label: 'Quotes',   page: 'quotes',   icon: FileText },
+  { label: 'Billing',  page: 'billing',  icon: Receipt },
   { label: 'Account',  page: 'account',  icon: UserCircle },
 ];
 
@@ -109,7 +111,7 @@ export function TopNav({ currentPage, onNavigate, devAdmin, onToggleDevAdmin }: 
                   <button
                     key={item.page}
                     onClick={() => handleNav(item.page)}
-                    className={`relative flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
+                    className={`relative flex items-center gap-1.5 px-2.5 lg:px-3.5 py-1.5 rounded-lg text-xs lg:text-sm font-medium transition-all duration-200 group ${
                       active
                         ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-sm border border-slate-200/50 dark:border-slate-800 font-semibold'
                         : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/60 dark:hover:bg-slate-800/60'

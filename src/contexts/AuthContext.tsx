@@ -295,14 +295,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data: portal } = await supabase
         .from('app_settings')
-        .select('registration_enabled, require_email_verification, require_phone_verification')
+        .select('registration_enabled, require_email_verification')
         .eq('id', 1)
         .maybeSingle();
       if (portal && portal.registration_enabled === false) {
         return { error: 'New registrations are currently closed. Please sign in if you already have an account.' };
       }
 
-      const requirePhone = portal?.require_phone_verification !== false;
       const requireEmail = portal?.require_email_verification !== false;
 
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-account`, {
@@ -342,21 +341,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         await supabase.auth.refreshSession();
-        if (requirePhone) {
-          const res = await supabase.functions.invoke('send-whatsapp-otp');
-          if (res.error) {
-            const fnErr = res.error as { message?: string; context?: Response };
-            let detail = fnErr.message;
-            if (fnErr.context) {
-              try {
-                const body = await fnErr.context.json();
-                if (body?.error) detail = body.error;
-              } catch { /* not JSON */ }
-            }
-            console.error('signUp: send-whatsapp-otp error:', detail);
-          }
-        }
-        if (requireEmail && !requirePhone) {
+        if (requireEmail) {
           const res = await supabase.functions.invoke('send-verification-code');
           if (res.error) {
             console.error('signUp: send-verification-code error:', res.error);
@@ -366,8 +351,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('signUp: verification send exception:', e);
       }
 
-      setNeedsPhoneVerification(requirePhone);
-      setNeedsEmailVerification(true);
+      setNeedsPhoneVerification(false);
+      setNeedsEmailVerification(requireEmail);
       return { error: null };
     } catch {
       return { error: 'Could not create account. Please try again.' };

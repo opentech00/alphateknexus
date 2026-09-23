@@ -5,6 +5,7 @@ import {
   Loader2, Lock, Receipt as ReceiptIcon, XCircle, Banknote,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { toast } from '../components/toast/toast';
 import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
 
 const SERVICE_FEE = 25;
@@ -395,7 +396,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
       <SmartSortQuoteForm
         service={service}
         onCancel={() => onNavigate('services')}
-        onSuccess={() => onNavigate('bookings')}
+        onSuccess={() => { toast.success('Request submitted'); onNavigate('bookings'); }}
       />
     );
   }
@@ -414,7 +415,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
       <SmartSortPickupForm
         service={service}
         onCancel={() => onNavigate('services')}
-        onSuccess={() => onNavigate('bookings')}
+        onSuccess={() => { toast.success('Request submitted'); onNavigate('bookings'); }}
         rebookData={rebookData}
       />
     );
@@ -427,7 +428,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
         <CleaningQuoteForm
           service={service}
           onCancel={() => onNavigate('services')}
-          onSuccess={() => onNavigate('bookings')}
+          onSuccess={() => { toast.success('Request submitted'); onNavigate('bookings'); }}
         />
       );
     }
@@ -435,7 +436,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
       <CleaningHireForm
         service={service}
         onCancel={() => onNavigate('services')}
-        onSuccess={() => onNavigate('bookings')}
+        onSuccess={() => { toast.success('Request submitted'); onNavigate('bookings'); }}
       />
     );
   }
@@ -447,7 +448,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
         <ClearingForwardingQuoteForm
           service={service}
           onCancel={() => onNavigate('services')}
-          onSuccess={() => onNavigate('bookings')}
+          onSuccess={() => { toast.success('Request submitted'); onNavigate('bookings'); }}
         />
       );
     }
@@ -455,7 +456,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
       <ClearingForwardingForm
         service={service}
         onCancel={() => onNavigate('services')}
-        onSuccess={() => onNavigate('bookings')}
+        onSuccess={() => { toast.success('Request submitted'); onNavigate('bookings'); }}
       />
     );
   }
@@ -467,7 +468,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
         <PrivateSecurityQuoteForm
           service={service}
           onCancel={() => onNavigate('services')}
-          onSuccess={() => onNavigate('bookings')}
+          onSuccess={() => { toast.success('Request submitted'); onNavigate('bookings'); }}
         />
       );
     }
@@ -475,7 +476,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
       <PrivateSecurityHireForm
         service={service}
         onCancel={() => onNavigate('services')}
-        onSuccess={() => onNavigate('bookings')}
+        onSuccess={() => { toast.success('Request submitted'); onNavigate('bookings'); }}
       />
     );
   }
@@ -487,7 +488,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
         <ProcurementQuoteForm
           service={service}
           onCancel={() => onNavigate('services')}
-          onSuccess={() => onNavigate('bookings')}
+          onSuccess={() => { toast.success('Request submitted'); onNavigate('bookings'); }}
         />
       );
     }
@@ -495,7 +496,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
       <ProcurementHireForm
         service={service}
         onCancel={() => onNavigate('services')}
-        onSuccess={() => onNavigate('bookings')}
+        onSuccess={() => { toast.success('Request submitted'); onNavigate('bookings'); }}
       />
     );
   }

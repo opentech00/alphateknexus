@@ -4,6 +4,7 @@ import {
   Loader2, MapPin, Calendar, User, Phone, ArrowLeft, Navigation,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { CrewTrackMap } from './map/CrewTrackMap';
 
 interface BookingDetail {
   id: string;
@@ -204,9 +205,13 @@ export function BookingTrackingPage({ bookingId, onBack }: BookingTrackingPagePr
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
-      <button onClick={onBack} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors">
-        <ArrowLeft className="w-4 h-4" /> Back to bookings
+      <button type="button" onClick={onBack} className="flex items-center gap-2 min-h-[44px] text-sm text-slate-500 hover:text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-lg">
+        <ArrowLeft className="w-4 h-4" aria-hidden="true" /> Back to bookings
       </button>
+
+      {(booking.status === 'confirmed' || booking.status === 'in_progress') && (
+        <CrewTrackMap bookingId={booking.id} />
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">

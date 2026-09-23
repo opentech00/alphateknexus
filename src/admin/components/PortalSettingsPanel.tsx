@@ -37,7 +37,7 @@ export function PortalSettingsPanel() {
           portal_enabled: data.portal_enabled !== false,
           registration_enabled: data.registration_enabled !== false,
           require_email_verification: data.require_email_verification !== false,
-          require_phone_verification: data.require_phone_verification !== false,
+          require_phone_verification: data.require_phone_verification === true,
           portal_company_name: data.portal_company_name || DEFAULT_PORTAL_SETTINGS.portal_company_name,
           portal_tagline: data.portal_tagline || '',
           portal_support_email: data.portal_support_email || '',
@@ -155,7 +155,7 @@ export function PortalSettingsPanel() {
           />
           <ToggleRow
             title="Require WhatsApp phone verification"
-            description="New sign-ups must prove a unique phone number with a WhatsApp OTP. Meta Cloud API secrets and an Authentication template must be configured or users will be stuck on the code screen."
+            description="Off for new sign-ups. Sign-up collects a unique phone and verifies email only. Turn this on only to block legacy accounts that still have an unverified WhatsApp OTP flag."
             enabled={draft.require_phone_verification}
             onToggle={() => setDraft((s) => ({ ...s, require_phone_verification: !s.require_phone_verification }))}
           />

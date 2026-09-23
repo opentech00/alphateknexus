@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard, Card, EmptyState, Spinner, ErrorBanner, TableShell } from '../components/ui';
 import { ServiceRequestExportMenu } from '../../components/ServiceRequestExportMenu';
 import { bookingToExportRow } from '../../lib/exportServiceRequests';
+import { toast } from '../../components/toast/toast';
 import {
   ClipboardCheck, CheckCircle2, XCircle, Clock, Filter, Search,
   Calendar, Phone, Mail, MapPin, User, Briefcase, FileText, Loader2,
@@ -85,23 +86,13 @@ export function BookingReviewPage() {
         .eq('id', bookingId);
       if (err) throw err;
 
-      // Notify the customer
-      const booking = bookings.find(b => b.id === bookingId);
-      if (booking && user) {
-        await supabase.from('notifications').insert({
-          user_id: booking.contact_name,
-          title: 'Booking Approved',
-          body: `Your ${booking.services?.name || 'service'} booking has been approved. You can now proceed to payment.`,
-          type: 'booking_update',
-          booking_id: bookingId,
-        });
-      }
-
       setReviewNote('');
       setSelectedBooking(null);
+      toast.success('Booking approved');
       loadBookings();
     } catch (err: any) {
       setError(err.message || 'Failed to approve booking');
+      toast.error(err.message || 'Failed to approve booking');
     } finally {
       setActionLoading(null);
     }
@@ -123,22 +114,13 @@ export function BookingReviewPage() {
         .eq('id', bookingId);
       if (err) throw err;
 
-      const booking = bookings.find(b => b.id === bookingId);
-      if (booking && user) {
-        await supabase.from('notifications').insert({
-          user_id: booking.contact_name,
-          title: 'Booking Rejected',
-          body: `Your ${booking.services?.name || 'service'} booking request was not approved. ${reviewNote || 'Please contact us for more information.'}`,
-          type: 'booking_update',
-          booking_id: bookingId,
-        });
-      }
-
       setReviewNote('');
       setSelectedBooking(null);
+      toast.success('Booking rejected');
       loadBookings();
     } catch (err: any) {
       setError(err.message || 'Failed to reject booking');
+      toast.error(err.message || 'Failed to reject booking');
     } finally {
       setActionLoading(null);
     }

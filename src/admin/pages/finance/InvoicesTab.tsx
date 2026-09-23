@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   FileText, Search, Loader2, Plus, CheckCircle2, Download, Send,
-  Trash2, Clock, AlertCircle, DollarSign, Filter, Mail, Printer,
+  Trash2, Clock, AlertCircle, DollarSign, Filter, Mail, Printer, Eye, FileDown,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { daysPastDue, downloadCsv } from './financeCsv';
@@ -9,6 +9,8 @@ import { CreateInvoiceModal, ViewInvoiceModal } from './InvoicePaper';
 import {
   buildOfficialInvoiceHtml, openPrintableHtml, parseInvoiceNotes, type OfficialLineItem,
 } from '../../../lib/companyDocs';
+import { downloadHtmlAsPdf } from '../../../lib/invoicePdf';
+import { toast } from '../../../components/toast/toast';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null; phone: string | null };
@@ -146,9 +148,19 @@ export function InvoicesTab() {
     return true;
   });
 
-  const handleDownload = (inv: Invoice) => {
-    const html = invoiceHtml(inv);
-    openPrintableHtml(html, `invoice-${inv.invoice_number}.html`);
+  const handleDownloadPdf = async (inv: Invoice) => {
+    setActionLoading(`pdf-${inv.id}`);
+    try {
+      await downloadHtmlAsPdf(invoiceHtml(inv), `invoice-${inv.invoice_number}.pdf`);
+      toast.success(`Saved invoice-${inv.invoice_number}.pdf`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not create the PDF.');
+    }
+    setActionLoading(null);
+  };
+
+  const handlePrint = (inv: Invoice) => {
+    openPrintableHtml(invoiceHtml(inv), `invoice-${inv.invoice_number}.html`);
   };
 
   const handleSendEmail = async (inv: Invoice) => {
@@ -310,7 +322,6 @@ export function InvoicesTab() {
               <tbody className="divide-y divide-slate-50">
                 {filtered.map(inv => {
                   const meta = STATUS_META[inv.status] ?? STATUS_META.draft;
-                  const balance = Number(inv.total) - Number(inv.amount_paid);
                   return (
                     <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-5 py-3">
@@ -337,23 +348,35 @@ export function InvoicesTab() {
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${meta.cls}`}>{meta.label}</span>
                       </td>
                       <td className="px-5 py-3">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button onClick={() => handleDownload(inv)} title="Print / save PDF"
-                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                        <div className="flex items-center justify-center gap-1">
+                          <button type="button" onClick={() => setViewInvoice(inv)} title="View invoice"
+                            aria-label={`View invoice ${inv.invoice_number}`}
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button type="button" onClick={() => handleDownloadPdf(inv)} disabled={actionLoading === `pdf-${inv.id}`}
+                            title="Download PDF"
+                            aria-label={`Download PDF for ${inv.invoice_number}`}
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50">
+                            {actionLoading === `pdf-${inv.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                          </button>
+                          <button type="button" onClick={() => handlePrint(inv)} title="Print"
+                            aria-label={`Print invoice ${inv.invoice_number}`}
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
                             <Printer className="w-4 h-4" />
                           </button>
                           <button onClick={() => handleSendEmail(inv)} disabled={actionLoading === inv.id} title={inv.status === 'overdue' ? 'Send reminder' : 'Send to client'}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50">
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50">
                             <Send className="w-4 h-4" />
                           </button>
                           {inv.status !== 'paid' && (
                             <button onClick={() => handleMarkPaid(inv)} disabled={actionLoading === inv.id} title="Mark as paid"
-                              className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50">
+                              className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50">
                               <CheckCircle2 className="w-4 h-4" />
                             </button>
                           )}
                           <button onClick={() => handleDelete(inv)} disabled={actionLoading === inv.id} title="Delete"
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50">
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>

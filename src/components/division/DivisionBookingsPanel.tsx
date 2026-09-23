@@ -11,6 +11,7 @@ import { ServiceDetailsPanel } from '../ServiceDetailsPanel';
 import { StatCard } from '../../admin/components/ui';
 import { ServiceRequestExportMenu } from '../ServiceRequestExportMenu';
 import { bookingToExportRow } from '../../lib/exportServiceRequests';
+import { toast } from '../toast/toast';
 
 export interface DivisionConfig {
   name: string;
@@ -158,29 +159,8 @@ export function DivisionBookingsPanel({
 
   const updateStatus = async (bookingId: string, newStatus: string) => {
     setUpdatingId(bookingId);
-    const booking = bookings.find((b) => b.id === bookingId);
     await client.from('bookings').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', bookingId);
-    if (booking) {
-      if (actor) {
-        await client.rpc('notify_booking_party', {
-          p_booking_id: bookingId,
-          p_title: 'Booking Status Updated',
-          p_body: `Your ${config.name} booking has been updated to "${statusLabels[newStatus]}".`,
-          p_type: 'booking_update',
-        });
-      } else {
-        const { data: bd } = await client.from('bookings').select('user_id').eq('id', bookingId).maybeSingle();
-        if (bd?.user_id) {
-          await client.from('notifications').insert({
-            user_id: bd.user_id,
-            title: 'Booking Status Updated',
-            body: `Your ${config.name} booking has been updated to "${statusLabels[newStatus]}".`,
-            type: 'booking_update',
-            booking_id: bookingId,
-          });
-        }
-      }
-    }
+    toast.success('Booking status updated');
     await fetchBookings();
     setUpdatingId(null);
   };
@@ -193,6 +173,7 @@ export function DivisionBookingsPanel({
       assigned_employee_id: member?.id || null,
       updated_at: new Date().toISOString(),
     }).eq('id', bookingId);
+    toast.success('Job assigned');
     await fetchBookings();
     setUpdatingId(null);
   };

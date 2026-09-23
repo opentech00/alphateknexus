@@ -12,6 +12,7 @@ import {
   snoozeClockInPrompt,
 } from '../lib/attendance';
 import { ClockInPromptModal } from './ClockInPromptModal';
+import { toast } from '../../components/toast/toast';
 
 export function OfficeClockInPrompt() {
   const { employee, user } = useAuth();
@@ -84,9 +85,11 @@ export function OfficeClockInPrompt() {
     setSaving(false);
     if (err) {
       setError(err);
+      toast.error(err);
       return;
     }
     vibrate('success');
+    toast.success('Clocked in');
     setVisible(false);
   }, [employee, user, vibrate]);
 

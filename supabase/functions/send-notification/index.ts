@@ -508,6 +508,8 @@ Deno.serve(async (req: Request) => {
             title: row.title,
             body: row.body,
             type: row.event_type === "announcement" ? "announcement"
+              : row.event_type === "payslip_issued" ? "payslip_issued"
+              : row.event_type === "hr_file_uploaded" ? "hr_file_uploaded"
               : row.event_type.startsWith("booking") ? "booking_update"
               : row.event_type.startsWith("message") ? "message"
               : row.event_type.startsWith("job") || row.event_type.startsWith("field") ? "field_dispatch"

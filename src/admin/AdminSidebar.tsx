@@ -1,17 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, CalendarDays, Users, Building2, Settings,
   LogOut, Menu, X, ChevronRight, ChevronDown,
   BarChart3, Truck, Brush, ShieldCheck, Package, ArrowLeft, Recycle, FolderOpen,
   Briefcase, CreditCard, UserCog, History, Contact, Database, Banknote,
-  Receipt as ReceiptIcon, Star, Gift, Landmark, Wallet,
+  FileSpreadsheet, Receipt as ReceiptIcon, Star, Gift, Landmark, Wallet,
   Navigation, ClipboardCheck, MessageSquare,
   AlertTriangle, CheckSquare, Bell, GitBranch, Image as ImageIcon, Megaphone,
+  Mail, Copy, Check, LifeBuoy,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAdminNotifications } from './contexts/AdminNotificationsContext';
 import { useAdminOperations } from './contexts/AdminOperationsContext';
 import { AdminNotificationsBell } from '../components/AdminNotificationsBell';
+import { ThemeToggle } from '../components/ThemeToggle';
+import { toast } from '../components/toast/toast';
 import { useAppLogo } from '../lib/media';
 
 interface AdminSidebarProps {
@@ -56,6 +59,7 @@ const navSections: NavSection[] = [
       { label: 'Booking Review', page: 'booking-review', icon: ClipboardCheck },
       { label: 'All Bookings', page: 'bookings', icon: CalendarDays },
       { label: 'Messages', page: 'messages', icon: MessageSquare },
+      { label: 'Support', page: 'support', icon: LifeBuoy },
       { label: 'Documents', page: 'documents', icon: FolderOpen },
       { label: 'Clients', page: 'clients', icon: Users },
       { label: 'User Management', page: 'users', icon: UserCog },
@@ -117,6 +121,7 @@ const navSections: NavSection[] = [
         items: [
           { label: 'Employees', page: 'hr-employees', icon: Users },
           { label: 'Roles', page: 'hr-roles', icon: Briefcase },
+          { label: 'Payslips', page: 'hr-payslips', icon: FileSpreadsheet },
           { label: 'Documents', page: 'hr-documents', icon: FolderOpen },
         ],
       },
@@ -191,6 +196,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
     'booking-review': 0,
     bookings: (unreadByType['booking_update'] || 0) + (unreadByType['message'] || 0),
     messages: unreadByType['message'] || 0,
+    support: unreadByType['support'] || 0,
     documents: 0,
     clients: 0,
     finance: 0,
@@ -222,6 +228,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
     'hr-activity': 0,
     'hr-permissions': 0,
     'hr-documents': 0,
+    'hr-payslips': 0,
     'hr-directory': 0,
   };
 
@@ -258,40 +265,43 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
   return (
     <>
       {/* Mobile Top Bar */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-slate-900 h-16 flex items-center justify-between px-4">
-        <div className="flex items-center gap-2.5">
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-slate-900 h-16 flex items-center px-2 gap-1">
+        <div className="flex items-center gap-2.5 min-w-0 pl-2">
           <img src={logoUrl} alt="Alphatek Nexus" className="w-8 h-8 rounded-lg object-contain p-0.5" />
-          <span className="font-bold text-white text-sm">Admin Panel</span>
+          <span className="font-bold text-white text-sm truncate">Admin Panel</span>
         </div>
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="p-2 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
-        >
-          {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-0.5 ml-auto">
+          <ThemeToggle tone="dark" menuId="admin-theme-menu-mobile" />
+          <AdminNotificationsBell tone="dark" onNavigate={handleNav} />
+          <button
+            type="button"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="p-2 min-h-[44px] min-w-[44px] rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileOpen}
+          >
+            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </header>
 
       {/* Desktop Top Bar */}
-      <header className="hidden lg:flex fixed top-0 right-0 left-72 z-30 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 items-center justify-between px-8">
-        <div className="flex items-center gap-2 text-sm">
+      <header className="hidden lg:flex fixed top-0 right-0 left-72 z-30 h-16 bg-white dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200 items-center justify-between px-8">
+        <div className="flex items-center gap-2 text-sm min-w-0">
           <span className="text-slate-400">Admin</span>
           <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-          <span className="font-semibold text-slate-800">{findPageLabel(currentPage)}</span>
+          <span className="font-semibold text-slate-800 truncate">{findPageLabel(currentPage)}</span>
         </div>
-        <div className="flex items-center gap-3">
-          <AdminNotificationsBell onNavigate={handleNav} />
-          <div className="h-6 w-px bg-slate-200" />
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
-              <span className="text-emerald-700 font-semibold text-xs">
-                {profile?.full_name?.[0]?.toUpperCase() || 'A'}
-              </span>
-            </div>
-            <div className="text-sm leading-tight">
-              <p className="font-medium text-slate-800">{profile?.full_name || 'Admin'}</p>
-              <p className="text-xs text-slate-400">{profile?.email}</p>
-            </div>
-          </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <ThemeToggle menuId="admin-theme-menu" />
+          <AdminNotificationsBell tone="light" onNavigate={handleNav} />
+          <div className="h-8 w-px bg-slate-200 mx-1" />
+          <AdminProfileChip
+            name={profile?.full_name || 'Admin'}
+            email={profile?.email || ''}
+            roleLabel={isSuperAdmin ? 'Super admin' : 'Admin'}
+            avatarUrl={profile?.avatar_url || null}
+          />
         </div>
       </header>
 
@@ -417,5 +427,85 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
         </div>
       </aside>
     </>
+  );
+}
+
+function AdminProfileChip({
+  name,
+  email,
+  roleLabel,
+  avatarUrl,
+}: {
+  name: string;
+  email: string;
+  roleLabel: string;
+  avatarUrl: string | null;
+}) {
+  const [copied, setCopied] = useState(false);
+  const initial = name[0]?.toUpperCase() || 'A';
+
+  useEffect(() => {
+    if (!copied) return;
+    const t = window.setTimeout(() => setCopied(false), 1600);
+    return () => window.clearTimeout(t);
+  }, [copied]);
+
+  const copyEmail = async () => {
+    if (!email) return;
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopied(true);
+      toast.success('Email copied');
+    } catch {
+      toast.error('Could not copy email');
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2.5 min-w-0">
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt=""
+          className="w-9 h-9 rounded-full object-cover ring-2 ring-emerald-100 flex-shrink-0"
+        />
+      ) : (
+        <div
+          className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center text-sm font-bold ring-2 ring-emerald-100 shadow-sm flex-shrink-0"
+          aria-hidden="true"
+        >
+          {initial}
+        </div>
+      )}
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <p className="text-sm font-semibold text-slate-800 truncate max-w-[10rem]">{name}</p>
+          <span className="flex-shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide bg-emerald-50 text-emerald-700 border border-emerald-100">
+            {roleLabel}
+          </span>
+        </div>
+        {email ? (
+          <button
+            type="button"
+            onClick={copyEmail}
+            title={`${email} — click to copy`}
+            aria-label={`Copy email ${email}`}
+            className="mt-0.5 group flex items-center gap-1 max-w-[15rem] rounded-full bg-slate-100 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 px-2 py-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+          >
+            <Mail className="w-3 h-3 text-slate-400 group-hover:text-emerald-600 flex-shrink-0" aria-hidden="true" />
+            <span className="text-[11px] text-slate-600 group-hover:text-emerald-700 truncate font-medium">
+              {email}
+            </span>
+            {copied ? (
+              <Check className="w-3 h-3 text-emerald-600 flex-shrink-0" aria-hidden="true" />
+            ) : (
+              <Copy className="w-3 h-3 text-slate-300 group-hover:text-emerald-500 flex-shrink-0" aria-hidden="true" />
+            )}
+          </button>
+        ) : (
+          <p className="text-[11px] text-slate-400">No email on file</p>
+        )}
+      </div>
+    </div>
   );
 }

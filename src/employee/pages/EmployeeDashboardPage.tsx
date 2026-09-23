@@ -1,18 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Mail, Phone, MapPin, Calendar, AlertTriangle, User, Briefcase,
   Building2, BadgeCheck, CreditCard, LogOut, Loader2, Clock, Bell,
-  LayoutDashboard, ChevronRight, Menu, X, KeyRound, Banknote, ClipboardList,
-  GitBranch, Shield, Inbox, CalendarDays, FolderOpen,
+  ChevronRight, Menu, X, KeyRound, Banknote, ClipboardList,
+  GitBranch, Shield, Inbox, CalendarDays, FolderOpen, Sun,
 } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { supabase } from '../lib/supabase';
-import { type IdCard, STATUS_META, fmtDate } from '../types';
+import { type Employee, type IdCard, STATUS_META, fmtDate } from '../types';
 import { CashCollectionsPage } from './CashCollectionsPage';
 import { ActivitiesPage } from './ActivitiesPage';
 import {
-  BookingsPage,
-  SchedulePage,
   DocumentsPage,
   ReportPage,
   PerformancePage,
@@ -20,21 +18,38 @@ import {
 import { DelegatedTasksPage } from './DelegatedTasksPage';
 import { DivisionWorkspacePage } from './DivisionWorkspacePage';
 import { EmployeeNotificationsBell } from '../components/EmployeeNotificationsBell';
+import { ThemeToggle } from '../../components/ThemeToggle';
+import { useAppLogo } from '../../lib/media';
 import { EmployeeNotificationsPage } from './EmployeeNotificationsPage';
-import { EmployeeOverviewInsights } from '../components/EmployeeOverviewInsights';
-import { WorkQueuePage } from './WorkQueuePage';
+import { WorkInboxPage } from './WorkQueuePage';
 import { LeaveAttendancePage } from './LeaveAttendancePage';
 import { HrFilesPage } from './HrFilesPage';
+import { MyDayPage } from './MyDayPage';
+import { EmployeeScorecard } from '../components/EmployeeScorecard';
 import { isInternalDepartmentSlug } from '../../lib/capabilities';
+import {
+  destinationForActivityKey,
+  destinationForNotification,
+  PAGE_LABELS,
+  type EmployeePage,
+  type NavTarget,
+  type WorkInboxTab,
+} from '../lib/workNav';
+import { registerToastNotificationOpener } from '../../components/toast/toast';
 
-type Page = 'overview' | 'division' | 'role' | 'id-card' | 'profile' | 'cash-collections' | 'activities' | 'notifications' | 'bookings' | 'schedule' | 'documents' | 'report' | 'performance' | 'delegated-tasks' | 'manage-division' | 'division-workspace' | 'work-queue' | 'leave' | 'hr-files';
+type NavItem = { key: EmployeePage; label: string; icon: typeof Sun };
 
 export function EmployeeDashboardPage() {
   const { employee, signOut, hasCapability, isDivisionHead } = useAuth();
+  const { url: logoUrl } = useAppLogo();
   const [idCard, setIdCard] = useState<IdCard | null>(null);
   const [cardLoading, setCardLoading] = useState(true);
-  const [page, setPage] = useState<Page>('overview');
+  const [page, setPage] = useState<EmployeePage>('my-day');
+  const [inboxTab, setInboxTab] = useState<WorkInboxTab>('mine');
+  const [focusBookingId, setFocusBookingId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
+  const skipFirstFocus = useRef(true);
 
   useEffect(() => {
     if (!employee) return;
@@ -52,22 +67,54 @@ export function EmployeeDashboardPage() {
     })();
   }, [employee]);
 
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [sidebarOpen]);
+
+  const handleNavigate = (target: NavTarget | EmployeePage) => {
+    const dest: NavTarget = typeof target === 'string' ? { page: target } : target;
+    setPage(dest.page);
+    setInboxTab(dest.inboxTab ?? (dest.page === 'work-inbox' ? 'mine' : inboxTab));
+    setFocusBookingId(dest.bookingId ?? null);
+    setSidebarOpen(false);
+    skipFirstFocus.current = false;
+  };
+  const navRef = useRef(handleNavigate);
+  navRef.current = handleNavigate;
+
+  useEffect(() => {
+    return registerToastNotificationOpener((n) => {
+      navRef.current(destinationForNotification(n));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (skipFirstFocus.current) return;
+    mainRef.current?.focus();
+  }, [page]);
+
   if (!employee) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
         <div className="text-center max-w-md">
           <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertTriangle className="w-7 h-7 text-amber-600" />
+            <AlertTriangle className="w-7 h-7 text-amber-600" aria-hidden="true" />
           </div>
           <h2 className="text-lg font-bold text-slate-900 mb-2">No Employee Record Found</h2>
           <p className="text-sm text-slate-500 mb-5">
             Your account is not linked to an employee record. Please contact your administrator.
           </p>
           <button
+            type="button"
             onClick={signOut}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors"
+            className="inline-flex items-center gap-2 min-h-[44px] px-5 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
           >
-            <LogOut className="w-4 h-4" /> Sign Out
+            <LogOut className="w-4 h-4" aria-hidden="true" /> Sign Out
           </button>
         </div>
       </div>
@@ -78,77 +125,89 @@ export function EmployeeDashboardPage() {
   const cardStatus = idCard ? STATUS_META[idCard.status] ?? STATUS_META.active : null;
   const isInternalDept = isInternalDepartmentSlug(employee.services?.slug);
 
-  const navItems: { key: Page; label: string; icon: typeof LayoutDashboard }[] = [
-    { key: 'overview', label: 'Overview', icon: LayoutDashboard },
-    ...((isInternalDept || hasCapability('div.view') || hasCapability('div.approve_quotes') || hasCapability('div.manage_bookings'))
-      ? [{ key: 'work-queue' as Page, label: isInternalDept ? 'Department inbox' : 'Work queue', icon: Inbox }]
-      : []),
+  const workItems: NavItem[] = [
+    { key: 'my-day', label: 'My Day', icon: Sun },
+    { key: 'work-inbox', label: isInternalDept ? 'Department inbox' : 'Work inbox', icon: Inbox },
     ...(isDivisionHead || hasCapability('div.manage_staff_access')
-      ? [{ key: 'division-workspace' as Page, label: 'Division workspace', icon: Shield }]
+      ? [{ key: 'division-workspace' as EmployeePage, label: 'Division workspace', icon: Shield }]
       : []),
-    { key: 'activities', label: 'My Activities', icon: ClipboardList },
+    { key: 'activities', label: 'More work', icon: ClipboardList },
+    { key: 'delegated-tasks', label: 'Delegated tasks', icon: GitBranch },
+    ...(hasCapability('div.cash_collections')
+      ? [{ key: 'cash-collections' as EmployeePage, label: 'Cash collections', icon: Banknote }]
+      : []),
+  ];
+
+  const meItems: NavItem[] = [
     { key: 'leave', label: 'Leave & attendance', icon: CalendarDays },
     { key: 'hr-files', label: 'Payslips & HR', icon: FolderOpen },
-    { key: 'delegated-tasks', label: 'Delegated Tasks', icon: GitBranch },
-    { key: 'division', label: 'My Division', icon: Building2 },
-    { key: 'role', label: 'My Role', icon: Briefcase },
-    { key: 'id-card', label: 'ID Card', icon: CreditCard },
-    ...(hasCapability('div.cash_collections')
-      ? [{ key: 'cash-collections' as Page, label: 'Cash Collections', icon: Banknote }]
-      : []),
     { key: 'profile', label: 'Profile', icon: User },
     { key: 'notifications', label: 'Notifications', icon: Bell },
   ];
 
-  const handleNav = (p: Page) => {
-    setPage(p);
-    setSidebarOpen(false);
-  };
+  const wideMain = page === 'division-workspace';
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Mobile top bar */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-slate-200 h-14 flex items-center justify-between px-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
-            <Building2 className="w-4.5 h-4.5 text-white" />
-          </div>
-          <span className="font-bold text-slate-900 text-sm">Employee Portal</span>
+      <a
+        href="#employee-main"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[80] focus:top-3 focus:left-3 focus:px-4 focus:py-2 focus:rounded-xl focus:bg-emerald-600 focus:text-white focus:text-sm focus:font-semibold"
+      >
+        Skip to main content
+      </a>
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {PAGE_LABELS[page]}
+      </div>
+
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-slate-200 h-14 flex items-center px-3 gap-1">
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="p-2 min-h-[44px] min-w-[44px] rounded-lg text-slate-600 hover:bg-slate-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          aria-expanded={sidebarOpen}
+          aria-controls="employee-sidebar"
+          aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+        >
+          {sidebarOpen ? <X className="w-5 h-5" aria-hidden="true" /> : <Menu className="w-5 h-5" aria-hidden="true" />}
+        </button>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <img src={logoUrl} alt="Alphatek Nexus" className="w-8 h-8 rounded-lg object-contain p-0.5 flex-shrink-0" />
+          <span className="font-bold text-slate-900 text-sm truncate">Employee Portal</span>
         </div>
-        <div className="flex items-center gap-1">
-          <EmployeeNotificationsBell onNavigate={(p) => handleNav(p as Page)} />
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors">
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+        <div className="flex items-center gap-0.5 ml-auto">
+          <ThemeToggle />
+          <EmployeeNotificationsBell onNavigate={handleNavigate} />
         </div>
       </header>
 
-      {/* Mobile overlay */}
       {sidebarOpen && (
-        <div className="lg:hidden fixed inset-0 z-30 bg-black/40 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+        <button
+          type="button"
+          className="lg:hidden fixed inset-0 z-30 bg-black/40 backdrop-blur-sm"
+          aria-label="Close menu"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
 
-      {/* Sidebar */}
-      <aside className={`fixed top-0 left-0 z-40 h-full w-64 bg-slate-900 flex flex-col transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        {/* Logo */}
+      <aside
+        id="employee-sidebar"
+        className={`fixed top-0 left-0 z-40 h-full w-64 bg-slate-900 flex flex-col transition-transform duration-300 motion-reduce:transition-none lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        aria-label="Employee portal"
+      >
         <div className="h-16 flex items-center gap-3 px-5 border-b border-slate-800 flex-shrink-0">
-          <div className="w-9 h-9 bg-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
-            <Building2 className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1">
+          <img src={logoUrl} alt="Alphatek Nexus" className="w-9 h-9 rounded-lg object-contain p-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
             <p className="font-bold text-white text-sm leading-tight">Alphatek Nexus</p>
             <p className="text-[10px] text-slate-400 uppercase tracking-widest">Employee Portal</p>
           </div>
-          <EmployeeNotificationsBell onNavigate={(p) => handleNav(p as Page)} />
         </div>
 
-        {/* Employee info */}
         <div className="p-4 border-b border-slate-800">
           <div className="flex items-center gap-3">
             {employee.photo_url ? (
-              <img src={employee.photo_url} alt={employee.full_name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+              <img src={employee.photo_url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
             ) : (
-              <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center flex-shrink-0" aria-hidden="true">
                 <span className="text-sm font-semibold text-white">{employee.full_name[0]?.toUpperCase()}</span>
               </div>
             )}
@@ -158,343 +217,244 @@ export function EmployeeDashboardPage() {
             </div>
           </div>
           <div className="mt-3 space-y-1.5">
-            <div className="flex items-center gap-2 text-xs">
-              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-medium ${sm.cls}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${sm.dot}`} />
-                {sm.label}
-              </span>
-            </div>
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium ${sm.cls}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${sm.dot}`} aria-hidden="true" />
+              {sm.label}
+            </span>
             {employee.services && (
               <p className="flex items-center gap-1.5 text-xs text-slate-400">
-                <Building2 className="w-3 h-3" /> {employee.services.name}
+                <Building2 className="w-3 h-3" aria-hidden="true" /> {employee.services.name}
               </p>
             )}
             {employee.hr_roles && (
               <p className="flex items-center gap-1.5 text-xs text-slate-400">
-                <Briefcase className="w-3 h-3" /> {employee.hr_roles.name}
+                <Briefcase className="w-3 h-3" aria-hidden="true" /> {employee.hr_roles.name}
               </p>
             )}
           </div>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto">
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2">Workspace</p>
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = page === item.key;
-            return (
-              <button
-                key={item.key}
-                onClick={() => handleNav(item.key)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group ${
-                  active ? 'bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                }`}
-              >
-                <Icon className={`w-4.5 h-4.5 flex-shrink-0 ${active ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
-                {item.label}
-                {active && <ChevronRight className="w-3.5 h-3.5 ml-auto text-emerald-400/60" />}
-              </button>
-            );
-          })}
+        <nav className="flex-1 py-4 px-3 space-y-4 overflow-y-auto">
+          <NavGroup title="Work" items={workItems} page={page} onNavigate={handleNavigate} />
+          <NavGroup title="Me" items={meItems} page={page} onNavigate={handleNavigate} />
         </nav>
 
-        {/* Footer */}
         <div className="p-3 border-t border-slate-800 flex-shrink-0">
           <button
+            type="button"
             onClick={signOut}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
           >
-            <LogOut className="w-4 h-4" /> Sign Out
+            <LogOut className="w-4 h-4" aria-hidden="true" /> Sign Out
           </button>
         </div>
       </aside>
 
-      {/* Main content */}
       <div className="lg:ml-64 pt-14 lg:pt-0">
-        <main className={`${page === 'division-workspace' || page === 'manage-division' ? 'max-w-6xl' : 'max-w-4xl'} mx-auto px-4 sm:px-6 py-6 space-y-6`}>
-          {page === 'overview' && <OverviewPage employee={employee} idCard={idCard} cardLoading={cardLoading} cardStatus={cardStatus} sm={sm} onNavigate={handleNav} />}
-          {page === 'work-queue' && <WorkQueuePage onOpenCash={() => handleNav('cash-collections')} />}
+        <div className="hidden lg:flex sticky top-0 z-20 h-14 items-center justify-end gap-1 px-4 sm:px-6 bg-white border-b border-slate-200">
+          <ThemeToggle />
+          <EmployeeNotificationsBell onNavigate={handleNavigate} />
+        </div>
+        <main
+          id="employee-main"
+          ref={mainRef}
+          tabIndex={-1}
+          className={`${wideMain ? 'max-w-6xl' : 'max-w-4xl'} mx-auto px-4 sm:px-6 py-6 space-y-6 outline-none`}
+        >
+          {page === 'my-day' && <MyDayPage onNavigate={handleNavigate} />}
+          {page === 'work-inbox' && (
+            <WorkInboxPage
+              initialTab={inboxTab}
+              focusBookingId={focusBookingId}
+              onOpenCash={() => handleNavigate('cash-collections')}
+              onOpenTasks={() => handleNavigate('delegated-tasks')}
+            />
+          )}
           {page === 'leave' && <LeaveAttendancePage />}
           {page === 'hr-files' && <HrFilesPage />}
-          {(page === 'division-workspace' || page === 'manage-division') && <DivisionWorkspacePage />}
-          {page === 'activities' && <ActivitiesPage onNavigate={(k) => handleNav(k as Page)} />}
-          {page === 'division' && <DivisionPage employee={employee} />}
-          {page === 'role' && <RolePage employee={employee} />}
-          {page === 'id-card' && <IdCardPage employee={employee} idCard={idCard} loading={cardLoading} cardStatus={cardStatus} />}
-          {page === 'cash-collections' && hasCapability('div.cash_collections') && <CashCollectionsPage onBack={() => setPage('overview')} />}
-          {page === 'profile' && <ProfilePage employee={employee} />}
-          {page === 'bookings' && hasCapability('div.view') && <BookingsPage employee={employee} />}
-          {page === 'schedule' && hasCapability('div.view') && <SchedulePage employee={employee} />}
-          {page === 'documents' && hasCapability('div.manage_documents') && <DocumentsPage employee={employee} />}
-          {page === 'report' && hasCapability('div.reports') && <ReportPage employee={employee} onBack={() => handleNav('activities')} />}
-          {page === 'performance' && hasCapability('div.reports') && <PerformancePage employee={employee} />}
-          {page === 'delegated-tasks' && <DelegatedTasksPage onBack={() => handleNav('activities')} />}
-          {page === 'notifications' && <EmployeeNotificationsPage />}
+          {page === 'division-workspace' && <DivisionWorkspacePage />}
+          {page === 'activities' && (
+            <ActivitiesPage onNavigate={(k) => handleNavigate(destinationForActivityKey(k))} />
+          )}
+          {page === 'cash-collections' && hasCapability('div.cash_collections') && (
+            <CashCollectionsPage onBack={() => handleNavigate('work-inbox')} />
+          )}
+          {page === 'profile' && (
+            <ProfilePage
+              employee={employee}
+              idCard={idCard}
+              cardLoading={cardLoading}
+              cardStatus={cardStatus}
+            />
+          )}
+          {page === 'documents' && (isInternalDept || hasCapability('div.manage_documents')) && (
+            <DocumentsPage employee={employee} />
+          )}
+          {page === 'report' && (isInternalDept || hasCapability('div.reports')) && (
+            <ReportPage employee={employee} onBack={() => handleNavigate('activities')} />
+          )}
+          {page === 'performance' && (isInternalDept || hasCapability('div.reports')) && (
+            <PerformancePage employee={employee} />
+          )}
+          {page === 'delegated-tasks' && <DelegatedTasksPage onBack={() => handleNavigate('my-day')} />}
+          {page === 'notifications' && <EmployeeNotificationsPage onNavigate={handleNavigate} />}
         </main>
       </div>
     </div>
   );
 }
 
-// ── Overview ─────────────────────────────────────────────────────────────
-
-function OverviewPage({ employee, idCard, cardLoading, cardStatus, sm, onNavigate }: {
-  employee: any;
-  idCard: IdCard | null;
-  cardLoading: boolean;
-  cardStatus: any;
-  sm: any;
-  onNavigate: (p: Page) => void;
+function NavGroup({
+  title,
+  items,
+  page,
+  onNavigate,
+}: {
+  title: string;
+  items: NavItem[];
+  page: EmployeePage;
+  onNavigate: (target: NavTarget) => void;
 }) {
-  const { isDivisionHead, hasCapability } = useAuth();
-  const isInternalDept = isInternalDepartmentSlug(employee.services?.slug);
-
-  const tiles = [
-    ...(isDivisionHead || hasCapability('div.manage_staff_access')
-      ? [{ page: 'division-workspace' as Page, label: 'Division workspace', value: employee.services?.name || 'Operations', icon: Shield, color: 'text-violet-600', bg: 'bg-violet-50' }]
-      : []),
-    { page: 'work-queue' as Page, label: isInternalDept ? 'Department inbox' : 'Work queue', value: isInternalDept ? 'Approvals & tasks' : 'Quotes & jobs', icon: Inbox, color: 'text-rose-600', bg: 'bg-rose-50' },
-    { page: 'leave' as Page, label: 'Leave', value: 'Time off', icon: CalendarDays, color: 'text-sky-600', bg: 'bg-sky-50' },
-    { page: 'hr-files' as Page, label: 'Payslips', value: 'HR files', icon: FolderOpen, color: 'text-emerald-700', bg: 'bg-emerald-50' },
-    { page: 'division' as Page, label: 'My Division', value: employee.services?.name || 'Unassigned', icon: Building2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { page: 'role' as Page, label: 'My Role', value: employee.hr_roles?.name || 'Unassigned', icon: Briefcase, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { page: 'activities' as Page, label: 'My Activities', value: 'View tasks', icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50' },
-    { page: 'id-card' as Page, label: 'ID Card', value: idCard?.card_number || 'Not issued', icon: CreditCard, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { page: 'profile' as Page, label: 'Profile', value: 'View details', icon: User, color: 'text-slate-600', bg: 'bg-slate-50' },
-  ];
-
   return (
-    <div className="space-y-6">
-      {/* Welcome banner */}
-      <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 sm:p-7 text-white relative overflow-hidden">
-        <div className="absolute -top-20 -right-20 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl" />
-        <div className="relative flex items-center gap-4">
-          {employee.photo_url ? (
-            <img src={employee.photo_url} alt={employee.full_name} className="w-16 h-16 rounded-2xl object-cover border-2 border-white/20" />
-          ) : (
-            <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center border-2 border-white/20">
-              <span className="text-2xl font-bold text-white">{employee.full_name[0]?.toUpperCase()}</span>
-            </div>
-          )}
-          <div>
-            <p className="text-sm text-slate-400">Welcome back,</p>
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">{employee.full_name}</h1>
-            <div className="flex items-center gap-2 mt-1.5">
-              <span className="text-xs font-mono text-slate-300 bg-white/10 px-2 py-0.5 rounded-md">{employee.employee_number}</span>
-              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium ${sm.cls}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${sm.dot}`} />
-                {sm.label}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick tiles */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {tiles.map((tile) => {
-          const Icon = tile.icon;
+    <div>
+      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2">{title}</p>
+      <div className="space-y-0.5">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const active = page === item.key;
           return (
             <button
-              key={tile.label}
-              onClick={() => onNavigate(tile.page)}
-              className="group bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all text-left"
+              key={item.key}
+              type="button"
+              onClick={() => onNavigate({ page: item.key })}
+              aria-current={active ? 'page' : undefined}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+                active ? 'bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+              }`}
             >
-              <div className={`w-10 h-10 ${tile.bg} rounded-xl flex items-center justify-center mb-3 group-hover:scale-105 transition-transform`}>
-                <Icon className={`w-5 h-5 ${tile.color}`} />
-              </div>
-              <p className="text-xs text-slate-400 mb-0.5">{tile.label}</p>
-              <p className="text-sm font-semibold text-slate-900 truncate">{tile.value}</p>
+              <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'}`} aria-hidden="true" />
+              {item.label}
+              {active && <ChevronRight className="w-3.5 h-3.5 ml-auto text-emerald-400/60" aria-hidden="true" />}
             </button>
           );
         })}
       </div>
-
-      <EmployeeOverviewInsights
-        employee={employee}
-        isDivisionHead={isDivisionHead}
-        hasCapability={hasCapability}
-        onNavigate={(p) => onNavigate(p as Page)}
-      />
-
-      {/* Mini ID card preview */}
-      {!cardLoading && idCard && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <CreditCard className="w-5 h-5 text-slate-600" />
-            <h2 className="text-base font-bold text-slate-900">Your ID Card</h2>
-          </div>
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 text-white relative overflow-hidden">
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl" />
-            <div className="relative flex items-start justify-between mb-4">
-              <div>
-                <p className="text-xs text-slate-400">Alphatek Nexus</p>
-                <p className="text-sm font-semibold">Employee ID</p>
-              </div>
-              <BadgeCheck className="w-6 h-6 text-emerald-400" />
-            </div>
-            <div className="relative flex items-center gap-4">
-              {employee.photo_url ? (
-                <img src={employee.photo_url} alt="" className="w-14 h-14 rounded-xl object-cover border border-white/20" />
-              ) : (
-                <div className="w-14 h-14 bg-white/10 rounded-xl flex items-center justify-center border border-white/20">
-                  <span className="text-xl font-bold">{employee.full_name[0]?.toUpperCase()}</span>
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold truncate">{employee.full_name}</p>
-                <p className="text-xs text-slate-400">{employee.position || employee.hr_roles?.name || 'Staff'}</p>
-                <p className="text-xs font-mono text-emerald-400 mt-1">{idCard.card_number}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
-// ── Division ─────────────────────────────────────────────────────────────
-
-function DivisionPage({ employee }: { employee: any }) {
-  return (
-    <div className="space-y-5">
-      <PageTitle icon={Building2} title="My Division" subtitle="Your designated division within Alphatek Nexus" />
-      {employee.services ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center flex-shrink-0">
-              <Building2 className="w-7 h-7 text-emerald-600" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">{employee.services.name}</h3>
-              {employee.services.description && (
-                <p className="text-sm text-slate-500 mt-1">{employee.services.description}</p>
-              )}
-              <span className="inline-block mt-2 text-xs font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded-md">
-                {employee.services.slug}
-              </span>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <EmptyState icon={Building2} title="No division assigned" description="Please contact your administrator to be assigned to a division." />
-      )}
-    </div>
-  );
-}
-
-// ── Role ─────────────────────────────────────────────────────────────────
-
-function RolePage({ employee }: { employee: any }) {
-  const role = employee.hr_roles;
-  const division = employee.services;
-  const hasRole = !!role;
-  const hasDivision = !!division;
+function ProfilePage({
+  employee, idCard, cardLoading, cardStatus,
+}: {
+  employee: Employee;
+  idCard: IdCard | null;
+  cardLoading: boolean;
+  cardStatus: { label: string; cls: string; dot: string } | null;
+}) {
+  const fields = [
+    { icon: User, label: 'Full Name', value: employee.full_name },
+    { icon: Mail, label: 'Email', value: employee.email },
+    { icon: Phone, label: 'Phone', value: employee.phone || '—' },
+    { icon: Calendar, label: 'Date of Birth', value: fmtDate(employee.date_of_birth) },
+    { icon: MapPin, label: 'Address', value: employee.address || '—' },
+    { icon: AlertTriangle, label: 'Emergency Contact', value: employee.emergency_contact || '—' },
+    { icon: Clock, label: 'Hire Date', value: fmtDate(employee.hire_date) },
+    { icon: Briefcase, label: 'Position', value: employee.position || '—' },
+  ];
 
   return (
-    <div className="space-y-5">
-      <PageTitle icon={Briefcase} title="My Role" subtitle="Your role and position within the company" />
+    <div className="space-y-5 emp-fade-in">
+      <PageTitle icon={User} title="Profile" subtitle="Your work, role, and personal details" />
+      <EmployeeScorecard />
 
-      {/* Division context banner */}
-      {hasDivision ? (
-        <div className="bg-gradient-to-br from-emerald-50 to-blue-50 rounded-2xl border border-emerald-200 p-5 flex items-center gap-4">
-          <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
-            <Building2 className="w-6 h-6 text-emerald-600" />
-          </div>
+      <section className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm" aria-labelledby="profile-details-heading">
+        <div className="flex items-center gap-4 mb-5 pb-5 border-b border-slate-100">
+          {employee.photo_url ? (
+            <img src={employee.photo_url} alt="" className="w-16 h-16 rounded-2xl object-cover" />
+          ) : (
+            <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center" aria-hidden="true">
+              <span className="text-2xl font-bold text-emerald-700">{employee.full_name[0]?.toUpperCase()}</span>
+            </div>
+          )}
           <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Division</p>
-            <p className="font-bold text-slate-900">{division.name}</p>
+            <h2 id="profile-details-heading" className="font-bold text-slate-900">{employee.full_name}</h2>
+            <p className="text-sm text-slate-400">{employee.employee_number}</p>
           </div>
         </div>
-      ) : (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-          <p className="text-sm text-amber-700">No division assigned. Contact your administrator.</p>
-        </div>
-      )}
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {fields.map((f) => {
+            const Icon = f.icon;
+            return (
+              <div key={f.label} className="flex items-start gap-3">
+                <Icon className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                <div>
+                  <dt className="text-xs text-slate-400">{f.label}</dt>
+                  <dd className="text-sm text-slate-700 break-words">{f.value}</dd>
+                </div>
+              </div>
+            );
+          })}
+        </dl>
+      </section>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Role card */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center mb-3">
-            <Briefcase className="w-5 h-5 text-blue-600" />
+        <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm" aria-labelledby="profile-division-heading">
+          <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mb-3">
+            <Building2 className="w-5 h-5 text-emerald-600" aria-hidden="true" />
           </div>
-          <p className="text-xs text-slate-400 mb-1">Role</p>
-          {hasRole ? (
+          <h2 id="profile-division-heading" className="text-xs text-slate-400 mb-1">Division</h2>
+          {employee.services ? (
             <>
-              <p className="font-semibold text-slate-900">{role.name}</p>
-              {role.description && <p className="text-xs text-slate-500 mt-1.5">{role.description}</p>}
-              {role.is_default && (
-                <span className="inline-flex items-center gap-1 mt-2 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                  Default role for {division?.name || 'division'}
-                </span>
+              <p className="font-semibold text-slate-900">{employee.services.name}</p>
+              {employee.services.description && <p className="text-xs text-slate-500 mt-1.5">{employee.services.description}</p>}
+            </>
+          ) : (
+            <p className="text-sm text-slate-500">No division assigned yet.</p>
+          )}
+        </section>
+        <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm" aria-labelledby="profile-role-heading">
+          <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center mb-3">
+            <Briefcase className="w-5 h-5 text-blue-600" aria-hidden="true" />
+          </div>
+          <h2 id="profile-role-heading" className="text-xs text-slate-400 mb-1">Role</h2>
+          {employee.hr_roles ? (
+            <>
+              <p className="font-semibold text-slate-900">{employee.hr_roles.name}</p>
+              {employee.hr_roles.description && <p className="text-xs text-slate-500 mt-1.5">{employee.hr_roles.description}</p>}
+              {employee.position && (
+                <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1">
+                  <KeyRound className="w-3 h-3" aria-hidden="true" /> {employee.position}
+                </p>
               )}
             </>
           ) : (
-            <>
-              <p className="font-semibold text-slate-400">Unassigned</p>
-              <p className="text-xs text-slate-400 mt-1.5">No role assigned yet.</p>
-            </>
+            <p className="text-sm text-slate-500">No role assigned yet.</p>
           )}
-        </div>
-
-        {/* Position card */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center mb-3">
-            <KeyRound className="w-5 h-5 text-slate-600" />
-          </div>
-          <p className="text-xs text-slate-400 mb-1">Position</p>
-          <p className="font-semibold text-slate-900">{employee.position || '—'}</p>
-          {hasRole && role.display_order != null && (
-            <p className="text-xs text-slate-400 mt-1.5">Level #{role.display_order} in {division?.name || 'division'}</p>
-          )}
-        </div>
+        </section>
       </div>
 
-      {/* Unassigned state */}
-      {!hasRole && hasDivision && (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-3">
-          <Briefcase className="w-5 h-5 text-blue-600 flex-shrink-0" />
-          <p className="text-sm text-blue-700">Your administrator will assign you a role within the {division.name} division.</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── ID Card ──────────────────────────────────────────────────────────────
-
-function IdCardPage({ employee, idCard, loading, cardStatus }: {
-  employee: any;
-  idCard: IdCard | null;
-  loading: boolean;
-  cardStatus: any;
-}) {
-  return (
-    <div className="space-y-5">
-      <PageTitle icon={CreditCard} title="ID Card" subtitle="Your digital employee identification card" />
-      {loading ? (
-        <div className="flex items-center justify-center py-12 text-slate-400">
-          <Loader2 className="w-6 h-6 animate-spin" />
-        </div>
-      ) : idCard ? (
-        <div className="space-y-4">
+      <section aria-labelledby="profile-id-heading">
+        <h2 id="profile-id-heading" className="sr-only">ID card</h2>
+        {cardLoading ? (
+          <div className="flex items-center justify-center py-8 text-slate-400" role="status">
+            <Loader2 className="w-6 h-6 animate-spin" aria-hidden="true" />
+            <span className="sr-only">Loading ID card</span>
+          </div>
+        ) : idCard ? (
           <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white relative overflow-hidden shadow-lg">
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl" />
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" aria-hidden="true" />
             <div className="relative flex items-start justify-between mb-5">
               <div>
                 <p className="text-xs text-slate-400">Alphatek Nexus</p>
                 <p className="text-sm font-semibold">Employee ID</p>
               </div>
-              <BadgeCheck className="w-7 h-7 text-emerald-400" />
+              <BadgeCheck className="w-7 h-7 text-emerald-400" aria-hidden="true" />
             </div>
             <div className="relative flex items-center gap-4">
               {employee.photo_url ? (
                 <img src={employee.photo_url} alt="" className="w-16 h-16 rounded-2xl object-cover border border-white/20" />
               ) : (
-                <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20">
+                <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20" aria-hidden="true">
                   <span className="text-2xl font-bold">{employee.full_name[0]?.toUpperCase()}</span>
                 </div>
               )}
@@ -508,84 +468,28 @@ function IdCardPage({ employee, idCard, loading, cardStatus }: {
               <span>Issued: {fmtDate(idCard.issue_date)}</span>
               <span>Expires: {fmtDate(idCard.expiry_date)}</span>
             </div>
+            {cardStatus && (
+              <p className="relative mt-3 text-xs">
+                Status: {cardStatus.label}
+              </p>
+            )}
           </div>
-          {cardStatus && (
-            <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 p-4">
-              <span className="text-sm text-slate-500">Card Status</span>
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${cardStatus.cls}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${cardStatus.dot}`} />
-                {cardStatus.label}
-              </span>
-            </div>
-          )}
-        </div>
-      ) : (
-        <EmptyState icon={CreditCard} title="No ID card issued" description="Your ID card has not been issued yet. Please contact your administrator." />
-      )}
+        ) : (
+          <EmptyState icon={CreditCard} title="No ID card issued" description="Your ID card has not been issued yet. Please contact your administrator." />
+        )}
+      </section>
     </div>
   );
 }
-
-// ── Profile ──────────────────────────────────────────────────────────────
-
-function ProfilePage({ employee }: { employee: any }) {
-  const fields = [
-    { icon: User, label: 'Full Name', value: employee.full_name },
-    { icon: Mail, label: 'Email', value: employee.email },
-    { icon: Phone, label: 'Phone', value: employee.phone || '—' },
-    { icon: Calendar, label: 'Date of Birth', value: fmtDate(employee.date_of_birth) },
-    { icon: MapPin, label: 'Address', value: employee.address || '—' },
-    { icon: AlertTriangle, label: 'Emergency Contact', value: employee.emergency_contact || '—' },
-    { icon: Clock, label: 'Hire Date', value: fmtDate(employee.hire_date) },
-    { icon: Briefcase, label: 'Position', value: employee.position || '—' },
-  ];
-
-  return (
-    <div className="space-y-5">
-      <PageTitle icon={User} title="Profile" subtitle="Your personal and employment information" />
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm">
-        <div className="flex items-center gap-4 mb-5 pb-5 border-b border-slate-100">
-          {employee.photo_url ? (
-            <img src={employee.photo_url} alt={employee.full_name} className="w-16 h-16 rounded-2xl object-cover" />
-          ) : (
-            <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center">
-              <span className="text-2xl font-bold text-emerald-700">{employee.full_name[0]?.toUpperCase()}</span>
-            </div>
-          )}
-          <div>
-            <h3 className="font-bold text-slate-900">{employee.full_name}</h3>
-            <p className="text-sm text-slate-400">{employee.employee_number}</p>
-          </div>
-        </div>
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {fields.map((f) => {
-            const Icon = f.icon;
-            return (
-              <div key={f.label} className="flex items-start gap-3">
-                <Icon className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <dt className="text-xs text-slate-400">{f.label}</dt>
-                  <dd className="text-sm text-slate-700 break-words">{f.value}</dd>
-                </div>
-              </div>
-            );
-          })}
-        </dl>
-      </div>
-    </div>
-  );
-}
-
-// ── Shared ───────────────────────────────────────────────────────────────
 
 function PageTitle({ icon: Icon, title, subtitle }: { icon: typeof User; title: string; subtitle: string }) {
   return (
     <div className="flex items-center gap-3">
       <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0">
-        <Icon className="w-5 h-5 text-slate-600" />
+        <Icon className="w-5 h-5 text-slate-600" aria-hidden="true" />
       </div>
       <div>
-        <h1 className="text-lg font-bold text-slate-900">{title}</h1>
+        <h1 id="employee-page-title" tabIndex={-1} className="text-lg font-bold text-slate-900 outline-none">{title}</h1>
         <p className="text-sm text-slate-400">{subtitle}</p>
       </div>
     </div>
@@ -596,7 +500,7 @@ function EmptyState({ icon: Icon, title, description }: { icon: typeof User; tit
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
       <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-        <Icon className="w-7 h-7 text-slate-400" />
+        <Icon className="w-7 h-7 text-slate-400" aria-hidden="true" />
       </div>
       <h3 className="font-semibold text-slate-900 mb-1">{title}</h3>
       <p className="text-sm text-slate-500">{description}</p>

@@ -31,7 +31,7 @@ const TRACKED_TABLES = [
   'smart_sort_invoices', 'smart_sort_payments',
   'wallet_transactions', 'procurement_requests',
   'employees', 'hr_roles', 'hr_role_permissions', 'id_cards',
-  'employee_activity_logs',
+  'employee_activity_logs', 'employee_compensation', 'payslips',
 ];
 
 function formatBytes(bytes: number): string {

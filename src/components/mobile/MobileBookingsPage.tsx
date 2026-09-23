@@ -9,6 +9,7 @@ import { MessageThread } from '../MessageThread';
 import { DocumentUpload } from '../DocumentUpload';
 import { ReviewModal } from '../ReviewModal';
 import { BookingTracker } from '../BookingTracker';
+import { CrewTrackMap } from '../map/CrewTrackMap';
 import { SubscriptionLifecycle } from '../SubscriptionLifecycle';
 import { CancelDeleteBookingModal } from '../CancelDeleteBookingModal';
 import { BookingPayNowModal } from '../BookingPayNowModal';
@@ -498,7 +499,12 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                         </div>
                         <div className="p-4 bg-slate-50/50 dark:bg-slate-900/50">
                           {activeSubTab === 'tracker' ? (
-                            <BookingTracker bookingId={booking.id} currentStatus={booking.status} />
+                            <div className="space-y-3">
+                              {(booking.status === 'confirmed' || booking.status === 'in_progress') && (
+                                <CrewTrackMap bookingId={booking.id} />
+                              )}
+                              <BookingTracker bookingId={booking.id} currentStatus={booking.status} />
+                            </div>
                           ) : activeSubTab === 'messages' ? (
                             <MessageThread bookingId={booking.id} />
                           ) : (

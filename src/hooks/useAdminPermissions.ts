@@ -21,7 +21,7 @@ const ALL_PAGES = [
   'task-delegation', 'backup', 'admin-sessions',
   'settings', 'notification-log', 'hr-dashboard', 'hr-employees', 'hr-roles',
   'hr-id-cards', 'hr-activity', 'hr-directory', 'hr-permissions',
-  'hr-documents', 'media-library',
+  'hr-documents', 'hr-payslips', 'media-library',
 ];
 
 export function useAdminPermissions(profile: Profile | null, isAdmin: boolean): AdminPermissionsState {

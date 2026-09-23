@@ -42,6 +42,9 @@ const CATEGORIES: CategoryConfig[] = [
   { key: 'cat_bookings', label: 'Bookings', description: 'Booking created, updated, cancelled, or completed', icon: Calendar },
   { key: 'cat_payments', label: 'Payments', description: 'Payment verified, rejected, wallet top-ups, withdrawals', icon: CreditCard },
   { key: 'cat_messages', label: 'Messages', description: 'New messages from admin or support', icon: MessageCircle },
+  { key: 'cat_field_dispatch', label: 'Field dispatch', description: 'Job assignments, offers, and field updates', icon: Truck },
+  { key: 'cat_hr', label: 'HR', description: 'Leave decisions, payslips, and HR files', icon: Users },
+  { key: 'cat_incidents', label: 'Incidents', description: 'Field incident reports and resolutions', icon: AlertTriangle },
   { key: 'cat_smart_sort', label: 'Smart Sort', description: 'Pickup reminders and subscription renewals', icon: Recycle },
   { key: 'cat_system', label: 'System', description: 'Announcements and system-wide notices', icon: Info },
 ];

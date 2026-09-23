@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Users, Briefcase, CreditCard as IdCardIcon, TrendingUp, Building2, UserCheck,
-  UserPlus, ArrowRight, Landmark,
+  UserPlus, ArrowRight, Landmark, FileSpreadsheet,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard, Card, Spinner } from '../components/ui';
@@ -19,15 +19,19 @@ interface Props {
 
 export function HrDashboardPage({ onNavigate }: Props) {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ totalEmployees: 0, active: 0, totalRoles: 0, totalCards: 0 });
+  const [stats, setStats] = useState({ totalEmployees: 0, active: 0, totalRoles: 0, issuedPayslips: 0 });
   const [divisionCounts, setDivisionCounts] = useState<DivisionCount[]>([]);
 
   useEffect(() => {
     const fetch = async () => {
-      const [{ data: empData }, { data: roleData }, { data: cardData }] = await Promise.all([
+      const now = new Date();
+      const [{ data: empData }, { count: roleCount }, { count: issuedCount }] = await Promise.all([
         supabase.from('employees').select('status, services(name,slug)'),
         supabase.from('hr_roles').select('id', { count: 'exact', head: true }),
-        supabase.from('id_cards').select('id', { count: 'exact', head: true }),
+        supabase.from('payslips').select('id', { count: 'exact', head: true })
+          .eq('status', 'issued')
+          .eq('period_year', now.getFullYear())
+          .eq('period_month', now.getMonth() + 1),
       ]);
       const employees = empData || [];
       const counts: Record<string, number> = {};
@@ -40,8 +44,8 @@ export function HrDashboardPage({ onNavigate }: Props) {
       setStats({
         totalEmployees: employees.length,
         active: employees.filter((e: any) => e.status === 'active').length,
-        totalRoles: roleData?.length || 0,
-        totalCards: cardData?.length || 0,
+        totalRoles: roleCount || 0,
+        issuedPayslips: issuedCount || 0,
       });
       setLoading(false);
     };
@@ -55,8 +59,8 @@ export function HrDashboardPage({ onNavigate }: Props) {
   const quickActions = [
     { label: 'Add Employee', icon: UserPlus, color: 'text-emerald-600', bg: 'bg-emerald-50', page: 'hr-employees' },
     { label: 'Create Role', icon: Briefcase, color: 'text-blue-600', bg: 'bg-blue-50', page: 'hr-roles' },
+    { label: 'Issue payslips', icon: FileSpreadsheet, color: 'text-emerald-700', bg: 'bg-emerald-50', page: 'hr-payslips' },
     { label: 'View ID Cards', icon: IdCardIcon, color: 'text-amber-600', bg: 'bg-amber-50', page: 'hr-id-cards' },
-    { label: 'Manage Employees', icon: Users, color: 'text-teal-600', bg: 'bg-teal-50', page: 'hr-employees' },
   ];
 
   return (
@@ -71,7 +75,7 @@ export function HrDashboardPage({ onNavigate }: Props) {
         <StatCard label="Total Employees" value={stats.totalEmployees} icon={Users} color="text-slate-600" accent="bg-slate-50" />
         <StatCard label="Active Staff" value={stats.active} icon={UserCheck} color="text-emerald-600" accent="bg-emerald-50" />
         <StatCard label="Roles Defined" value={stats.totalRoles} icon={Briefcase} color="text-blue-600" accent="bg-blue-50" />
-        <StatCard label="ID Cards Issued" value={stats.totalCards} icon={IdCardIcon} color="text-amber-600" accent="bg-amber-50" />
+        <StatCard label="Payslips issued this month" value={stats.issuedPayslips} icon={FileSpreadsheet} color="text-emerald-700" accent="bg-emerald-50" />
       </div>
 
       {/* Quick Actions */}

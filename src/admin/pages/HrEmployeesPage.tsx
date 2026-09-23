@@ -9,6 +9,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard, EmptyState, Spinner, ErrorBanner } from '../components/ui';
 import { type Employee, type HrRole, type Service, DIVISIONS, STATUS_META, fmtDate } from '../hr/types';
+import { CompensationEditor } from '../hr/CompensationEditor';
 
 const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-[#1e293b] focus:border-[#1e293b] outline-none transition-colors bg-white placeholder-slate-400';
 const sectionCls = 'border border-slate-200 rounded-xl bg-slate-50 p-5';
@@ -467,7 +468,7 @@ function ViewEmployeeModal({ employee: e, roles, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh]" onClick={ev => ev.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh]" onClick={ev => ev.stopPropagation()}>
         <div className="flex items-center gap-3.5 px-6 py-5 border-b border-slate-100 flex-shrink-0">
           <div className="w-11 h-11 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0">
             <Eye className="w-5 h-5 text-slate-600" />
@@ -522,6 +523,10 @@ function ViewEmployeeModal({ employee: e, roles, onClose }: {
               {e.hire_date && <p className="flex items-center gap-2"><Calendar className="w-3.5 h-3.5 text-slate-400" /> Hired {fmtDate(e.hire_date)}</p>}
               {(e as any).date_of_birth && <p className="flex items-center gap-2"><Calendar className="w-3.5 h-3.5 text-slate-400" /> DOB {fmtDate((e as any).date_of_birth)}</p>}
             </div>
+          </div>
+
+          <div className={sectionCls}>
+            <CompensationEditor employeeId={e.id} />
           </div>
 
           {/* Portal access */}

@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import {
-  Bell, Calendar, MessageCircle, Info, Check, CheckCheck, X,
-  Briefcase, Banknote, Shield, AlertTriangle, Star, Package, ArrowRight,
+  Bell, Calendar, MessageCircle, Info, CheckCheck, X,
+  Briefcase, Banknote, AlertTriangle, Star, Package, ArrowRight,
 } from 'lucide-react';
 import { useEmployeeNotifications, type EmployeeNotification } from '../contexts/EmployeeNotificationsContext';
+import { destinationForNotification, type NavTarget } from '../lib/workNav';
 
 const TYPE_ICON: Record<string, typeof Bell> = {
   booking_update: Calendar,
@@ -61,7 +62,13 @@ function getIcon(type: string) {
   return <Icon className={`w-5 h-5 ${color}`} />;
 }
 
-export function EmployeeNotificationsBell({ onNavigate }: { onNavigate?: (page: string) => void }) {
+export function EmployeeNotificationsBell({
+  onNavigate,
+  tone = 'light',
+}: {
+  onNavigate?: (target: NavTarget) => void;
+  tone?: 'light' | 'dark';
+}) {
   const { notifications, unreadCount, markAsRead, markAllAsRead, loading } = useEmployeeNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -85,16 +92,23 @@ export function EmployeeNotificationsBell({ onNavigate }: { onNavigate?: (page: 
   const handleClick = (n: EmployeeNotification) => {
     if (!n.read) markAsRead(n.id);
     setIsOpen(false);
-    if (onNavigate) onNavigate('notifications');
+    onNavigate?.(destinationForNotification(n));
   };
 
   return (
     <div className="relative" ref={panelRef}>
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-        aria-label="Notifications"
+        className={`relative p-2 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 ${
+          tone === 'dark'
+            ? 'text-slate-300 hover:text-white hover:bg-slate-800'
+            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+        }`}
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         aria-expanded={isOpen}
+        aria-haspopup="true"
+        aria-controls="employee-notifications-panel"
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
@@ -105,11 +119,14 @@ export function EmployeeNotificationsBell({ onNavigate }: { onNavigate?: (page: 
       </button>
 
       <div
-        className={`absolute right-0 mt-2 w-[380px] max-w-[calc(100vw-1rem)] bg-white border border-slate-200 rounded-xl shadow-2xl shadow-slate-300/40 z-50 overflow-hidden transition-all duration-200 origin-top-right ${
+        id="employee-notifications-panel"
+        className={`absolute right-0 mt-2 w-[380px] max-w-[calc(100vw-1rem)] bg-white border border-slate-200 rounded-xl shadow-2xl shadow-slate-300/40 z-50 overflow-hidden transition-all duration-200 origin-top-right motion-reduce:transition-none ${
           isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'
         }`}
         role="menu"
+        aria-label="Notifications"
         aria-hidden={!isOpen}
+        {...(!isOpen ? { inert: '' } : {})}
       >
         <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
           <div className="flex items-center gap-2">
@@ -157,13 +174,14 @@ export function EmployeeNotificationsBell({ onNavigate }: { onNavigate?: (page: 
           ) : (
             <div className="divide-y divide-slate-100">
               {notifications.map((n) => (
-                <div
+                <button
                   key={n.id}
-                  className={`group flex gap-3 px-4 py-3 cursor-pointer transition-colors duration-150 ${
+                  type="button"
+                  role="menuitem"
+                  className={`group flex gap-3 px-4 py-3 w-full text-left cursor-pointer transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 ${
                     n.read ? 'bg-white hover:bg-slate-50' : 'bg-emerald-50/50 hover:bg-emerald-50'
                   }`}
                   onClick={() => handleClick(n)}
-                  role="menuitem"
                 >
                   <div className="flex-shrink-0 mt-0.5">
                     <div className="w-9 h-9 flex items-center justify-center bg-slate-100 rounded-lg">
@@ -186,20 +204,11 @@ export function EmployeeNotificationsBell({ onNavigate }: { onNavigate?: (page: 
                         </span>
                       )}
                       <span className="ml-auto flex items-center gap-0.5 text-[10px] text-slate-400 group-hover:text-emerald-600 transition-colors">
-                        Open <ArrowRight className="w-2.5 h-2.5" />
+                        Open <ArrowRight className="w-2.5 h-2.5" aria-hidden="true" />
                       </span>
                     </div>
                   </div>
-                  {!n.read && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); markAsRead(n.id); }}
-                      className="flex-shrink-0 p-1 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-emerald-600 rounded transition-all"
-                      title="Mark as read"
-                    >
-                      <Check className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+                </button>
               ))}
             </div>
           )}

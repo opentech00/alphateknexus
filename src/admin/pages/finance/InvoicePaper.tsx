@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, FileText, ImagePlus, Loader2, Plus, Printer, X } from 'lucide-react';
+import { CheckCircle2, FileText, ImagePlus, Loader2, Plus, Printer, X, FileDown } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { fetchMediaAsset, fallbackLogo } from '../../../lib/media';
 import {
@@ -17,6 +17,8 @@ import {
   type InvoiceLetterhead,
   type OfficialLineItem,
 } from '../../../lib/companyDocs';
+import { downloadHtmlAsPdf } from '../../../lib/invoicePdf';
+import { toast } from '../../../components/toast/toast';
 
 export interface InvoiceLineDraft {
   item: string;
@@ -572,6 +574,7 @@ export function ViewInvoiceModal({
   onEmail: () => void;
   emailing?: boolean;
 }) {
+  const [pdfBusy, setPdfBusy] = useState(false);
   const parsed = parseInvoiceNotes(invoice.notes);
   const html = buildOfficialInvoiceHtml({
     invoiceNumber: invoice.invoice_number,
@@ -591,24 +594,54 @@ export function ViewInvoiceModal({
     billToPhone: invoice.profile?.phone,
   });
 
+  const downloadPdf = async () => {
+    setPdfBusy(true);
+    try {
+      await downloadHtmlAsPdf(html, `invoice-${invoice.invoice_number}.pdf`);
+      toast.success(`Saved invoice-${invoice.invoice_number}.pdf`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not create the PDF.');
+    }
+    setPdfBusy(false);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/45 backdrop-blur-sm">
-      <div className="bg-[#ececec] rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-4xl max-h-[96vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-slate-200 flex-shrink-0">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Invoice {invoice.invoice_number}</h2>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/45 backdrop-blur-sm" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-labelledby="view-invoice-title"
+        className="bg-[#ececec] rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-4xl max-h-[96vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-slate-200 flex-shrink-0 gap-3">
+          <div className="min-w-0">
+            <h2 id="view-invoice-title" className="text-lg font-bold text-slate-900">Invoice {invoice.invoice_number}</h2>
             <p className="text-xs text-slate-500">{formatDocDate(invoice.issue_date)} · Due {formatDocDate(invoice.due_date)}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => openPrintableHtml(html, `invoice-${invoice.invoice_number}.html`)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={downloadPdf}
+              disabled={pdfBusy}
+              className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold disabled:opacity-50"
+            >
+              {pdfBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+              PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => openPrintableHtml(html, `invoice-${invoice.invoice_number}.html`)}
+              className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold"
+            >
               <Printer className="w-4 h-4" /> Print
             </button>
             <button type="button" onClick={onEmail} disabled={emailing}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold disabled:opacity-50">
+              className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold disabled:opacity-50">
               {emailing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Email'}
             </button>
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-5 h-5 text-slate-500" /></button>
+            <button type="button" onClick={onClose} className="min-h-[44px] min-w-[44px] p-1.5 rounded-lg hover:bg-slate-100" aria-label="Close">
+              <X className="w-5 h-5 text-slate-500 mx-auto" />
+            </button>
           </div>
         </div>
         <div className="overflow-auto flex-1 p-3 sm:p-4">

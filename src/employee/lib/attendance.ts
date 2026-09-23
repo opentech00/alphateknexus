@@ -93,6 +93,15 @@ export async function clockInOffice(params: {
   return { error: error?.message ?? null, late };
 }
 
+export async function clockOutOffice(attendanceId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('office_attendance')
+    .update({ clock_out_at: new Date().toISOString() })
+    .eq('id', attendanceId);
+  if (!error) notifyAttendanceUpdated();
+  return { error: error?.message ?? null };
+}
+
 export function readCurrentLocation(): Promise<{ lat?: number; lng?: number }> {
   return new Promise((resolve) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {

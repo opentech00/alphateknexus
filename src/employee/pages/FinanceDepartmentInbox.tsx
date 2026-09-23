@@ -25,7 +25,7 @@ export function FinanceDepartmentInbox({
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-lg font-bold text-slate-900">Department inbox</h1>
+        <h1 id="employee-page-title" tabIndex={-1} className="text-lg font-bold text-slate-900 outline-none">Department inbox</h1>
         <p className="text-sm text-slate-400">Admin & Finance work: drafts, dual-control approvals, documents, and reports.</p>
       </div>
 
