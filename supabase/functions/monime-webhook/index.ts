@@ -1,7 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { classifyCheckoutEvent, extractAmountMinor, extractCaphEvent, verifyMonimeSignature } from "../_shared/monime.ts";
-import { completeMonimePayment, resolveUnmatchedFor } from "../_shared/monimeFulfill.ts";
+import { completeMonimePayment, recordMonimeFailure, resolveUnmatchedFor } from "../_shared/monimeFulfill.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -136,19 +136,11 @@ Deno.serve(async (req: Request) => {
     }
 
     if (kind === "failed" || kind === "cancelled") {
-      const extras: Record<string, unknown> = {
-        status: kind,
-        raw_payload: event,
-        updated_at: new Date().toISOString(),
-      };
+      const extras: Record<string, unknown> = {};
       if (parsed.eventId) extras.webhook_event_id = parsed.eventId;
       if (parsed.providerId) extras.provider_id = parsed.providerId;
       if (parsed.channel) extras.channel = parsed.channel;
-      await supabase
-        .from("monime_payments")
-        .update(extras)
-        .eq("id", monimePayment.id)
-        .eq("status", "pending");
+      await recordMonimeFailure(supabase, monimePayment, kind, event, extras);
       await resolveUnmatchedFor(supabase, monimePayment);
     }
 

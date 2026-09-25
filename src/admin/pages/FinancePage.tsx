@@ -471,6 +471,7 @@ interface MonimePayment {
   status: string; purpose: string; checkout_session_id: string | null;
   payment_id: string | null; paid_at: string | null; created_at: string;
   provider_id?: string | null; channel?: string | null; kind?: string | null;
+  failure_code?: string | null; failure_reason?: string | null;
   profile?: { full_name: string | null; email: string | null };
 }
 
@@ -589,7 +590,8 @@ function MobileMoneyTab() {
         </div>
         <button onClick={() => downloadCsv('monime-payments.csv', filtered.map(p => ({
           client: p.profile?.full_name || '', email: p.profile?.email || '', reference: p.reference,
-          purpose: p.purpose, amount_sle: p.amount_sle, status: p.status, date: p.created_at,
+          purpose: p.purpose, amount_sle: p.amount_sle, status: p.status,
+          failure_code: p.failure_code || '', failure_reason: p.failure_reason || '', date: p.created_at,
         })))}
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm whitespace-nowrap">
           <Download className="w-4 h-4" /> Export CSV
@@ -605,6 +607,7 @@ function MobileMoneyTab() {
           <>
             <Th>Client</Th><Th>Reference</Th><Th>Purpose</Th>
             <Th align="right">Amount</Th><Th align="center">Status</Th>
+            <Th className="hidden lg:table-cell">Failure</Th>
             <Th className="hidden md:table-cell">Date</Th>
             <Th align="right"> </Th>
           </>
@@ -624,6 +627,9 @@ function MobileMoneyTab() {
               {(p.provider_id || p.channel) && (
                 <p className="text-[10px] text-slate-400 mt-0.5">{[p.channel, p.provider_id].filter(Boolean).join(' · ')}</p>
               )}
+              {(p.status === 'failed' || p.status === 'cancelled') && p.failure_reason && (
+                <p className="lg:hidden text-[10px] text-red-600 mt-1 line-clamp-2">{p.failure_reason}</p>
+              )}
             </td>
             <td className="px-5 py-3 text-slate-600 capitalize">
               {(p.purpose || '').replace(/_/g, ' ')}
@@ -631,6 +637,20 @@ function MobileMoneyTab() {
             </td>
             <td className="px-5 py-3 text-right font-bold text-slate-800">SLE {Number(p.amount_sle).toLocaleString()}</td>
             <td className="px-5 py-3 text-center"><StatusBadge status={p.status} /></td>
+            <td className="px-5 py-3 hidden lg:table-cell text-xs text-slate-500 max-w-[220px]">
+              {(p.status === 'failed' || p.status === 'cancelled') ? (
+                <>
+                  {p.failure_code && (
+                    <p className="font-semibold uppercase tracking-wide text-[10px] text-red-600 mb-0.5">
+                      {p.failure_code.replace(/_/g, ' ')}
+                    </p>
+                  )}
+                  <p className="line-clamp-2">{p.failure_reason || '—'}</p>
+                </>
+              ) : (
+                <span className="text-slate-300">—</span>
+              )}
+            </td>
             <td className="px-5 py-3 hidden md:table-cell text-slate-400 text-xs">{formatDate(p.created_at)}</td>
             <td className="px-5 py-3 text-right">
               {canVerify && (

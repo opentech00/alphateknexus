@@ -1,4 +1,4 @@
-import { classifySessionStatus, MONIME_API_BASE, monimeHeaders } from "./monime.ts";
+import { classifyPaymentFailure, classifySessionStatus, MONIME_API_BASE, monimeHeaders } from "./monime.ts";
 
 function purposeDescription(monimePayment: any): string {
   const kind = monimePayment.kind;
@@ -175,6 +175,30 @@ export async function completeMonimePayment(
   return { already };
 }
 
+export async function recordMonimeFailure(
+  supabase: any,
+  monimePayment: any,
+  status: "failed" | "cancelled",
+  payload?: unknown,
+  extras: Record<string, unknown> = {},
+) {
+  const { code, reason } = classifyPaymentFailure(status, payload ?? monimePayment.raw_payload);
+  const { error } = await supabase
+    .from("monime_payments")
+    .update({
+      status,
+      failure_code: code,
+      failure_reason: reason,
+      raw_payload: payload ?? monimePayment.raw_payload,
+      updated_at: new Date().toISOString(),
+      ...extras,
+    })
+    .eq("id", monimePayment.id)
+    .in("status", ["pending", "failed", "cancelled"]);
+  if (error) console.error("Failed to record Monime failure:", error.message, monimePayment.id);
+  return { code, reason };
+}
+
 /** Closes inbox rows for events that later matched this payment (e.g. webhook raced checkout insert). */
 export async function resolveUnmatchedFor(supabase: any, monimePayment: any) {
   const filters: string[] = [];
@@ -201,7 +225,7 @@ export async function refreshMonimeSession(
   supabase: any,
   monimePayment: any,
   recordedBy: string,
-): Promise<{ status: string; error?: string }> {
+): Promise<{ status: string; error?: string; failure_code?: string; failure_reason?: string }> {
   if (monimePayment.status === "completed") {
     await completeMonimePayment(supabase, monimePayment, { recordedBy, paymentId: monimePayment.payment_id || "" });
     return { status: "completed" };
@@ -230,13 +254,9 @@ export async function refreshMonimeSession(
     return { status: "completed" };
   }
 
-  if ((kind === "failed" || kind === "cancelled") && monimePayment.status === "pending") {
-    await supabase
-      .from("monime_payments")
-      .update({ status: kind, raw_payload: session, updated_at: new Date().toISOString() })
-      .eq("id", monimePayment.id)
-      .eq("status", "pending");
-    return { status: kind };
+  if ((kind === "failed" || kind === "cancelled") && monimePayment.status !== "completed") {
+    const recorded = await recordMonimeFailure(supabase, monimePayment, kind, session);
+    return { status: kind, error: recorded.reason, failure_code: recorded.code, failure_reason: recorded.reason };
   }
 
   return { status: kind === "pending" ? monimePayment.status : kind };

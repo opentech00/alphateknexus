@@ -58,6 +58,8 @@ Deno.serve(async (req: Request) => {
       related_id: monimePayment.related_id,
       kind: monimePayment.kind,
       amount: monimePayment.amount_sle,
+      failure_code: monimePayment.failure_code || null,
+      failure_reason: monimePayment.failure_reason || null,
     };
 
     if (monimePayment.status !== "pending" && monimePayment.status !== "completed" && !isAdmin) {
@@ -68,7 +70,12 @@ Deno.serve(async (req: Request) => {
     if (refreshed.error && refreshed.status === monimePayment.status && monimePayment.status === "pending") {
       return json({ ...base, status: "pending", warning: refreshed.error });
     }
-    return json({ ...base, status: refreshed.status });
+    return json({
+      ...base,
+      status: refreshed.status,
+      failure_code: refreshed.failure_code || base.failure_code,
+      failure_reason: refreshed.failure_reason || base.failure_reason,
+    });
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : String(err) }, 500);
   }

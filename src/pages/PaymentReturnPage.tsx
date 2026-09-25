@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Loader2, RotateCcw, XCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, RotateCcw } from 'lucide-react';
 import { StatusOrb } from '../components/checkout/CheckoutUi';
+import { PaymentFailedPanel } from '../components/checkout/PaymentOutcome';
+import { copyForPollResult } from '../lib/paymentFailure';
 import {
   clearMonimeReturn,
   nextPageForMonime,
@@ -9,6 +11,7 @@ import {
   retryMonimePayment,
   verifyMonimePayment,
   type PaymentPurpose,
+  type VerifyMonimeResult,
 } from '../lib/monime';
 import { toast } from '../components/toast/toast';
 
@@ -22,6 +25,8 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
     statusParam === 'cancel' ? 'cancel' : 'loading',
   );
   const [attempt, setAttempt] = useState(0);
+  const [failCode, setFailCode] = useState<string | null>(statusParam === 'cancel' ? 'cancelled' : null);
+  const [failReason, setFailReason] = useState<string | null>(null);
 
   const destination = (purpose?: PaymentPurpose) =>
     nextPageForMonime(purpose || stored?.purpose || 'wallet_topup', stored?.nextPage);
@@ -32,25 +37,27 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
     onNavigate(destination(purpose));
   };
 
+  const applyFailure = (result: VerifyMonimeResult | { status: string; failure_code?: string | null; failure_reason?: string | null; reason?: string | null }) => {
+    const copy = copyForPollResult(result);
+    setFailCode(copy.code);
+    setFailReason(copy.body);
+    setPhase(copy.code === 'cancelled' ? 'cancel' : copy.code === 'timeout' ? 'pending' : 'failed');
+  };
+
   useEffect(() => {
     if (!reference) {
       setPhase('failed');
+      setFailCode('unknown');
+      setFailReason('Missing payment reference.');
       toast.error('Missing payment reference.');
-      return;
-    }
-    if (statusParam === 'cancel') {
-      toast.info('Payment was cancelled.');
-      void verifyMonimePayment(reference).catch(() => {});
       return;
     }
 
     let cancelled = false;
 
-    const finish = (next: 'success' | 'cancel' | 'failed', purpose?: PaymentPurpose) => {
-      setPhase(next);
-      if (next === 'success') toast.success('Payment received');
-      else if (next === 'cancel') toast.info('Payment was cancelled.');
-      else toast.error('Payment was not completed.');
+    const finishSuccess = (purpose?: PaymentPurpose) => {
+      setPhase('success');
+      toast.success('Payment received');
       window.setTimeout(() => leave(purpose), 1400);
     };
 
@@ -59,24 +66,37 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
         const first = await verifyMonimePayment(reference);
         if (cancelled) return;
         if (first.status === 'completed') {
-          finish('success', first.purpose);
+          finishSuccess(first.purpose);
           return;
         }
         if (first.status === 'failed' || first.status === 'cancelled') {
-          finish(first.status === 'cancelled' ? 'cancel' : 'failed', first.purpose);
+          applyFailure(first);
+          if (first.status === 'cancelled') toast.info('Payment was cancelled.');
+          else toast.error(copyForPollResult(first).title);
+          return;
+        }
+        if (statusParam === 'cancel') {
+          applyFailure({ status: 'cancelled', failure_code: 'cancelled', failure_reason: first.failure_reason });
+          toast.info('Payment was cancelled.');
           return;
         }
         const polled = await pollPaymentStatus(reference, (_status, n) => {
           if (!cancelled) setAttempt(n);
         });
         if (cancelled) return;
-        if (polled.status === 'completed') finish('success', polled.purpose);
-        else if (polled.status === 'cancelled') finish('cancel', polled.purpose);
-        else if (polled.status === 'failed') finish('failed', polled.purpose);
-        else setPhase('pending');
+        if (polled.status === 'completed') finishSuccess(polled.purpose);
+        else if (polled.status === 'failed' || polled.status === 'cancelled') {
+          applyFailure(polled);
+          toast.error(copyForPollResult(polled).title);
+        } else {
+          applyFailure(polled);
+          setPhase('pending');
+        }
       } catch (err) {
         if (!cancelled) {
           setPhase('failed');
+          setFailCode('unknown');
+          setFailReason(err instanceof Error ? err.message : 'Could not confirm payment.');
           toast.error(err instanceof Error ? err.message : 'Could not confirm payment.');
         }
       }
@@ -96,13 +116,12 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
         leave(result.purpose);
         return;
       }
-      if (result.status === 'failed' || result.status === 'cancelled') {
-        setPhase(result.status === 'cancelled' ? 'cancel' : 'failed');
-        return;
-      }
-      setPhase('pending');
+      applyFailure(result);
+      if (result.status === 'pending') setPhase('pending');
     } catch (err) {
       setPhase('failed');
+      setFailCode('unknown');
+      setFailReason(err instanceof Error ? err.message : 'Could not confirm payment.');
       toast.error(err instanceof Error ? err.message : 'Could not confirm payment.');
     }
   };
@@ -122,20 +141,11 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not restart the payment.');
       setRestarting(false);
+      setPhase('failed');
+      setFailCode('unknown');
+      setFailReason(err instanceof Error ? err.message : 'Could not restart the payment.');
     }
   };
-
-  const payAgainButton = canPayAgain ? (
-    <button
-      type="button"
-      onClick={() => void payAgain()}
-      disabled={restarting}
-      className="min-h-[48px] px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.98] transition-transform"
-    >
-      {restarting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
-      Pay again
-    </button>
-  ) : null;
 
   const step = phase === 'success' ? 2 : phase === 'loading' || phase === 'pending' ? (attempt > 0 ? 1 : 0) : 0;
   const progress = phase === 'success' ? 1 : Math.min(attempt / 60, 0.92);
@@ -143,7 +153,7 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-8 sm:py-16 bg-slate-50">
       <div className="text-center max-w-md w-full bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm animate-slideUp">
-        <ConfirmSteps active={step} />
+        {phase !== 'failed' && phase !== 'cancel' && <ConfirmSteps active={step} />}
         {phase === 'loading' && (
           <>
             <ConfirmRing progress={progress} />
@@ -161,53 +171,50 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
             <p className="mt-3 text-sm text-slate-500">Taking you back to your account.</p>
           </>
         )}
-        {phase === 'cancel' && (
-          <>
-            <StatusOrb tone="amber"><XCircle className="w-9 h-9" /></StatusOrb>
-            <h1 className="text-xl font-bold text-slate-900">Payment cancelled</h1>
-            <p className="mt-3 text-sm text-slate-500">Nothing was charged. You can start a fresh checkout whenever you are ready.</p>
-            <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-              {payAgainButton}
-              <button type="button" onClick={() => leave()} className="min-h-[48px] px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform">
-                Continue
-              </button>
-            </div>
-          </>
-        )}
-        {phase === 'failed' && (
-          <>
-            <StatusOrb tone="red"><XCircle className="w-9 h-9" /></StatusOrb>
-            <h1 className="text-xl font-bold text-slate-900">Payment not confirmed</h1>
-            <p className="mt-3 text-sm text-slate-500">
-              {reference ? `Reference ${reference}. ` : ''}Check again, or start a fresh payment.
-            </p>
-            <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-              {payAgainButton}
-              {reference && (
-                <button type="button" onClick={() => void retry()} className="min-h-[48px] px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform">
-                  Check again
-                </button>
-              )}
-              <button type="button" onClick={() => leave()} className="min-h-[48px] px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform">
-                Go back
-              </button>
-            </div>
-          </>
+        {(phase === 'failed' || phase === 'cancel') && (
+          <div className="-mx-2 sm:-mx-4 -my-2">
+            <PaymentFailedPanel
+              code={failCode}
+              reason={failReason}
+              status={phase === 'cancel' ? 'cancelled' : 'failed'}
+              reference={reference}
+              retrying={restarting}
+              onRetry={() => {
+                if (canPayAgain) void payAgain();
+                else void retry();
+              }}
+              onCheckAgain={reference ? () => void retry() : undefined}
+              onCancel={() => leave()}
+              retryLabel={canPayAgain ? 'Retry payment' : 'Check again'}
+              cancelLabel="Cancel"
+            />
+          </div>
         )}
         {phase === 'pending' && (
           <>
             <StatusOrb tone="amber" pulse><Loader2 className="w-9 h-9 animate-spin" /></StatusOrb>
             <h1 className="text-xl font-bold text-slate-900">Still waiting on the bank</h1>
             <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-              Complete payment in Monime. This page updates when the bank confirms.
+              {failReason || 'Complete payment in Monime. This page updates when the bank confirms.'}
             </p>
             {reference && <p className="mt-2 text-xs text-slate-400 font-mono break-all">{reference}</p>}
             <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-              <button type="button" onClick={() => void retry()} className="min-h-[48px] px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform">
+              {canPayAgain && (
+                <button
+                  type="button"
+                  onClick={() => void payAgain()}
+                  disabled={restarting}
+                  className="min-h-[48px] px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.98] transition-transform"
+                >
+                  {restarting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                  Retry payment
+                </button>
+              )}
+              <button type="button" onClick={() => void retry()} className="min-h-[48px] px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform">
                 Check again
               </button>
               <button type="button" onClick={() => leave()} className="min-h-[48px] px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform">
-                Check later
+                Cancel
               </button>
             </div>
           </>

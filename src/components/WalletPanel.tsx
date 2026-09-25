@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { startMonimePayment, pollPaymentStatus } from '../lib/monime';
+import { copyForPollResult } from '../lib/paymentFailure';
+import { PaymentFailedPanel } from './checkout/PaymentOutcome';
 import { ReceiptModal } from './ReceiptModal';
 import { WalletSettings } from './WalletSettings';
 import { DisputeModal } from './DisputeModal';
@@ -55,9 +57,13 @@ function formatTime(d: string) {
 function TransactionRow({ t, onReceipt, onDispute }: { t: Transaction; onReceipt?: (t: Transaction) => void; onDispute?: (t: Transaction) => void }) {
   const meta = TYPE_META[t.type] ?? TYPE_META.adjustment;
   const Icon = meta.icon;
-  const isCredit = Number(t.amount_sle) > 0;
-  const amountColor = isCredit ? 'text-emerald-600' : 'text-slate-700';
-  const statusBg = t.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600';
+  const isCredit = Number(t.amount_sle) > 0 && t.status === 'completed';
+  const amountColor = t.status === 'failed' || t.status === 'cancelled' ? 'text-red-600' : isCredit ? 'text-emerald-600' : 'text-slate-700';
+  const statusBg = t.status === 'pending'
+    ? 'bg-amber-100 text-amber-700'
+    : t.status === 'cancelled'
+      ? 'bg-slate-100 text-slate-600'
+      : 'bg-red-100 text-red-600';
 
   return (
     <div className="flex items-center gap-3 px-5 py-4 hover:bg-slate-50/80 transition-colors">
@@ -141,11 +147,11 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
   const [payReference, setPayReference] = useState('');
   const [pollAttempt, setPollAttempt] = useState(0);
   const [failReason, setFailReason] = useState('');
+  const [failCode, setFailCode] = useState<string | null>(null);
   const [successProgress, setSuccessProgress] = useState(0);
   const [animDone, setAnimDone] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptRef, setReceiptRef] = useState('');
-  const [retriesLeft, setRetriesLeft] = useState(3);
   const [retrying, setRetrying] = useState(false);
   const [balancePulse, setBalancePulse] = useState(false);
   const prevBalanceRef = useRef(0);
@@ -166,15 +172,46 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
     setLoadError('');
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
-    const { data, error } = await supabase
-      .from('wallet_transactions')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    const [{ data, error }, failedRes] = await Promise.all([
+      supabase
+        .from('wallet_transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('monime_payments')
+        .select('id, amount_sle, status, failure_code, failure_reason, reference, created_at')
+        .eq('user_id', user.id)
+        .eq('purpose', 'wallet_topup')
+        .in('status', ['failed', 'cancelled'])
+        .order('created_at', { ascending: false })
+        .limit(30),
+    ]);
     if (error) {
       setLoadError('Failed to load wallet. Tap refresh to try again.');
     } else {
-      setTransactions((data as Transaction[]) || []);
+      const walletRows = (data as Transaction[]) || [];
+      const seen = new Set(walletRows.map(t => t.reference).filter(Boolean));
+      const failedRows: Transaction[] = ((failedRes.data || []) as {
+        id: string; amount_sle: number; status: string; failure_code: string | null;
+        failure_reason: string | null; reference: string; created_at: string;
+      }[])
+        .filter(p => !seen.has(p.reference))
+        .map(p => ({
+          id: p.id,
+          type: 'topup',
+          amount_sle: Number(p.amount_sle),
+          balance_after: null,
+          description: p.failure_reason || (p.status === 'cancelled' ? 'Checkout cancelled' : 'Monime payment failed'),
+          method: 'monime',
+          reference: p.reference,
+          status: p.status,
+          recorded_by: 'monime',
+          created_at: p.created_at,
+        }));
+      setTransactions(
+        [...walletRows, ...failedRows].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)),
+      );
     }
     setLoading(false);
   }, []);
@@ -193,6 +230,11 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'wallet_transactions' },
+        () => loadTransactions(),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'monime_payments' },
         () => loadTransactions(),
       )
       .subscribe();
@@ -386,50 +428,63 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
 
       if (pollResult.status === 'completed') {
         setPayState('success');
-        setRetriesLeft(3);
         await loadTransactions();
         setTimeout(() => loadTransactions(), 3000);
-      } else if (pollResult.status === 'failed' || pollResult.status === 'cancelled') {
-        setFailReason(pollResult.reason || 'Payment was not completed.');
-        setPayState('failed');
       } else {
-        setFailReason('Payment is still pending. Click retry to check again, or view your wallet if it was already credited.');
+        const copy = copyForPollResult(pollResult);
+        setFailCode(copy.code);
+        setFailReason(copy.body);
         setPayState('failed');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to initiate payment. Please try again.');
-      setPayState('form');
+      setFailCode('unknown');
+      setFailReason(err.message || 'Failed to initiate payment. Please try again.');
+      setPayState('failed');
     }
   };
 
-  const handleRetry = async () => {
-    if (retriesLeft <= 0 || !payReference) return;
+  const handleCheckAgain = async () => {
+    if (!payReference) return;
     setRetrying(true);
-    setRetriesLeft(prev => prev - 1);
     setPayState('waiting');
     setPollAttempt(0);
     pollCancelledRef.current = false;
 
-    const pollResult = await pollPaymentStatus(
-      payReference,
-      (_status, attempt) => setPollAttempt(attempt),
-    );
+    try {
+      const pollResult = await pollPaymentStatus(
+        payReference,
+        (_status, attempt) => setPollAttempt(attempt),
+      );
 
-    if (pollCancelledRef.current) return;
-    setRetrying(false);
+      if (pollCancelledRef.current) return;
 
-    if (pollResult.status === 'completed') {
-      setPayState('success');
-      setRetriesLeft(3);
-      await loadTransactions();
-      setTimeout(() => loadTransactions(), 3000);
-    } else if (pollResult.status === 'failed' || pollResult.status === 'cancelled') {
-      setFailReason(pollResult.reason || 'Payment was not completed.');
+      if (pollResult.status === 'completed') {
+        setPayState('success');
+        await loadTransactions();
+        setTimeout(() => loadTransactions(), 3000);
+      } else {
+        const copy = copyForPollResult(pollResult);
+        setFailCode(copy.code);
+        setFailReason(copy.body);
+        setPayState('failed');
+      }
+    } catch (err: any) {
+      if (pollCancelledRef.current) return;
+      setFailCode('unknown');
+      setFailReason(err.message || 'Could not confirm payment.');
       setPayState('failed');
-    } else {
-      setFailReason('Payment is still pending. Click retry to check again, or view your wallet if it was already credited.');
-      setPayState('failed');
+    } finally {
+      setRetrying(false);
     }
+  };
+
+  const handleRetryPayment = async () => {
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) {
+      setPayState('form');
+      return;
+    }
+    await handleStartPayment(amt, 'monime');
   };
 
   const handleClosePayment = () => {
@@ -443,11 +498,11 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
     setError('');
     setPayReference('');
     setFailReason('');
+    setFailCode(null);
     setSuccessProgress(0);
     setAnimDone(false);
     setShowReceipt(false);
     setReceiptRef('');
-    setRetriesLeft(3);
   };
 
   const handleDeleteHistory = async () => {
@@ -1018,55 +1073,32 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
 
             {/* Failed State with Retry */}
             {payState === 'failed' && (
-              <div className="p-10 text-center">
-                <div className="flex items-center justify-between mb-4">
-                  <button onClick={handleClosePayment} className="p-2 rounded-xl hover:bg-slate-100 transition-colors">
-                    <X className="w-5 h-5 text-slate-400" />
-                  </button>
-                </div>
-                <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6 animate-shakeX">
-                  <XCircle className="w-9 h-9 text-red-500" />
-                </div>
-                <h1 className="text-2xl font-bold text-slate-900 mb-3">Payment Failed</h1>
-                <p className="text-sm text-slate-500 leading-relaxed mb-4">{failReason}</p>
-
-                <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6">
-                  <p className="text-xs text-red-700 font-medium">
-                    {retriesLeft > 0
-                      ? `${retriesLeft} retry attempt${retriesLeft > 1 ? 's' : ''} remaining`
-                      : 'No retry attempts remaining. Please start a new payment.'}
-                  </p>
-                </div>
-
-                {payReference && (
-                  <div className="mb-6 bg-slate-50 rounded-xl py-2.5 px-4 inline-block">
-                    <p className="text-xs text-slate-500">Ref: <span className="font-mono font-semibold">{payReference}</span></p>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  {retriesLeft > 0 && (
-                    <button
-                      onClick={handleRetry}
-                      className="w-full py-3.5 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
-                    >
-                      <RefreshCw className="w-4 h-4" /> Retry Verification ({retriesLeft})
-                    </button>
-                  )}
+              <div className="relative">
+                <button
+                  onClick={handleClosePayment}
+                  className="absolute top-4 right-4 z-10 p-2 rounded-xl hover:bg-slate-100 transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+                <PaymentFailedPanel
+                  code={failCode}
+                  reason={failReason}
+                  reference={payReference}
+                  retrying={retrying}
+                  onRetry={() => { void handleRetryPayment(); }}
+                  onCheckAgain={payReference ? () => { void handleCheckAgain(); } : undefined}
+                  onCancel={handleClosePayment}
+                  retryLabel="Retry payment"
+                  cancelLabel="Cancel"
+                />
+                <div className="px-6 pb-6 -mt-2">
                   <button
                     onClick={() => { handleClosePayment(); loadTransactions(); }}
-                    className="w-full py-3.5 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-900 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                    className="w-full py-3 text-sm font-semibold text-slate-500 hover:text-slate-800 inline-flex items-center justify-center gap-2"
                   >
-                    <Wallet className="w-5 h-5" /> View Wallet Balance
+                    <Wallet className="w-4 h-4" /> View wallet
                   </button>
-                  {onChooseService && (
-                    <button
-                      onClick={() => { handleClosePayment(); onChooseService(); }}
-                      className="w-full py-3.5 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
-                    >
-                      <ShoppingBag className="w-5 h-5" /> Choose a Service
-                    </button>
-                  )}
                 </div>
               </div>
             )}

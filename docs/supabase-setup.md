@@ -110,6 +110,8 @@ How amounts and crediting work:
 - **Field collection.** `create-field-collection` lets the assigned crew show a Monime QR for the booking balance. The payment is credited to the client's booking by the same webhook.
 - **Unmatched webhooks.** Signed events that match no local payment are stored in `monime_webhook_unmatched` and shown in Finance → Mobile Money. Completed ones also notify admins.
 
+- **Failed payments.** Webhooks and `verify-monime-payment` record `failure_code` and `failure_reason` on `monime_payments` (insufficient funds, declined, expired, cancelled). The client shows a Retry / Cancel screen and does not leave automatically on failure. Wallet history lists failed top-up attempts; they do not change the balance.
+
 After changing checkout, verify, webhook, or fulfillment:
 
 ```bash

@@ -19,6 +19,7 @@ export function BookingPayNowModal({
   const [method, setMethod] = useState('');
   const [ref, setRef] = useState('');
   const [error, setError] = useState('');
+  const [failCode, setFailCode] = useState('');
 
   if (step === 'success') {
     return (
@@ -42,6 +43,7 @@ export function BookingPayNowModal({
       <div className="fixed inset-0 z-[180] bg-white overflow-y-auto">
         <PaymentFailedScreen
           message={error}
+          failureCode={failCode}
           onRetry={() => setStep('pay')}
           onViewBookings={onClose}
         />
@@ -64,7 +66,7 @@ export function BookingPayNowModal({
           setRef(paidRef || '');
           setStep('success');
         }}
-        onFail={(msg) => { setError(msg); setStep('failed'); }}
+        onFail={(msg, code) => { setError(msg); setFailCode(code || ''); setStep('failed'); }}
       />
     </div>
   );

@@ -2,11 +2,13 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Smartphone, Wallet, Banknote,
   CheckCircle2, Loader2, ShieldCheck, ArrowLeft,
-  XCircle, Building2, Upload, FileText, X,
+  Building2, Upload, FileText, X,
   AlertTriangle, Plus,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { startMonimePayment, pollPaymentStatus } from '../lib/monime';
+import { copyForPollResult } from '../lib/paymentFailure';
+import { PaymentFailedScreen as SharedPaymentFailedScreen } from './checkout/PaymentOutcome';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { AmountFigure, ChannelPills, le, PayOption, SecureNote, StatusOrb } from './checkout/CheckoutUi';
 
@@ -26,7 +28,7 @@ interface ServicePaymentStepProps {
   serviceSlug?: string;
   onBack: () => void;
   onSuccess: (method: string, reference?: string) => void;
-  onFail: (message: string) => void;
+  onFail: (message: string, code?: string) => void;
   depositAmount?: number | null;
   nextPage?: string;
 }
@@ -181,6 +183,7 @@ export function ServicePaymentStep({
           result?.error === 'Insufficient wallet balance.'
             ? `Insufficient wallet balance. You have Le ${balance.toLocaleString()} but need Le ${amount.toLocaleString()}.`
             : result?.error || 'Wallet payment could not be completed.',
+          result?.error === 'Insufficient wallet balance.' ? 'insufficient_funds' : 'unknown',
         );
         setPaying(false);
         return;
@@ -203,11 +206,8 @@ export function ServicePaymentStep({
 
       const pollResult = await pollPaymentStatus(result.reference);
       if (pollResult.status !== 'completed') {
-        onFail(
-          pollResult.status === 'failed' ? 'Payment was declined or failed.' :
-          pollResult.status === 'cancelled' ? 'Payment was cancelled.' :
-          'Payment could not be confirmed in time.',
-        );
+        const copy = copyForPollResult(pollResult);
+        onFail(copy.body, copy.code);
         setPaying(false);
         return;
       }
@@ -215,7 +215,7 @@ export function ServicePaymentStep({
       setPaying(false);
       onSuccess('monime', result.reference);
     } catch (err: any) {
-      onFail(err.message || 'Payment failed. Please try again.');
+      onFail(err.message || 'Payment failed. Please try again.', 'unknown');
       setPaying(false);
     }
   };
@@ -524,28 +524,4 @@ export function PaymentSuccessScreen({
   );
 }
 
-interface PaymentFailedScreenProps {
-  message: string;
-  onRetry: () => void;
-  onViewBookings: () => void;
-}
-
-export function PaymentFailedScreen({ message, onRetry, onViewBookings }: PaymentFailedScreenProps) {
-  return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-10 sm:py-16">
-      <div className="text-center max-w-md w-full animate-slideUp">
-        <StatusOrb tone="red"><XCircle className="w-9 h-9" /></StatusOrb>
-        <h2 className="text-2xl font-bold text-slate-900">Payment Incomplete</h2>
-        <p className="mt-3 text-slate-500">{message}</p>
-        <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-          <button onClick={onRetry} className="min-h-[48px] px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 active:scale-[0.98] transition-all">
-            Retry Payment
-          </button>
-          <button onClick={onViewBookings} className="min-h-[48px] px-6 py-3 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 active:scale-[0.98] transition-all">
-            View My Bookings
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+export { SharedPaymentFailedScreen as PaymentFailedScreen };

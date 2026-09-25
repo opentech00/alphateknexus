@@ -2,11 +2,13 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import {
   ArrowLeft, Calendar, MapPin, Clock, CheckCircle2,
   ChevronRight, Wallet, Smartphone, ShieldCheck,
-  Loader2, Receipt as ReceiptIcon, XCircle, Banknote,
+  Loader2, Receipt as ReceiptIcon, Banknote,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from '../components/toast/toast';
 import { pollPaymentStatus, startMonimePayment } from '../lib/monime';
+import { copyForPollResult } from '../lib/paymentFailure';
+import { PaymentFailedScreen } from '../components/checkout/PaymentOutcome';
 
 const SERVICE_FEE = 25;
 import { SchedulingCalendar } from '../components/SchedulingCalendar';
@@ -298,6 +300,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
   const [payReference, setPayReference] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
   const [paymentError, setPaymentError] = useState('');
+  const [paymentFailCode, setPaymentFailCode] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -448,6 +451,8 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
     setLoading(true);
     setError('');
     setPaymentError('');
+    setPaymentFailCode('');
+    setPaymentFailCode('');
 
     try {
       // Validate required fields before insert
@@ -514,6 +519,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
         });
         if (payErr) {
           setPaymentError('Your booking was created but we could not record the cash payment request. Please contact support.');
+          setPaymentFailCode('unknown');
           setStep('payment_failed');
           return;
         }
@@ -528,11 +534,13 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
           p_amount: SERVICE_FEE,
         });
         if (walletErr || !walletResult?.success) {
+          const insufficient = walletResult?.error === 'Insufficient wallet balance.';
           setPaymentError(
-            walletResult?.error === 'Insufficient wallet balance.'
+            insufficient
               ? `Insufficient wallet balance. You have SLE ${Number(walletResult?.balance ?? 0).toLocaleString()} but need SLE ${SERVICE_FEE.toLocaleString()}.`
               : walletResult?.error || walletErr?.message || 'Wallet payment could not be completed.',
           );
+          setPaymentFailCode(insufficient ? 'insufficient_funds' : 'unknown');
           setStep('payment_failed');
           return;
         }
@@ -552,17 +560,16 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
       if (result.redirected) return;
       const pollResult = await pollPaymentStatus(result.reference);
       if (pollResult.status !== 'completed') {
-        setPaymentError(
-          pollResult.status === 'failed' ? 'Payment was declined or failed.' :
-          pollResult.status === 'cancelled' ? 'Payment was cancelled.' :
-          'Payment could not be confirmed in time. You can retry from your bookings page.'
-        );
+        const copy = copyForPollResult(pollResult);
+        setPaymentError(copy.body);
+        setPaymentFailCode(copy.code);
         setStep('payment_failed');
         return;
       }
       setStep('success');
     } catch (err: any) {
       setPaymentError(err.message || 'Payment failed. Your booking was created — you can retry from your bookings page.');
+      setPaymentFailCode('unknown');
       setStep('payment_failed');
     } finally {
       setLoading(false);
@@ -626,29 +633,13 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
   // Payment failed screen
   if (step === 'payment_failed') {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 py-10 sm:py-16 safe-area-pt">
-        <div className="text-center max-w-md w-full animate-slideUp">
-          <StatusOrb tone="red"><XCircle className="w-9 h-9" /></StatusOrb>
-          <h2 className="text-2xl font-bold text-gray-900">Payment Incomplete</h2>
-          <p className="mt-3 text-gray-600">
-            {paymentError || 'Payment could not be completed. Your booking was created — you can retry payment from your bookings page.'}
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={() => setStep('payment')}
-              className="min-h-[48px] px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 active:scale-[0.98] transition-all"
-            >
-              Retry Payment
-            </button>
-            <button
-              onClick={() => onNavigate('bookings')}
-              className="min-h-[48px] px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 active:scale-[0.98] transition-all"
-            >
-              View My Bookings
-            </button>
-          </div>
-        </div>
-      </div>
+      <PaymentFailedScreen
+        message={paymentError || 'Payment could not be completed. Your booking was created — you can retry payment from your bookings page.'}
+        failureCode={paymentFailCode}
+        reference={payReference}
+        onRetry={() => setStep('payment')}
+        onViewBookings={() => onNavigate('bookings')}
+      />
     );
   }
 

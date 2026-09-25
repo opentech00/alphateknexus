@@ -92,7 +92,75 @@ export function extractCaphEvent(event: any): {
   const status = String(data?.status || data?.paymentStatus || "").toLowerCase();
   const providerId = channelData?.providerId || channelData?.provider_id || null;
   const channel = paymentData?.channel || data?.channel || null;
-  return { eventId, eventName, data, sessionId, reference, relatedId, paymentId, status, providerId, channel };
+  return {
+    eventId, eventName, data, sessionId, reference, relatedId, paymentId, status, providerId, channel,
+  };
+}
+
+export type PaymentFailureCode =
+  | "insufficient_funds"
+  | "declined"
+  | "expired"
+  | "cancelled"
+  | "timeout"
+  | "unknown";
+
+function blobOf(payload: unknown): string {
+  try {
+    return JSON.stringify(payload || {}).toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function pickFailureText(payload: any): string {
+  const data = payload?.data || payload?.result || payload?.event?.data || payload;
+  const payment = data?.paymentData || data?.payment_data || data;
+  const candidates = [
+    data?.failureReason, data?.failure_reason, data?.failureMessage, data?.failure_message,
+    data?.declineReason, data?.decline_reason, data?.errorMessage, data?.error_message,
+    payment?.failureReason, payment?.failure_reason, payment?.declineCode, payment?.decline_code,
+    payload?.messages?.[0],
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim()) return c.trim();
+  }
+  return "";
+}
+
+/** Maps a Monime session/webhook payload into a stored failure code and a client-safe reason. */
+export function classifyPaymentFailure(
+  status: string,
+  payload?: unknown,
+): { code: PaymentFailureCode; reason: string } {
+  const st = String(status || "").toLowerCase();
+  if (st === "cancelled" || st === "canceled") {
+    return { code: "cancelled", reason: "You cancelled checkout before payment was completed. Nothing was charged." };
+  }
+  const text = pickFailureText(payload);
+  const blob = `${blobOf(payload)} ${text} ${st}`;
+  if (
+    blob.includes("insufficient") || blob.includes("not enough") || blob.includes("no funds") ||
+    blob.includes("nsf") || blob.includes("low balance") || blob.includes("insufficient_funds") ||
+    /\b51\b/.test(blob)
+  ) {
+    return {
+      code: "insufficient_funds",
+      reason: text && !/insufficient/i.test(text)
+        ? text
+        : "There was not enough money in the mobile wallet or card to complete this payment.",
+    };
+  }
+  if (blob.includes("expir")) {
+    return { code: "expired", reason: "The checkout session expired before payment was completed." };
+  }
+  if (blob.includes("declin") || blob.includes("refus") || blob.includes("reject")) {
+    return { code: "declined", reason: text || "The payment was declined by the bank or mobile money provider." };
+  }
+  if (st === "failed") {
+    return { code: "unknown", reason: text || "The payment was not completed. You can try again or use another method." };
+  }
+  return { code: "unknown", reason: text || "The payment was not completed." };
 }
 
 export function classifyCheckoutEvent(eventName: string, status: string): "completed" | "failed" | "cancelled" | "ignored" {

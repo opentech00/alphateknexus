@@ -187,7 +187,7 @@ export async function pollPaymentStatus(
   reference: string,
   onUpdate?: (status: string, attempt: number) => void,
   maxAttempts = 60,
-): Promise<{ status: string; reason?: string; purpose?: PaymentPurpose; related_id?: string | null }> {
+): Promise<VerifyMonimeResult> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     await new Promise(resolve => setTimeout(resolve, 2000));
     try {
@@ -200,15 +200,20 @@ export async function pollPaymentStatus(
       onUpdate?.('error', attempt);
     }
   }
-  return { status: 'pending' };
+  return { status: 'pending', failure_code: 'timeout' };
 }
 
-export async function verifyMonimePayment(reference: string): Promise<{
+export interface VerifyMonimeResult {
   status: string;
   reason?: string;
   purpose?: PaymentPurpose;
   related_id?: string | null;
-}> {
+  failure_code?: string | null;
+  failure_reason?: string | null;
+  amount?: number;
+}
+
+export async function verifyMonimePayment(reference: string): Promise<VerifyMonimeResult> {
   const { data, error } = await supabase.functions.invoke('verify-monime-payment', {
     body: { reference },
   });
@@ -219,8 +224,11 @@ export async function verifyMonimePayment(reference: string): Promise<{
 
   return {
     status: data?.status || 'pending',
-    reason: data?.reason,
+    reason: data?.failure_reason || data?.reason,
     purpose: data?.purpose,
     related_id: data?.related_id,
+    failure_code: data?.failure_code || null,
+    failure_reason: data?.failure_reason || data?.reason || null,
+    amount: data?.amount,
   };
 }
