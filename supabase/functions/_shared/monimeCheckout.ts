@@ -104,11 +104,29 @@ export type SessionResult = {
 
 const PAYMENT_OPTIONS = {
   card: { disable: false },
-  momo: { disable: false, enabledProviders: ["m17", "m18", "m13"] },
+  // Official MoMo enum is m17 (Orange) and m18 (AfriMoney). Passing m13 (QMoney)
+  // makes CreateCheckoutSession return 400. disable:false shows every MoMo Monime enables.
+  momo: { disable: false },
   bank: { disable: false },
 };
 
 const PURPOSE_CODE: Record<string, string> = { wallet_topup: "WAL", invoice: "INV", booking: "BK" };
+
+function monimeErrorMessage(status: number, body: string): string {
+  try {
+    const parsed = JSON.parse(body);
+    const fromList = Array.isArray(parsed?.messages)
+      ? parsed.messages.map((m: unknown) => (typeof m === "string" ? m : (m as { message?: string })?.message)).filter(Boolean).join("; ")
+      : "";
+    const nested = parsed?.error?.message || parsed?.error?.code || parsed?.message;
+    const detail = fromList || (typeof nested === "string" ? nested : "");
+    if (detail) return `Monime API error: ${status}. ${detail}`;
+  } catch {
+    /* raw body */
+  }
+  const trimmed = body.replace(/\s+/g, " ").trim().slice(0, 180);
+  return trimmed ? `Monime API error: ${status}. ${trimmed}` : `Monime API error: ${status}`;
+}
 
 function sameTuple(query: any, opts: SessionOpts) {
   let q = query
@@ -176,7 +194,10 @@ export async function createCheckoutSession(supabase: any, opts: SessionOpts): P
   const suffix = idempotencyKey.slice(0, 8).toUpperCase();
   const base = (opts.referenceBase || `ATN-${PURPOSE_CODE[opts.purpose] || "PAY"}`).slice(0, 40);
   const reference = `${base}-${suffix}`;
-  const returnBase = `${opts.appOrigin}/?page=${opts.returnPage}&ref=${encodeURIComponent(reference)}`;
+  const returnOrigin = (Deno.env.get("MONIME_RETURN_ORIGIN") || opts.appOrigin).replace(/\/$/, "");
+  const returnBase = `${returnOrigin}/?page=${opts.returnPage}&ref=${encodeURIComponent(reference)}`;
+  const successUrl = `${returnBase}&status=success`.slice(0, 255);
+  const cancelUrl = `${returnBase}&status=cancel`.slice(0, 255);
   const label = (opts.label || `${opts.purpose.replace("_", " ")} payment`).slice(0, 100);
 
   const monimeRes = await fetch(`${MONIME_API_BASE}/checkout-sessions`, {
@@ -184,33 +205,33 @@ export async function createCheckoutSession(supabase: any, opts: SessionOpts): P
     headers: monimeHeaders(monimeKey, spaceId, { "Idempotency-Key": idempotencyKey }),
     body: JSON.stringify({
       name: "Alphatek Nexus Payment",
-      description: reference,
+      description: reference.slice(0, 1000),
       lineItems: [{
-        name: reference,
+        name: reference.slice(0, 100),
         price: { currency: "SLE", value: amountCents },
         type: "custom",
         quantity: 1,
-        reference,
+        reference: reference.slice(0, 100),
         description: label,
       }],
-      successUrl: `${returnBase}&status=success`,
-      cancelUrl: `${returnBase}&status=cancel`,
-      reference,
+      successUrl,
+      cancelUrl,
+      reference: reference.slice(0, 255),
       paymentOptions: PAYMENT_OPTIONS,
       metadata: {
         user_id: opts.ownerId,
         purpose: opts.purpose,
-        related_id: opts.relatedId || "",
+        related_id: (opts.relatedId || "").slice(0, 100),
         kind: opts.kind,
         ...(opts.initiatedBy ? { initiated_by: opts.initiatedBy } : {}),
-        ...(opts.customerPhone ? { customer_phone: opts.customerPhone } : {}),
+        ...(opts.customerPhone ? { customer_phone: opts.customerPhone.slice(0, 100) } : {}),
       },
     }),
   });
 
   if (!monimeRes.ok) {
     const details = await monimeRes.text();
-    throw new CheckoutError(`Monime API error: ${monimeRes.status}`, 502, { details });
+    throw new CheckoutError(monimeErrorMessage(monimeRes.status, details), monimeRes.status >= 500 ? 502 : 400, { details });
   }
 
   const session = await monimeRes.json();

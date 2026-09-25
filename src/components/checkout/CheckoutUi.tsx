@@ -4,7 +4,6 @@ import { CheckCircle2, Lock } from 'lucide-react';
 export const MONIME_CHANNELS = [
   { id: 'om', label: 'Orange', dot: 'bg-orange-500' },
   { id: 'af', label: 'AfriMoney', dot: 'bg-blue-600' },
-  { id: 'qm', label: 'QMoney', dot: 'bg-emerald-500' },
   { id: 'card', label: 'Card', dot: 'bg-slate-800' },
   { id: 'bank', label: 'Bank', dot: 'bg-indigo-500' },
 ] as const;

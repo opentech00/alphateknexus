@@ -4,7 +4,7 @@
             "outputFile": "com.alphateknexus.app-mergeDebugResources-34:/values-watch-v20/values-watch-v20.xml",
             "map": [
                 {
-                    "source": "C:\\Users\\dell\\.gradle\\caches\\9.6.0\\transforms\\44fc8fe008a1e91c7185210c86327892\\transformed\\appcompat-1.7.1\\res\\values-watch-v20\\values-watch-v20.xml",
+                    "source": "C:\\Users\\dell\\.gradle\\caches\\9.6.0\\transforms\\6fd0c19bba901c21da8eb006bbfa5ba1\\transformed\\appcompat-1.7.1\\res\\values-watch-v20\\values-watch-v20.xml",
                     "from": {
                         "startLines": "2,5,8",
                         "startColumns": "4,4,4",
@@ -23,7 +23,7 @@
                     }
                 },
                 {
-                    "source": "C:\\Users\\dell\\.gradle\\caches\\9.6.0\\transforms\\fb680ee403d5795a8376490788d327e8\\transformed\\core-splashscreen-1.2.0\\res\\values-watch-v20\\values-watch-v20.xml",
+                    "source": "C:\\Users\\dell\\.gradle\\caches\\9.6.0\\transforms\\fe379caa49f0caceb23755673ad8b9e5\\transformed\\core-splashscreen-1.2.0\\res\\values-watch-v20\\values-watch-v20.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9",
                         "startColumns": "4,4,4,4,4,4,4,4",

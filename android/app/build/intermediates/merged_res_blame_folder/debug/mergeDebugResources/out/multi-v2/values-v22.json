@@ -4,7 +4,7 @@
             "outputFile": "com.alphateknexus.app-mergeDebugResources-34:/values-v22/values-v22.xml",
             "map": [
                 {
-                    "source": "C:\\Users\\dell\\.gradle\\caches\\9.6.0\\transforms\\44fc8fe008a1e91c7185210c86327892\\transformed\\appcompat-1.7.1\\res\\values-v22\\values-v22.xml",
+                    "source": "C:\\Users\\dell\\.gradle\\caches\\9.6.0\\transforms\\6fd0c19bba901c21da8eb006bbfa5ba1\\transformed\\appcompat-1.7.1\\res\\values-v22\\values-v22.xml",
                     "from": {
                         "startLines": "2,3,4,9",
                         "startColumns": "4,4,4,4",

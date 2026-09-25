@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <script>
-      (function(){try{var s=localStorage.getItem('atn-theme-prefs');var p=s?JSON.parse(s):{};var t=p.theme||'light';var a=p.accent_color||'emerald';var rm=p.reduced_motion||false;var cm=p.compact_mode||false;var r=document.documentElement;r.classList.remove('dark','black','system','light');if(t==='system'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}r.classList.add(t);r.setAttribute('data-accent',a);if(rm)r.classList.add('reduced-motion');if(cm)r.classList.add('compact-mode');r.style.colorScheme=t==='light'?'light':'dark';}catch(e){}})();
+      (function(){try{var s=localStorage.getItem('atn-theme-prefs');var p=s?JSON.parse(s):{};var t=p.theme||'light';var a=p.accent_color||'emerald';var rm=p.reduced_motion||false;var cm=p.compact_mode||false;var r=document.documentElement;r.classList.remove('dark','black','system','light');var resolved=t;if(t==='system'){resolved=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}r.classList.add(resolved);if(t!==resolved)r.classList.add(t);if(resolved==='black')r.classList.add('dark');r.setAttribute('data-accent',a);if(rm)r.classList.add('reduced-motion');if(cm)r.classList.add('compact-mode');r.style.colorScheme=resolved==='light'?'light':'dark';}catch(e){}})();
     </script>
     <script>
       (function(){
@@ -33,17 +33,17 @@
     <meta property="og:image" content="https://bolt.new/static/og_default.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:image" content="https://bolt.new/static/og_default.png">
-  <script type="module" crossorigin src="/assets/main-DkprjBfa.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/icons-DM0Sk9u0.js">
-  <link rel="modulepreload" crossorigin href="/assets/react-vendor-Y0SdKu8P.js">
+  <script type="module" crossorigin src="/assets/main-iOvPeIwM.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/icons-CQZBUNRn.js">
+  <link rel="modulepreload" crossorigin href="/assets/react-vendor-CHUXRiNH.js">
   <link rel="modulepreload" crossorigin href="/assets/supabase-3Te545q_.js">
-  <link rel="modulepreload" crossorigin href="/assets/MissingConfigScreen-Czg9Cs1e.js">
-  <link rel="modulepreload" crossorigin href="/assets/companyDocs-CTw_Wr0w.js">
-  <link rel="modulepreload" crossorigin href="/assets/invoicePdf-DcAQ1UXv.js">
-  <link rel="modulepreload" crossorigin href="/assets/addressSearch-1zm2_8O9.js">
-  <link rel="modulepreload" crossorigin href="/assets/LocationAutocomplete-BQLKsWoR.js">
-  <link rel="modulepreload" crossorigin href="/assets/monime-B63xI7TG.js">
-  <link rel="stylesheet" crossorigin href="/assets/MissingConfigScreen-BTJuVZTp.css">
+  <link rel="modulepreload" crossorigin href="/assets/MissingConfigScreen-DWeKtLQQ.js">
+  <link rel="modulepreload" crossorigin href="/assets/companyDocs-M5Zy9se-.js">
+  <link rel="modulepreload" crossorigin href="/assets/CautionBanner-B88coZkM.js">
+  <link rel="modulepreload" crossorigin href="/assets/addressSearch-BoDJLpji.js">
+  <link rel="modulepreload" crossorigin href="/assets/LocationAutocomplete-BP5vqeiC.js">
+  <link rel="modulepreload" crossorigin href="/assets/monime-DHLTPbMN.js">
+  <link rel="stylesheet" crossorigin href="/assets/MissingConfigScreen-yDcBI4HT.css">
   <link rel="stylesheet" crossorigin href="/assets/addressSearch-Brc2MXa0.css">
 <link rel="manifest" href="/manifest.webmanifest"></head>
   <body>

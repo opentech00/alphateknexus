@@ -83,7 +83,9 @@ Set these as **Supabase Edge Function secrets** (Dashboard → Edge Functions �
 - `MONIME_SPACE_ID` — `Monime-Space-Id` header
 - `MONIME_WEBHOOK_SECRET` — HMAC secret for inbound webhooks (required; the webhook fails closed if missing)
 
-Pin requests to API version `caph.2025-08-23` (`Monime-Version` header). Checkout sessions enable Orange Money (`m17`), AfriMoney (`m18`), QMoney (`m13`), cards, and Sierra Leone banks in the hosted UI.
+Pin requests to API version `caph.2025-08-23` (`Monime-Version` header). Checkout sessions enable cards, Sierra Leone banks, and mobile money (`disable: false` so Monime shows every MoMo it supports, currently Orange Money `m17` and AfriMoney `m18`). Do not send `m13` in `enabledProviders`; the Caph create-session schema rejects it with HTTP 400.
+
+Optional secret `MONIME_RETURN_ORIGIN` overrides `window.location.origin` for success/cancel URLs (useful if local `http://localhost` is rejected). Keep those URLs under 255 characters.
 
 In the Monime dashboard, register:
 
