@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { toast } from '../components/toast/toast';
 import { buildOfficialInvoiceHtml } from '../lib/companyDocs';
 import { downloadHtmlAsPdf } from '../lib/invoicePdf';
-import { startMonimePayment, pollPaymentStatus } from '../lib/monime';
+import { startMonimePayment } from '../lib/monime';
 import { PortalPage } from '../components/portal/PortalPage';
 import { moneySLE } from '../lib/money';
 
@@ -109,17 +109,9 @@ export function BillingPage({ onBack }: { onBack?: () => void }) {
   const payMonime = async (inv: HubInvoice) => {
     setBusyId(inv.id);
     try {
-      const started = await startMonimePayment(dueOf(inv), 'invoice', inv.id, inv.number);
-      toast.info('Complete payment in the Monime window');
-      const result = await pollPaymentStatus(started.reference);
-      if (result.status === 'completed') {
-        toast.success('Payment received');
-        await load();
-      } else if (result.status === 'failed' || result.status === 'cancelled') {
-        toast.error('Payment was not completed');
-      } else {
-        toast.info('Payment is still processing. Refresh in a moment.');
-      }
+      const started = await startMonimePayment(dueOf(inv), 'invoice', inv.id, inv.number, { nextPage: 'billing' });
+      if (started.redirected) return;
+      toast.info('Complete payment in Monime. This page updates when the bank confirms.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not start mobile money checkout');
     }
@@ -227,7 +219,7 @@ export function BillingPage({ onBack }: { onBack?: () => void }) {
                           <Wallet className="w-4 h-4" aria-hidden="true" /> Wallet
                         </button>
                         <button type="button" disabled={busyId === inv.id} onClick={() => void payMonime(inv)} className="min-h-[44px] inline-flex items-center gap-1.5 px-3 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60">
-                          <Smartphone className="w-4 h-4" aria-hidden="true" /> Mobile money
+                          <Smartphone className="w-4 h-4" aria-hidden="true" /> Pay with Monime
                         </button>
                       </>
                     )}

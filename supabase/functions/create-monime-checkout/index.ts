@@ -1,5 +1,21 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { toMonimePhone } from "../_shared/phone.ts";
+import {
+  assertOnlineAmount,
+  CheckoutError,
+  createCheckoutSession,
+  planBookingAmount,
+  type PaymentKind,
+} from "../_shared/monimeCheckout.ts";
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -7,37 +23,15 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { amount, purpose, related_id, reference, app_origin } = await req.json();
-
+    const { amount, purpose, related_id, reference, app_origin, mode } = await req.json();
     const appOrigin = app_origin || req.headers.get("Origin") || "https://alphateknexus.app";
 
-    if (!amount || amount <= 0) {
-      return new Response(JSON.stringify({ error: "Invalid amount" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (amount < 5) {
-      return new Response(JSON.stringify({ error: "Minimum top-up is SLE 5.00" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (amount > 10000) {
-      return new Response(JSON.stringify({ error: "Maximum top-up is SLE 10,000.00" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (!purpose || !["invoice", "wallet_topup", "subscription", "booking"].includes(purpose)) {
-      return new Response(JSON.stringify({ error: "Invalid purpose" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!["invoice", "wallet_topup", "booking"].includes(purpose)) {
+      return json({ error: "Invalid purpose" }, 400);
     }
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing auth header" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!authHeader) return json({ error: "Missing auth header" }, 401);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -46,130 +40,96 @@ Deno.serve(async (req: Request) => {
     );
 
     const { data: { user }, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (userErr || !user) return json({ error: "Unauthorized" }, 401);
 
-    // Validate ownership of related_id for invoice payments
-    if (purpose === "invoice" && related_id) {
-      const { data: financeInv } = await supabase
-        .from("invoices")
-        .select("id, user_id, status")
+    let amountSle: number;
+    let kind: PaymentKind = "full";
+    let relatedId: string | null = null;
+    let label = "Wallet top-up";
+    let summary: Record<string, unknown> = {};
+
+    if (purpose === "wallet_topup") {
+      amountSle = round2(Number(amount));
+    } else if (purpose === "booking") {
+      if (!related_id) return json({ error: "Booking id is required" }, 400);
+      const { data: booking } = await supabase
+        .from("bookings")
+        .select("id, user_id, status, deleted_at, details, amount_paid_sle, payment_status")
         .eq("id", related_id)
         .maybeSingle();
-      const { data: smartInv, error: invErr } = financeInv
-        ? { data: null, error: null }
+      if (!booking) return json({ error: "Booking not found" }, 404);
+      if (booking.user_id !== user.id) return json({ error: "You do not own this booking" }, 403);
+      if (booking.status === "cancelled" || booking.deleted_at) {
+        return json({ error: "This booking cannot be paid." }, 400);
+      }
+      const plan = planBookingAmount(booking, mode === "deposit" ? "deposit" : "full");
+      amountSle = plan.amountSle;
+      kind = plan.kind;
+      relatedId = booking.id;
+      label = kind === "deposit" ? "Booking deposit" : kind === "balance" ? "Booking balance" : "Booking payment";
+      summary = { total: plan.totalSle, paid: plan.paidSle, due: plan.dueSle, deposit: plan.depositSle };
+    } else {
+      if (!related_id) return json({ error: "Invoice id is required" }, 400);
+      const { data: financeInv } = await supabase
+        .from("invoices")
+        .select("id, user_id, status, total, amount_paid")
+        .eq("id", related_id)
+        .maybeSingle();
+      const { data: smartInv } = financeInv
+        ? { data: null }
         : await supabase
           .from("smart_sort_invoices")
-          .select("id, user_id, status")
+          .select("id, user_id, status, amount_sle, amount_paid_sle")
           .eq("id", related_id)
           .maybeSingle();
       const invoice = financeInv || smartInv;
-
-      if (invErr || !invoice) {
-        return new Response(JSON.stringify({ error: "Invoice not found" }), {
-          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (!invoice) return json({ error: "Invoice not found" }, 404);
+      if (invoice.user_id !== user.id) return json({ error: "You do not own this invoice" }, 403);
+      if (["draft", "cancelled", "void", "paid"].includes(invoice.status)) {
+        return json({ error: "This invoice cannot be paid online." }, 400);
       }
-      if (invoice.user_id !== user.id) {
-        return new Response(JSON.stringify({ error: "You do not own this invoice" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (invoice.status === "draft" || invoice.status === "cancelled" || invoice.status === "void" || invoice.status === "paid") {
-        return new Response(JSON.stringify({ error: "This invoice cannot be paid online." }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      const total = Number(financeInv ? financeInv.total : smartInv?.amount_sle) || 0;
+      const paid = Number(financeInv ? financeInv.amount_paid : smartInv?.amount_paid_sle) || 0;
+      amountSle = round2(Math.max(0, total - paid));
+      if (amountSle <= 0) return json({ error: "This invoice is already paid." }, 400);
+      kind = paid > 0 ? "balance" : "full";
+      relatedId = invoice.id;
+      label = "Invoice payment";
+      summary = { total, paid, due: amountSle };
     }
 
-    const monimeKey = Deno.env.get("MONIME_ACCESS_KEY");
-    const spaceId = Deno.env.get("MONIME_SPACE_ID");
+    assertOnlineAmount(amountSle, purpose);
 
-    if (!monimeKey || !spaceId) {
-      return new Response(JSON.stringify({ error: "Monime not configured. Set MONIME_ACCESS_KEY and MONIME_SPACE_ID secrets." }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("phone_e164, phone")
+      .eq("id", user.id)
+      .maybeSingle();
 
-    const idempotencyKey = crypto.randomUUID();
-    const finalRef = reference || `ATN-${purpose.toUpperCase()}-${Date.now()}`;
-    const amountSle = Math.round(Number(amount) * 100) / 100;
-
-    const monimeRes = await fetch("https://api.monime.io/v1/checkout-sessions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${monimeKey}`,
-        "Content-Type": "application/json",
-        "Idempotency-Key": idempotencyKey,
-        "Monime-Space-Id": spaceId,
-      },
-      body: JSON.stringify({
-        name: "Alphatek Nexus Payment",
-        description: finalRef,
-        lineItems: [{
-          name: finalRef,
-          price: { currency: "SLE", value: Math.round(amountSle * 100) },
-          type: "custom",
-          quantity: 1,
-          reference: finalRef,
-          description: `${purpose} payment`,
-        }],
-        successUrl: `${appOrigin}/?payment=success&ref=${finalRef}`,
-        cancelUrl: `${appOrigin}/?payment=cancel&ref=${finalRef}`,
-        reference: finalRef,
-        metadata: {
-          user_id: user.id,
-          purpose,
-          related_id: related_id || "",
-        },
-      }),
-    });
-
-    if (!monimeRes.ok) {
-      const errText = await monimeRes.text();
-      return new Response(JSON.stringify({ error: `Monime API error: ${monimeRes.status}`, details: errText }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const session = await monimeRes.json();
-    const result = session.result || session;
-    const checkoutUrl = result.redirectUrl || result.checkoutUrl || result.url;
-    const sessionId = result.id || result.sessionId || result.checkoutSessionId;
-
-    if (!checkoutUrl || !sessionId) {
-      return new Response(JSON.stringify({ error: "Invalid Monime response", details: JSON.stringify(session) }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { error: insertErr } = await supabase.from("monime_payments").insert({
-      user_id: user.id,
-      checkout_session_id: sessionId,
-      reference: finalRef,
-      amount_sle: amountSle,
-      status: "pending",
+    const session = await createCheckoutSession(supabase, {
+      ownerId: user.id,
       purpose,
-      related_id: related_id || null,
-      checkout_url: checkoutUrl,
+      relatedId,
+      amountSle,
+      kind,
+      appOrigin,
+      returnPage: "payment-return",
+      referenceBase: typeof reference === "string" && reference.trim() ? reference.trim() : null,
+      customerPhone: toMonimePhone(profile?.phone_e164 || profile?.phone || ""),
+      label,
     });
 
-    if (insertErr) {
-      console.error("Failed to insert monime_payment:", insertErr.message);
-      return new Response(JSON.stringify({ error: "Failed to create payment record" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    return new Response(JSON.stringify({ checkoutUrl, sessionId, reference: finalRef }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return json({
+      checkoutUrl: session.checkoutUrl,
+      sessionId: session.sessionId,
+      reference: session.reference,
+      amount: session.amountSle,
+      kind: session.kind,
+      reused: session.reused,
+      ...summary,
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    if (err instanceof CheckoutError) return json({ error: err.message, ...err.extra }, err.status);
+    return json({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
 });

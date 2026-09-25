@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Truck, CalendarDays, MapPin, Clock, User, ChevronLeft, ChevronRight,
+  Truck, MapPin, Clock, User, ChevronLeft, ChevronRight,
   Search, RefreshCw, CheckCircle2, X, AlertCircle, Route, Plus, XCircle,
-  CircleDashed, PlayCircle, Download,
+  CircleDashed, PlayCircle, Download, CalendarClock,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -82,7 +82,15 @@ export function SmartSortPickupsTab() {
   const [editWasteKg, setEditWasteKg] = useState('');
   const [editDivertedKg, setEditDivertedKg] = useState('');
   const [saving, setSaving] = useState(false);
-  const [showSchedule, setShowSchedule] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleSlot, setRescheduleSlot] = useState('morning');
+  const [showAddPickup, setShowAddPickup] = useState(false);
+  const [addSubs, setAddSubs] = useState<{ id: string; label: string }[]>([]);
+  const [addSubId, setAddSubId] = useState('');
+  const [addDate, setAddDate] = useState('');
+  const [addSlot, setAddSlot] = useState('morning');
+  const [addError, setAddError] = useState('');
+  const [addBusy, setAddBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -175,6 +183,56 @@ export function SmartSortPickupsTab() {
     setEditStatus(p.status);
     setEditWasteKg(p.waste_kg != null ? String(p.waste_kg) : '');
     setEditDivertedKg(p.diverted_kg != null ? String(p.diverted_kg) : '');
+    setRescheduleDate(p.scheduled_date);
+    setRescheduleSlot(p.time_slot || 'morning');
+  };
+
+  const skipPickup = async (p: Pickup) => {
+    if (!confirm('Skip this pickup and schedule the next cadence date?')) return;
+    const { error: err } = await supabase.rpc('skip_smart_sort_pickup', { p_pickup_id: p.id });
+    if (err) { setError(err.message); return; }
+    setSelected(null);
+    load();
+  };
+
+  const reschedulePickup = async () => {
+    if (!selected || !rescheduleDate) return;
+    await updatePickup(selected.id, { scheduled_date: rescheduleDate, time_slot: rescheduleSlot } as any);
+    setSelected(null);
+  };
+
+  const openAddPickup = async () => {
+    setAddError('');
+    setAddDate(fmtDate(new Date()));
+    setAddSlot('morning');
+    const { data } = await supabase
+      .from('smart_sort_subscriptions')
+      .select('id, plan_name, address, profiles(full_name)')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    const rows = ((data as any[]) || []).map(s => ({
+      id: s.id,
+      label: `${s.profiles?.full_name || 'Client'} · ${s.plan_name || 'Custom'} · ${s.address}`,
+    }));
+    setAddSubs(rows);
+    setAddSubId(rows[0]?.id || '');
+    setShowAddPickup(true);
+  };
+
+  const submitAddPickup = async () => {
+    if (!addSubId || !addDate) { setAddError('Select a subscription and date.'); return; }
+    setAddBusy(true);
+    setAddError('');
+    const { error: err } = await supabase.rpc('admin_insert_smart_sort_pickup', {
+      p_subscription_id: addSubId,
+      p_scheduled_date: addDate,
+      p_time_slot: addSlot,
+    });
+    setAddBusy(false);
+    if (err) { setAddError(err.message); return; }
+    setShowAddPickup(false);
+    load();
   };
 
   const saveDetail = async () => {
@@ -324,6 +382,9 @@ export function SmartSortPickupsTab() {
                 className={`px-3 py-2 rounded-md text-xs font-medium transition-colors ${view === 'routes' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
               >Routes</button>
             </div>
+            <button onClick={openAddPickup} className="inline-flex items-center gap-1.5 px-3 py-2.5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors" title="Add pickup">
+              <Plus className="w-4 h-4" /> Add
+            </button>
             <button onClick={exportCsv} className="p-2.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors" title="Export CSV">
               <Download className="w-4 h-4" />
             </button>
@@ -588,10 +649,30 @@ export function SmartSortPickupsTab() {
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2 border-t border-slate-100">
+              {['scheduled', 'assigned'].includes(selected.status) && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Reschedule</h4>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <input type="date" value={rescheduleDate} onChange={e => setRescheduleDate(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                    <select value={rescheduleSlot} onChange={e => setRescheduleSlot(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 outline-none">
+                      {TIME_SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <button onClick={reschedulePickup} className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors">
+                    <CalendarClock className="w-4 h-4" /> Save new date
+                  </button>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
                 {selected.status !== 'completed' && selected.status !== 'cancelled' && selected.status !== 'missed' && (
                   <button onClick={() => advanceStatus(selected)} className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors">
                     <PlayCircle className="w-4 h-4" /> Advance
+                  </button>
+                )}
+                {['scheduled', 'assigned'].includes(selected.status) && (
+                  <button onClick={() => skipPickup(selected)} className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors">
+                    <CalendarClock className="w-4 h-4" /> Skip
                   </button>
                 )}
                 {selected.status !== 'missed' && selected.status !== 'cancelled' && selected.status !== 'completed' && (
@@ -606,6 +687,40 @@ export function SmartSortPickupsTab() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showAddPickup && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowAddPickup(false)}>
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-900">Add pickup</h2>
+              <button onClick={() => setShowAddPickup(false)} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-5 h-5 text-slate-500" /></button>
+            </div>
+            {addError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{addError}</p>}
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Subscription</label>
+              <select value={addSubId} onChange={e => setAddSubId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white">
+                {addSubs.length === 0 && <option value="">No active subscriptions</option>}
+                {addSubs.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">Date</label>
+                <input type="date" value={addDate} onChange={e => setAddDate(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">Slot</label>
+                <select value={addSlot} onChange={e => setAddSlot(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white">
+                  {TIME_SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+            <button onClick={submitAddPickup} disabled={addBusy} className="w-full py-2.5 bg-emerald-600 text-white font-semibold rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50">
+              {addBusy ? 'Adding…' : 'Create pickup'}
+            </button>
           </div>
         </div>
       )}

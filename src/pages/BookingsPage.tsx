@@ -16,7 +16,7 @@ import { UnifiedCalendar } from '../components/UnifiedCalendar';
 import { BookingTrackingPage } from '../components/BookingTrackingPage';
 import { CancelDeleteBookingModal } from '../components/CancelDeleteBookingModal';
 import { BookingPayNowModal } from '../components/BookingPayNowModal';
-import { bookingNeedsPayment, bookingPayAmount } from '../lib/bookingPay';
+import { bookingDepositAmount, bookingDueAmount, bookingNeedsPayment } from '../lib/bookingPay';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useServiceBrandingImages, fallbackServiceImage } from '../lib/media';
 
@@ -37,6 +37,7 @@ interface Booking {
   cancellation_reason: string | null;
   payment_status?: string | null;
   payment_method?: string | null;
+  amount_paid_sle?: number | null;
   services: { name: string; icon: string; slug: string };
 }
 
@@ -109,7 +110,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
     setLoadProgress(p => Math.max(p, 10));
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, notes, created_at, service_id, details, deleted_at, cancellation_reason, payment_status, payment_method, services(name, icon, slug)')
+      .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, notes, created_at, service_id, details, deleted_at, cancellation_reason, payment_status, payment_method, amount_paid_sle, services(name, icon, slug)')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -542,7 +543,8 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
       {payBooking && (
         <BookingPayNowModal
           bookingId={payBooking.id}
-          amount={bookingPayAmount(payBooking)}
+          amount={bookingDueAmount(payBooking)}
+          depositAmount={bookingDepositAmount(payBooking)}
           serviceName={payBooking.services.name}
           serviceSlug={payBooking.services.slug}
           onClose={() => setPayBooking(null)}
@@ -675,7 +677,7 @@ function BookingDetailPanel({
             <div className="flex flex-wrap gap-2 pt-2">
               {bookingNeedsPayment(booking) && (
                 <button onClick={() => onPayNow(booking)} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors">
-                  <Wallet className="w-3.5 h-3.5" /> Pay now
+                  <Wallet className="w-3.5 h-3.5" /> {booking.payment_status === 'deposit_paid' ? `Pay balance Le ${bookingDueAmount(booking).toLocaleString()}` : 'Pay now'}
                 </button>
               )}
               {!isCompleted && !isCancelled && (

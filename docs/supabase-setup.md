@@ -75,26 +75,47 @@ Notes & best practices
 - Production is Vercel. Set `VITE_*` build variables there as described in `docs/vercel-production.md`.
 - Use `SUPABASE_SERVICE_ROLE_KEY` only on your machine or in Supabase itself. Do not add it to Vercel or client code.
 
-Monime.io (wallet top-ups and mobile-money payouts)
+Monime.io (primary client payment: bookings, invoices, wallet top-up)
 
-Set these as **Supabase Edge Function secrets** (Dashboard → Edge Functions → Secrets), not as Vite/`VITE_*` variables:
+Set these as **Supabase Edge Function secrets** (Dashboard → Edge Functions → Secrets), never as Vite/`VITE_*` variables and never on Vercel:
 
 - `MONIME_ACCESS_KEY` — API bearer token
 - `MONIME_SPACE_ID` — `Monime-Space-Id` header
 - `MONIME_WEBHOOK_SECRET` — HMAC secret for inbound webhooks (required; the webhook fails closed if missing)
 
-In the Monime dashboard, register the webhook URL:
+Pin requests to API version `caph.2025-08-23` (`Monime-Version` header). Checkout sessions enable Orange Money (`m17`), AfriMoney (`m18`), QMoney (`m13`), cards, and Sierra Leone banks in the hosted UI.
+
+In the Monime dashboard, register:
 
 ```
 https://<your-project-ref>.supabase.co/functions/v1/monime-webhook
 ```
 
-After changing fulfillment or payout functions:
+Subscribe that URL to:
+
+- `checkout_session.completed`
+- `checkout_session.expired`
+- `checkout_session.cancelled`
+
+Webhooks are the source of truth. `verify-monime-payment` is a backup when the client returns from checkout before the webhook arrives. The browser must never write `payment_status: paid`.
+
+How amounts and crediting work:
+
+- **Amounts are set by the server.** For bookings and invoices, `create-monime-checkout` charges the balance due from the ledger (booking `details` total minus `bookings.amount_paid_sle`; invoice total minus amount paid). The client amount is only used for wallet top-ups (SLE 5 minimum). Optional secret `MONIME_MAX_SLE` caps a single online payment (default 10,000).
+- **Crediting is atomic.** `apply_monime_ledger(monime_payment_id)` credits a booking or invoice exactly once, supports partial payments, and sets booking `payment_status` to `deposit_paid` or `paid`.
+- **Paying again.** Each attempt gets its own Monime idempotency key and reference, so a cancelled or expired session never blocks a new one. A live pending session for the same payment is reused.
+- **Quote deposits.** Staff can set a deposit when pricing a quote (`set_quote_deposit`). The client chooses deposit or full in checkout; the balance is paid later by Monime, wallet, cash, or field collection.
+- **Field collection.** `create-field-collection` lets the assigned crew show a Monime QR for the booking balance. The payment is credited to the client's booking by the same webhook.
+- **Unmatched webhooks.** Signed events that match no local payment are stored in `monime_webhook_unmatched` and shown in Finance → Mobile Money. Completed ones also notify admins.
+
+After changing checkout, verify, webhook, or fulfillment:
 
 ```bash
+supabase db push --project-ref "$SUPABASE_PROJECT_REF"
 supabase functions deploy create-monime-checkout
 supabase functions deploy verify-monime-payment
 supabase functions deploy monime-webhook
+supabase functions deploy create-field-collection
 supabase functions deploy process-monime-payout
 ```
 

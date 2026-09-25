@@ -4,7 +4,7 @@ import {
   Plus, TrendingUp, Filter, CheckCircle2, CreditCard,
   RefreshCw, Smartphone, Landmark, Receipt as ReceiptIcon,
   Mail, Clock, Download, Send, Banknote,
-  BarChart3, FileText, Shield, LayoutDashboard,
+  BarChart3, FileText, Shield, LayoutDashboard, AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard } from '../components/ui';
@@ -17,6 +17,7 @@ import { PermissionsTab } from './finance/PermissionsTab';
 import { ReportsTab } from './finance/ReportsTab';
 import { ApprovalsTab } from './finance/ApprovalsTab';
 import { CashPaymentsTab } from './finance/CashPaymentsTab';
+import { MonimeUnmatchedInbox } from './finance/MonimeUnmatchedInbox';
 import { downloadCsv } from './finance/financeCsv';
 import { buildReceiptHtmlFromRow, openPrintableHtml } from '../../lib/companyDocs';
 
@@ -469,6 +470,7 @@ interface MonimePayment {
   id: string; user_id: string; reference: string; amount_sle: number;
   status: string; purpose: string; checkout_session_id: string | null;
   payment_id: string | null; paid_at: string | null; created_at: string;
+  provider_id?: string | null; channel?: string | null; kind?: string | null;
   profile?: { full_name: string | null; email: string | null };
 }
 
@@ -482,6 +484,8 @@ function MobileMoneyTab() {
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [verifyMsg, setVerifyMsg] = useState('');
 
   const loadPayments = useCallback(async () => {
     setLoading(true);
@@ -507,12 +511,17 @@ function MobileMoneyTab() {
     const completed = payments.filter(p => p.status === 'completed');
     const totalAmount = completed.reduce((s, p) => s + Number(p.amount_sle), 0);
     const pending = payments.filter(p => p.status === 'pending').length;
+    const unmatched = payments.filter(p => p.status === 'pending' && Date.now() - new Date(p.created_at).getTime() > 15 * 60 * 1000).length;
     const failed = payments.filter(p => p.status === 'failed' || p.status === 'cancelled').length;
-    return { total: payments.length, totalAmount, pending, failed };
+    return { total: payments.length, totalAmount, pending, unmatched, failed };
   }, [payments]);
 
   const filtered = payments.filter(p => {
-    if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+    if (statusFilter === 'unmatched') {
+      if (p.status !== 'pending' || Date.now() - new Date(p.created_at).getTime() <= 15 * 60 * 1000) return false;
+    } else if (statusFilter !== 'all' && p.status !== statusFilter) {
+      return false;
+    }
     if (search) {
       const q = search.toLowerCase();
       const name = p.profile?.full_name || '';
@@ -522,6 +531,21 @@ function MobileMoneyTab() {
     return true;
   });
 
+  const verifyWithMonime = async (p: MonimePayment) => {
+    setVerifyingId(p.id);
+    setVerifyMsg('');
+    const { data, error } = await supabase.functions.invoke('verify-monime-payment', {
+      body: { reference: p.reference },
+    });
+    if (error) {
+      setVerifyMsg(error.message || 'Verify failed');
+    } else {
+      setVerifyMsg(`${p.reference}: ${data?.status || 'unknown'}`);
+      await loadPayments();
+    }
+    setVerifyingId(null);
+  };
+
   return (
     <>
       {loadError && (
@@ -530,12 +554,19 @@ function MobileMoneyTab() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard label="TOTAL PAYMENTS" value={String(stats.total)} icon={Smartphone} color="text-emerald-500" accent="bg-emerald-50" />
         <StatCard label="COMPLETED AMOUNT" value={fmtMoney(stats.totalAmount)} icon={CheckCircle2} color="text-blue-500" accent="bg-blue-50" />
         <StatCard label="PENDING" value={String(stats.pending)} icon={Clock} color="text-amber-500" accent="bg-amber-50" />
+        <StatCard label="UNMATCHED >15M" value={String(stats.unmatched)} icon={AlertTriangle} color="text-orange-500" accent="bg-orange-50" />
         <StatCard label="FAILED / CANCELLED" value={String(stats.failed)} icon={X} color="text-red-500" accent="bg-red-50" />
       </div>
+
+      <MonimeUnmatchedInbox onChanged={loadPayments} />
+
+      {verifyMsg && (
+        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700">{verifyMsg}</div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -551,6 +582,7 @@ function MobileMoneyTab() {
             <option value="all">All Statuses</option>
             <option value="completed">Completed</option>
             <option value="pending">Pending</option>
+            <option value="unmatched">Unmatched pending (&gt;15 min)</option>
             <option value="failed">Failed</option>
             <option value="cancelled">Cancelled</option>
           </select>
@@ -574,22 +606,48 @@ function MobileMoneyTab() {
             <Th>Client</Th><Th>Reference</Th><Th>Purpose</Th>
             <Th align="right">Amount</Th><Th align="center">Status</Th>
             <Th className="hidden md:table-cell">Date</Th>
+            <Th align="right"> </Th>
           </>
         }
       >
-        {filtered.map(p => (
-          <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+        {filtered.map(p => {
+          const stalePending = p.status === 'pending' && Date.now() - new Date(p.created_at).getTime() > 15 * 60 * 1000;
+          const canVerify = p.status === 'pending' || p.status === 'failed' || p.status === 'cancelled';
+          return (
+          <tr key={p.id} className={`hover:bg-slate-50/50 transition-colors ${stalePending ? 'bg-amber-50/60' : ''}`}>
             <td className="px-5 py-3">
               <p className="font-medium text-slate-800">{p.profile?.full_name || 'Unknown'}</p>
               <p className="text-xs text-slate-400">{p.profile?.email || ''}</p>
             </td>
-            <td className="px-5 py-3 font-mono text-xs text-slate-600">{p.reference}</td>
-            <td className="px-5 py-3 text-slate-600 capitalize">{(p.purpose || '').replace(/_/g, ' ')}</td>
+            <td className="px-5 py-3 font-mono text-xs text-slate-600">
+              {p.reference}
+              {(p.provider_id || p.channel) && (
+                <p className="text-[10px] text-slate-400 mt-0.5">{[p.channel, p.provider_id].filter(Boolean).join(' · ')}</p>
+              )}
+            </td>
+            <td className="px-5 py-3 text-slate-600 capitalize">
+              {(p.purpose || '').replace(/_/g, ' ')}
+              {p.kind && p.kind !== 'full' && <span className="ml-1 text-[10px] font-semibold uppercase text-slate-400">{p.kind}</span>}
+            </td>
             <td className="px-5 py-3 text-right font-bold text-slate-800">SLE {Number(p.amount_sle).toLocaleString()}</td>
             <td className="px-5 py-3 text-center"><StatusBadge status={p.status} /></td>
             <td className="px-5 py-3 hidden md:table-cell text-slate-400 text-xs">{formatDate(p.created_at)}</td>
+            <td className="px-5 py-3 text-right">
+              {canVerify && (
+                <button
+                  type="button"
+                  onClick={() => void verifyWithMonime(p)}
+                  disabled={verifyingId === p.id}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-700 hover:bg-white disabled:opacity-50"
+                >
+                  {verifyingId === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shield className="w-3.5 h-3.5" />}
+                  Verify with Monime
+                </button>
+              )}
+            </td>
           </tr>
-        ))}
+          );
+        })}
       </DataTable>
     </>
   );

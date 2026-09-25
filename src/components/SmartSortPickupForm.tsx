@@ -184,6 +184,7 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
         time_slot: timeSlot,
         time_slot_label: TIME_SLOTS.find(t => t.id === timeSlot)?.label,
         landmark,
+        ...(pickupPrice > 0 ? { total_sle: pickupPrice } : {}),
       },
       payment_status: 'pending',
     }).select('id').single();

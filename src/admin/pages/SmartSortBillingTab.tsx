@@ -83,6 +83,7 @@ export function SmartSortBillingTab() {
   const [genPeriodEnd, setGenPeriodEnd] = useState('');
   const [genDueDate, setGenDueDate] = useState('');
   const [genError, setGenError] = useState('');
+  const [genInvoiceNumber, setGenInvoiceNumber] = useState('');
   const [generating, setGenerating] = useState(false);
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState('cash');
@@ -163,13 +164,7 @@ export function SmartSortBillingTab() {
     await supabase.from('smart_sort_invoices').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
   };
 
-  const generateInvoiceNumber = () => {
-    const year = new Date().getFullYear();
-    const seq = String(invoices.length + 1).padStart(4, '0');
-    return `SS-${year}-${seq}`;
-  };
-
-  const openGenerate = () => {
+  const openGenerate = async () => {
     loadActiveSubs();
     setGenSubId(activeSubs[0]?.id || '');
     setGenAmount('');
@@ -177,6 +172,7 @@ export function SmartSortBillingTab() {
     setGenPeriodEnd('');
     setGenDueDate('');
     setGenError('');
+    setGenInvoiceNumber('');
     setShowGenerate(true);
   };
 
@@ -187,13 +183,22 @@ export function SmartSortBillingTab() {
     if (isNaN(amount) || amount <= 0) { setGenError('Enter a valid amount.'); return; }
     setGenerating(true);
     setGenError('');
-    const sub = activeSubs.find(s => s.id === genSubId);
     const subData = await supabase.from('smart_sort_subscriptions').select('user_id, plan_price_sle').eq('id', genSubId).maybeSingle();
     if (!subData.data) { setGenError('Subscription not found.'); setGenerating(false); return; }
+    let invoiceNumber = genInvoiceNumber;
+    if (!invoiceNumber) {
+      const numbered = await supabase.rpc('admin_next_smart_sort_invoice_number');
+      if (numbered.error || !numbered.data) {
+        setGenError(numbered.error?.message || 'Could not allocate invoice number.');
+        setGenerating(false);
+        return;
+      }
+      invoiceNumber = String(numbered.data);
+    }
     const { error: err } = await supabase.from('smart_sort_invoices').insert({
       subscription_id: genSubId,
       user_id: subData.data.user_id,
-      invoice_number: generateInvoiceNumber(),
+      invoice_number: invoiceNumber,
       period_start: genPeriodStart,
       period_end: genPeriodEnd,
       amount_sle: amount,
@@ -569,7 +574,7 @@ export function SmartSortBillingTab() {
               </div>
               <div className="bg-slate-50 rounded-xl p-3 flex items-center gap-2 text-sm text-slate-500">
                 <Send className="w-4 h-4 text-slate-400" />
-                Invoice will be auto-numbered ({generateInvoiceNumber()}) and marked as sent.
+                Invoice will be auto-numbered ({genInvoiceNumber || 'SS-YYYY-####'}) and marked as sent.
               </div>
               {activeSubs.find(s => s.id === genSubId)?.auto_pay && (
                 <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-2 text-sm text-emerald-800">

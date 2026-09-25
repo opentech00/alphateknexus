@@ -10,6 +10,7 @@ import { STATUS_META } from '../types';
 import { supabase } from '../../lib/supabase';
 import { useElapsedTimer } from '../useElapsedTimer';
 import { SignaturePad } from '../components/SignaturePad';
+import { FieldCollectPanel } from '../components/FieldCollectPanel';
 import { watchPosition, isInsideGeofence, getBatteryLevel, getCurrentPosition, type Coords } from '../geo';
 import { JobSiteMap } from '../../../components/map/JobSiteMap';
 import { getDrivingRoute } from '../../../lib/addressSearch';
@@ -434,6 +435,10 @@ export function JobDetailScreen({ assignmentId, onBack }: {
               </button>
             </div>
           </>
+        )}
+
+        {assignment.booking_id && ['accepted', 'in_progress', 'paused', 'pending_review'].includes(assignment.status) && (
+          <FieldCollectPanel bookingId={assignment.booking_id} />
         )}
 
         {/* Paused state */}

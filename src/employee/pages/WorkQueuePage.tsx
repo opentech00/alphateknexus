@@ -93,6 +93,7 @@ export function WorkInboxPage({
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [priceById, setPriceById] = useState<Record<string, string>>({});
+  const [depositById, setDepositById] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [chatBooking, setChatBooking] = useState<QueueBooking | null>(null);
   const [day, setDay] = useState(() => new Date().toISOString().slice(0, 10));
@@ -227,17 +228,32 @@ export function WorkInboxPage({
       toast.error('Enter a price in SLE');
       return;
     }
+    const deposit = Number(depositById[bookingId] || 0);
+    if (!Number.isFinite(deposit) || deposit < 0 || (deposit > 0 && deposit >= amount)) {
+      toast.error('The deposit must be less than the price');
+      return;
+    }
     setBusyId(bookingId);
     const { data, error: err } = await supabase.rpc('set_quote_price', {
       p_booking_id: bookingId,
       p_amount: amount,
     });
-    setBusyId(null);
     if (err || data?.success === false) {
+      setBusyId(null);
       toast.error(data?.error || err?.message || 'Could not send the price');
       return;
     }
-    toast.success('Price sent to the client');
+    const { data: depData, error: depErr } = await supabase.rpc('set_quote_deposit', {
+      p_booking_id: bookingId,
+      p_deposit: deposit > 0 ? deposit : null,
+    });
+    setBusyId(null);
+    if (depErr || depData?.success === false) {
+      toast.error(depData?.error || depErr?.message || 'Price sent, but the deposit could not be set');
+      await load();
+      return;
+    }
+    toast.success(deposit > 0 ? 'Price and deposit sent to the client' : 'Price sent to the client');
     await load();
   };
 
@@ -465,6 +481,15 @@ export function WorkInboxPage({
                       inputMode="decimal"
                       value={priceById[b.id] || ''}
                       onChange={(e) => setPriceById((prev) => ({ ...prev, [b.id]: e.target.value }))}
+                      className="mt-1 w-full min-h-[44px] rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </label>
+                  <label className="sm:w-36 text-xs font-medium text-slate-500">
+                    Deposit (optional)
+                    <input
+                      inputMode="decimal"
+                      value={depositById[b.id] || ''}
+                      onChange={(e) => setDepositById((prev) => ({ ...prev, [b.id]: e.target.value }))}
                       className="mt-1 w-full min-h-[44px] rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </label>

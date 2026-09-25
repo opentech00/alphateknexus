@@ -7,7 +7,7 @@ import {
   Search, Download, Filter, Calendar, Settings, Bell, MessageSquare, Zap,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
+import { startMonimePayment, pollPaymentStatus } from '../lib/monime';
 import { ReceiptModal } from './ReceiptModal';
 import { WalletSettings } from './WalletSettings';
 import { DisputeModal } from './DisputeModal';
@@ -368,14 +368,9 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
 
     setPayState('opening');
     try {
-      const result = await createMonimeCheckout(amt, 'wallet_topup');
+      const result = await startMonimePayment(amt, 'wallet_topup', undefined, undefined, { nextPage: 'account' });
       setPayReference(result.reference);
-
-      const popup = window.open(result.checkoutUrl, '_blank', 'width=500,height=700,scrollbars=yes');
-      if (!popup) {
-        throw new Error('Popup blocked. Please allow popups for this site and try again.');
-      }
-      popupRef.current = popup;
+      if (result.redirected) return;
 
       setPayState('waiting');
       setPollAttempt(0);
@@ -388,15 +383,10 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
 
       if (pollCancelledRef.current) return;
 
-      if (popupRef.current && !popupRef.current.closed) {
-        popupRef.current.close();
-      }
-
       if (pollResult.status === 'completed') {
         setPayState('success');
         setRetriesLeft(3);
         await loadTransactions();
-        // Safety net: re-load after 3s in case the insert was still in-flight
         setTimeout(() => loadTransactions(), 3000);
       } else if (pollResult.status === 'failed' || pollResult.status === 'cancelled') {
         setFailReason(pollResult.reason || 'Payment was not completed.');
@@ -797,13 +787,13 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
                         className="w-full pl-14 pr-4 py-3.5 border border-slate-200 rounded-xl text-lg font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
                       />
                     </div>
-                    <div className="flex gap-2 mt-3">
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-3">
                       {[50, 100, 250, 500, 1000].map(preset => (
                         <button
                           key={preset}
                           type="button"
                           onClick={() => setAmount(String(preset))}
-                          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
+                          className={`min-h-[40px] py-2 rounded-lg text-xs font-semibold transition-all active:scale-95 ${
                             amount === String(preset)
                               ? 'bg-emerald-500 text-white shadow-sm'
                               : 'bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -916,7 +906,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
                   {retrying ? 'Retrying Verification...' : 'Waiting for Payment'}
                 </h2>
                 <p className="text-sm text-slate-500 leading-relaxed mb-4">
-                  Complete your payment in the Monime window. We'll detect it automatically.
+                  Complete payment in Monime. This page updates when the bank confirms.
                 </p>
                 <div className="flex items-center justify-center gap-2 mb-4">
                   <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
@@ -926,7 +916,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
                 </div>
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-6">
                   <p className="text-xs text-amber-700">
-                    If the Monime window didn't open, check your popup blocker. Keep this page open while paying.
+                    Keep this page open while paying on this device. If checkout opened in another window, return here after you finish.
                   </p>
                 </div>
                 <button

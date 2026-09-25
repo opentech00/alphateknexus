@@ -1,163 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-
-async function verifySignature(payload: string, signature: string, secret: string): Promise<boolean> {
-  try {
-    const key = await crypto.subtle.importKey(
-      "raw",
-      new TextEncoder().encode(secret),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"],
-    );
-    const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
-    const hex = [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
-    // Constant-time comparison
-    if (hex.length !== signature.length) return false;
-    let diff = 0;
-    for (let i = 0; i < hex.length; i++) diff |= hex.charCodeAt(i) ^ signature.charCodeAt(i);
-    return diff === 0;
-  } catch {
-    return false;
-  }
-}
-
-async function fulfillMonimePayment(
-  supabase: any,
-  monimePayment: any,
-  reference: string,
-  paymentId: string,
-) {
-  if (monimePayment.purpose === "wallet_topup") {
-    const { data: existingTxn } = await supabase
-      .from("wallet_transactions")
-      .select("id")
-      .eq("monime_payment_id", monimePayment.id)
-      .maybeSingle();
-
-    if (!existingTxn) {
-      const { data: walletTx } = await supabase
-        .from("wallet_transactions")
-        .insert({
-          user_id: monimePayment.user_id,
-          type: "topup",
-          amount_sle: monimePayment.amount_sle,
-          method: "monime",
-          reference,
-          description: `Top-up via Monime (${paymentId})`,
-          status: "completed",
-          recorded_by: "monime_webhook",
-          monime_payment_id: monimePayment.id,
-        })
-        .select("id")
-        .maybeSingle();
-
-      if (walletTx && !monimePayment.related_id) {
-        await supabase.from("monime_payments").update({ related_id: walletTx.id }).eq("id", monimePayment.id);
-      }
-    }
-  } else if (monimePayment.purpose === "invoice" && monimePayment.related_id) {
-    const { data: financeInv } = await supabase
-      .from("invoices")
-      .select("id, total, status")
-      .eq("id", monimePayment.related_id)
-      .maybeSingle();
-
-    if (financeInv) {
-      if (financeInv.status !== "paid") {
-        await supabase.from("invoices").update({
-          status: "paid",
-          amount_paid: financeInv.total,
-          paid_at: new Date().toISOString(),
-          payment_method: "monime",
-        }).eq("id", financeInv.id);
-        const { data: existingPay } = await supabase
-          .from("payments")
-          .select("id")
-          .eq("payable_type", "invoice")
-          .eq("payable_id", financeInv.id)
-          .maybeSingle();
-        if (!existingPay) {
-          await supabase.from("payments").insert({
-            user_id: monimePayment.user_id,
-            payable_type: "invoice",
-            payable_id: financeInv.id,
-            amount_sle: monimePayment.amount_sle,
-            method: "monime",
-            status: "confirmed",
-          });
-        }
-      }
-    } else {
-      const { data: existingPay } = await supabase
-        .from("smart_sort_payments")
-        .select("id")
-        .eq("monime_payment_id", monimePayment.id)
-        .maybeSingle();
-
-      if (!existingPay) {
-        await supabase.from("smart_sort_payments").insert({
-          invoice_id: monimePayment.related_id,
-          user_id: monimePayment.user_id,
-          amount_sle: monimePayment.amount_sle,
-          method: "monime",
-          reference,
-          status: "confirmed",
-          monime_payment_id: monimePayment.id,
-        });
-        const { error: rpcErr } = await supabase.rpc("increment_invoice_paid", {
-          p_invoice_id: monimePayment.related_id,
-          p_amount: Math.round(Number(monimePayment.amount_sle)),
-        });
-        if (rpcErr) console.error("Failed to update invoice paid amount:", rpcErr.message);
-      }
-    }
-  } else if (monimePayment.purpose === "booking" && monimePayment.related_id) {
-    await supabase.from("bookings").update({
-      payment_status: "paid",
-      payment_method: "monime",
-    }).eq("id", monimePayment.related_id);
-
-    const { data: existingPay } = await supabase
-      .from("payments")
-      .select("id")
-      .eq("payable_type", "booking")
-      .eq("payable_id", monimePayment.related_id)
-      .maybeSingle();
-
-    if (!existingPay) {
-      await supabase.from("payments").insert({
-        user_id: monimePayment.user_id,
-        payable_type: "booking",
-        payable_id: monimePayment.related_id,
-        amount_sle: monimePayment.amount_sle,
-        method: "monime",
-        status: "confirmed",
-        reference,
-      });
-    }
-  } else if (monimePayment.purpose === "subscription" && monimePayment.related_id) {
-    const { data: existingTxn } = await supabase
-      .from("wallet_transactions")
-      .select("id")
-      .eq("monime_payment_id", monimePayment.id)
-      .maybeSingle();
-
-    if (!existingTxn) {
-      await supabase.from("wallet_transactions").insert({
-        user_id: monimePayment.user_id,
-        type: "payment",
-        amount_sle: -monimePayment.amount_sle,
-        method: "monime",
-        reference,
-        description: `Subscription payment via Monime (${paymentId})`,
-        status: "completed",
-        recorded_by: "monime_webhook",
-        monime_payment_id: monimePayment.id,
-      });
-    }
-  }
-}
+import { classifyCheckoutEvent, extractAmountMinor, extractCaphEvent, verifyMonimeSignature } from "../_shared/monime.ts";
+import { completeMonimePayment, resolveUnmatchedFor } from "../_shared/monimeFulfill.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -169,7 +13,6 @@ Deno.serve(async (req: Request) => {
     const signature = req.headers.get("X-Monime-Signature") || req.headers.get("Monime-Signature") || "";
     const webhookSecret = Deno.env.get("MONIME_WEBHOOK_SECRET");
 
-    // Signature verification is MANDATORY — fail-closed if secret is missing
     if (!webhookSecret) {
       console.error("MONIME_WEBHOOK_SECRET is not configured — rejecting webhook");
       return new Response(JSON.stringify({ error: "Webhook secret not configured" }), {
@@ -177,7 +20,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const valid = await verifySignature(payload, signature, webhookSecret);
+    const valid = await verifyMonimeSignature(payload, signature, webhookSecret);
     if (!valid) {
       console.error("Webhook signature verification failed");
       return new Response(JSON.stringify({ error: "Invalid signature" }), {
@@ -186,175 +29,136 @@ Deno.serve(async (req: Request) => {
     }
 
     const event = JSON.parse(payload);
-    const eventType: string = event.type || event.eventType || "";
-    const data = event.data || event.object || event;
-
-    const reference: string = data.reference || data.metadata?.reference || "";
-    const paymentId: string = data.id || data.paymentId || "";
-    const sessionId: string = data.checkoutSessionId || data.sessionId || data.id || "";
-    const status: string = data.status || "";
-
-    if (!reference) {
-      console.error("No reference found in webhook payload");
-      return new Response(JSON.stringify({ received: true, error: "No reference" }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const parsed = extractCaphEvent(event);
+    const kind = classifyCheckoutEvent(parsed.eventName, parsed.status);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Find the monime_payment record by reference
-    const { data: monimePayment, error: findErr } = await supabase
-      .from("monime_payments")
-      .select("*")
-      .eq("reference", reference)
-      .maybeSingle();
+    if (parsed.eventId) {
+      const { data: byEvent } = await supabase
+        .from("monime_payments")
+        .select("id")
+        .eq("webhook_event_id", parsed.eventId)
+        .maybeSingle();
+      if (byEvent) {
+        return new Response(JSON.stringify({ received: true, already: true }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
-    if (findErr || !monimePayment) {
-      console.error("Payment not found for reference:", reference);
-      return new Response(JSON.stringify({ received: true, error: "Payment not found" }), {
+    let monimePayment: any = null;
+
+    if (parsed.sessionId) {
+      const { data } = await supabase
+        .from("monime_payments")
+        .select("*")
+        .eq("checkout_session_id", parsed.sessionId)
+        .maybeSingle();
+      monimePayment = data;
+    }
+    if (!monimePayment && parsed.reference) {
+      const { data } = await supabase
+        .from("monime_payments")
+        .select("*")
+        .eq("reference", parsed.reference)
+        .maybeSingle();
+      monimePayment = data;
+    }
+    if (!monimePayment && parsed.relatedId) {
+      const { data } = await supabase
+        .from("monime_payments")
+        .select("*")
+        .eq("related_id", parsed.relatedId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      monimePayment = data;
+    }
+
+    if (!monimePayment) {
+      console.error("Unmatched Monime webhook", {
+        eventId: parsed.eventId,
+        eventName: parsed.eventName,
+        sessionId: parsed.sessionId,
+        reference: parsed.reference,
+        relatedId: parsed.relatedId,
+      });
+      const amountMinor = extractAmountMinor(parsed.data);
+      const row = {
+        event_id: parsed.eventId || null,
+        event_name: parsed.eventName,
+        outcome: kind,
+        session_id: parsed.sessionId || null,
+        reference: parsed.reference || null,
+        related_id: parsed.relatedId || null,
+        amount_minor: amountMinor,
+        payload: event,
+      };
+      const { error: inboxErr } = parsed.eventId
+        ? await supabase.from("monime_webhook_unmatched").upsert(row, { onConflict: "event_id", ignoreDuplicates: true })
+        : await supabase.from("monime_webhook_unmatched").insert(row);
+      if (inboxErr) console.error("Failed to store unmatched webhook:", inboxErr.message);
+
+      if (kind === "completed") {
+        const amountLabel = amountMinor ? `SLE ${(amountMinor / 100).toFixed(2)}` : "A payment";
+        const { error: notifyErr } = await supabase.rpc("enqueue_admin_notification", {
+          p_event_type: "monime_unmatched_payment",
+          p_title: "Unmatched Monime payment",
+          p_body: `${amountLabel} completed in Monime (${parsed.reference || parsed.sessionId || "no reference"}) but matches no local payment. Review it in Finance → Mobile Money.`,
+          p_category: "payments",
+          p_metadata: { session_id: parsed.sessionId, reference: parsed.reference, event_id: parsed.eventId },
+        });
+        if (notifyErr) console.error("Failed to notify admins:", notifyErr.message);
+      }
+
+      return new Response(JSON.stringify({ received: true, unmatched: true }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Determine if payment is successful
-    const isCompleted =
-      eventType === "payment.completed" ||
-      eventType === "checkout.session.completed" ||
-      eventType === "payment.succeeded" ||
-      status === "completed" ||
-      status === "succeeded";
+    if (kind === "completed") {
+      const result = await completeMonimePayment(supabase, monimePayment, {
+        recordedBy: "monime_webhook",
+        paymentId: parsed.paymentId,
+        payload: event,
+        webhookEventId: parsed.eventId || null,
+        providerId: parsed.providerId,
+        channel: parsed.channel,
+      });
+      return new Response(JSON.stringify({ received: true, already: result.already }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    const isFailed =
-      eventType === "payment.failed" ||
-      eventType === "checkout.session.expired" ||
-      status === "failed";
-
-    const isCancelled =
-      eventType === "payment.cancelled" ||
-      eventType === "checkout.session.canceled" ||
-      status === "cancelled" ||
-      status === "canceled";
-
-    if (isCompleted) {
-      if (monimePayment.status === "completed") {
-        await fulfillMonimePayment(supabase, monimePayment, reference, paymentId);
-        return new Response(JSON.stringify({ received: true, already: true }), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Update with WHERE status = 'pending' guard to prevent double-processing
-      const { data: updated, error: updErr } = await supabase
-        .from("monime_payments")
-        .update({
-          status: "completed",
-          payment_id: paymentId,
-          paid_at: new Date().toISOString(),
-          raw_payload: event,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", monimePayment.id)
-        .eq("status", "pending")
-        .select("id")
-        .maybeSingle();
-
-      if (updErr || !updated) {
-        await fulfillMonimePayment(supabase, monimePayment, reference, paymentId);
-        return new Response(JSON.stringify({ received: true, already: true }), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      await fulfillMonimePayment(supabase, monimePayment, reference, paymentId);
-
-      // Generate a payment receipt (idempotent — checks for existing receipt first)
-      const { data: existingReceipt } = await supabase
-        .from("payment_receipts")
-        .select("id")
-        .eq("monime_payment_id", monimePayment.id)
-        .maybeSingle();
-
-      if (!existingReceipt) {
-        const { data: receiptNum } = await supabase.rpc("generate_receipt_number");
-        if (!receiptNum) {
-          console.error("Failed to generate receipt number");
-        } else {
-          const { data: receipt } = await supabase
-            .from("payment_receipts")
-            .insert({
-              user_id: monimePayment.user_id,
-              monime_payment_id: monimePayment.id,
-              receipt_number: receiptNum,
-              reference: reference,
-              amount_sle: monimePayment.amount_sle,
-              currency: monimePayment.currency || "SLE",
-              purpose: monimePayment.purpose,
-              description: monimePayment.purpose === "wallet_topup"
-                ? "Wallet top-up via Monime"
-                : monimePayment.purpose === "invoice"
-                ? "Smart Sort invoice payment"
-                : monimePayment.purpose === "booking"
-                ? "Booking payment via Monime"
-                : "Subscription payment via Monime",
-              payment_method: "monime",
-              payment_id: paymentId,
-              paid_at: new Date().toISOString(),
-            })
-            .select("id")
-            .maybeSingle();
-
-          // Send receipt email via edge function (fire-and-forget)
-          if (receipt) {
-            try {
-              const resendKey = Deno.env.get("RESEND_API_KEY");
-              if (resendKey) {
-                await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-payment-receipt`, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                  },
-                  body: JSON.stringify({ receiptId: receipt.id }),
-                });
-              }
-            } catch (e) {
-              console.error("Receipt email send failed:", e.message);
-            }
-          }
-        }
-      }
-    } else if (isFailed) {
+    if (kind === "failed" || kind === "cancelled") {
+      const extras: Record<string, unknown> = {
+        status: kind,
+        raw_payload: event,
+        updated_at: new Date().toISOString(),
+      };
+      if (parsed.eventId) extras.webhook_event_id = parsed.eventId;
+      if (parsed.providerId) extras.provider_id = parsed.providerId;
+      if (parsed.channel) extras.channel = parsed.channel;
       await supabase
         .from("monime_payments")
-        .update({
-          status: "failed",
-          raw_payload: event,
-          updated_at: new Date().toISOString(),
-        })
+        .update(extras)
         .eq("id", monimePayment.id)
         .eq("status", "pending");
-    } else if (isCancelled) {
-      await supabase
-        .from("monime_payments")
-        .update({
-          status: "cancelled",
-          raw_payload: event,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", monimePayment.id)
-        .eq("status", "pending");
+      await resolveUnmatchedFor(supabase, monimePayment);
     }
 
     return new Response(JSON.stringify({ received: true }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("Webhook error:", err.message);
-    return new Response(JSON.stringify({ error: err.message }), {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Webhook error:", message);
+    return new Response(JSON.stringify({ error: message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

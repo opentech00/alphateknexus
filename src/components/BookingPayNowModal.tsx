@@ -8,10 +8,12 @@ interface Props {
   serviceSlug?: string;
   onClose: () => void;
   onPaid: () => void;
+  depositAmount?: number | null;
+  nextPage?: string;
 }
 
 export function BookingPayNowModal({
-  bookingId, amount, serviceName, serviceSlug, onClose, onPaid,
+  bookingId, amount, serviceName, serviceSlug, onClose, onPaid, depositAmount, nextPage,
 }: Props) {
   const [step, setStep] = useState<'pay' | 'success' | 'failed'>('pay');
   const [method, setMethod] = useState('');
@@ -54,6 +56,8 @@ export function BookingPayNowModal({
         bookingId={bookingId}
         serviceName={serviceName}
         serviceSlug={serviceSlug}
+        depositAmount={depositAmount}
+        nextPage={nextPage}
         onBack={onClose}
         onSuccess={(paidMethod, paidRef) => {
           setMethod(paidMethod);

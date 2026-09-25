@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
 export type PaymentPurpose = 'invoice' | 'wallet_topup' | 'subscription' | 'booking';
@@ -16,34 +18,107 @@ export interface MonimePayment {
   created_at: string;
 }
 
+export type PayMode = 'full' | 'deposit';
+
 export interface CreateCheckoutResult {
   checkoutUrl: string;
   sessionId: string;
   reference: string;
+  amount: number;
+  kind: string;
+  redirected: boolean;
+}
+
+export interface MonimeReturnContext {
+  reference: string;
+  purpose: PaymentPurpose;
+  relatedId?: string;
+  nextPage?: string;
+  amount?: number;
+  mode?: PayMode;
+}
+
+export async function invokeFunction<T = any>(
+  name: string,
+  body: Record<string, unknown>,
+  client: SupabaseClient = supabase,
+): Promise<T> {
+  const { data, error } = await client.functions.invoke(name, { body });
+  if (error) {
+    let message = error.message || 'Request failed';
+    const ctx = (error as { context?: Response }).context;
+    if (ctx && typeof ctx.json === 'function') {
+      try {
+        const parsed = await ctx.json();
+        if (parsed?.error) message = parsed.error;
+      } catch {
+        /* keep default message */
+      }
+    }
+    throw new Error(message);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data as T;
+}
+
+const RETURN_KEY = 'atn_monime_return';
+
+export function rememberMonimeReturn(ctx: MonimeReturnContext) {
+  try {
+    sessionStorage.setItem(RETURN_KEY, JSON.stringify(ctx));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readMonimeReturn(): MonimeReturnContext | null {
+  try {
+    const raw = sessionStorage.getItem(RETURN_KEY);
+    return raw ? JSON.parse(raw) as MonimeReturnContext : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearMonimeReturn() {
+  try {
+    sessionStorage.removeItem(RETURN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function destinationForPurpose(purpose: PaymentPurpose, nextPage?: string): string {
+  if (nextPage) return nextPage;
+  if (purpose === 'booking') return 'bookings';
+  if (purpose === 'invoice') return 'billing';
+  if (purpose === 'wallet_topup') return 'account';
+  return 'home';
+}
+
+export function nextPageForMonime(purpose: PaymentPurpose, nextPage?: string): string {
+  return destinationForPurpose(purpose, nextPage);
 }
 
 /**
- * Creates a Monime checkout session by calling the edge function.
+ * Creates a Monime checkout session. For bookings and invoices the server charges the
+ * amount due from the ledger; `amount` is only used for wallet top-ups.
  */
 export async function createMonimeCheckout(
   amount: number,
   purpose: PaymentPurpose,
   relatedId?: string,
   reference?: string,
+  mode: PayMode = 'full',
 ): Promise<CreateCheckoutResult> {
-  const { data, error } = await supabase.functions.invoke('create-monime-checkout', {
-    body: {
-      amount,
-      purpose,
-      related_id: relatedId || null,
-      reference: reference || null,
-      app_origin: window.location.origin,
-    },
+  const data = await invokeFunction('create-monime-checkout', {
+    amount,
+    purpose,
+    related_id: relatedId || null,
+    reference: reference || null,
+    mode,
+    app_origin: window.location.origin,
   });
-
-  if (error) {
-    throw new Error(error.message || 'Failed to create checkout session');
-  }
 
   if (!data?.checkoutUrl) {
     throw new Error('No checkout URL returned');
@@ -53,41 +128,66 @@ export async function createMonimeCheckout(
     checkoutUrl: data.checkoutUrl,
     sessionId: data.sessionId,
     reference: data.reference,
+    amount: Number(data.amount ?? amount),
+    kind: data.kind || 'full',
+    redirected: false,
   };
 }
 
+function openMonimeCheckout(url: string): boolean {
+  if (Capacitor.isNativePlatform()) {
+    const popup = window.open(url, '_blank');
+    if (!popup) {
+      window.location.assign(url);
+      return true;
+    }
+    return false;
+  }
+  window.location.assign(url);
+  return true;
+}
+
 /**
- * Opens Monime checkout in a popup window.
- * Use pollPaymentStatus() to detect when payment completes.
- * Does NOT redirect the main page.
+ * Creates a checkout session and navigates to Monime in the same tab.
+ * Native WebView falls back to a popup; if that is blocked, same-tab redirect is used.
  */
 export async function startMonimePayment(
   amount: number,
   purpose: PaymentPurpose,
   relatedId?: string,
   reference?: string,
+  options?: { nextPage?: string; mode?: PayMode },
 ): Promise<CreateCheckoutResult> {
-  const result = await createMonimeCheckout(amount, purpose, relatedId, reference);
-
-  const popup = window.open(result.checkoutUrl, '_blank', 'width=500,height=700,scrollbars=yes');
-  if (!popup) {
-    throw new Error('Popup blocked. Please allow popups for this site.');
-  }
-
-  return result;
+  const mode = options?.mode || 'full';
+  const result = await createMonimeCheckout(amount, purpose, relatedId, reference, mode);
+  rememberMonimeReturn({
+    reference: result.reference,
+    purpose,
+    relatedId,
+    nextPage: options?.nextPage,
+    amount: result.amount,
+    mode,
+  });
+  const redirected = openMonimeCheckout(result.checkoutUrl);
+  return { ...result, redirected };
 }
 
+/** Starts a fresh checkout for the same payment after a cancel, expiry, or timeout. */
+export async function retryMonimePayment(ctx: MonimeReturnContext): Promise<CreateCheckoutResult> {
+  return startMonimePayment(ctx.amount ?? 0, ctx.purpose, ctx.relatedId, undefined, {
+    nextPage: ctx.nextPage,
+    mode: ctx.mode,
+  });
+}
 /**
  * Polls the verify endpoint until payment is completed, failed, or max attempts reached.
- * @param reference The payment reference
- * @param onUpdate Optional callback for each poll attempt
- * @param maxAttempts Maximum poll attempts (default 60 = ~2 minutes at 2s intervals)
+ * Used on the payment-return page (and native popup fallback). Do not write ledger from the client.
  */
 export async function pollPaymentStatus(
   reference: string,
   onUpdate?: (status: string, attempt: number) => void,
   maxAttempts = 60,
-): Promise<{ status: string; reason?: string }> {
+): Promise<{ status: string; reason?: string; purpose?: PaymentPurpose; related_id?: string | null }> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     await new Promise(resolve => setTimeout(resolve, 2000));
     try {
@@ -96,17 +196,19 @@ export async function pollPaymentStatus(
       if (result.status === 'completed' || result.status === 'failed' || result.status === 'cancelled') {
         return result;
       }
-    } catch (err) {
+    } catch {
       onUpdate?.('error', attempt);
     }
   }
   return { status: 'pending' };
 }
 
-/**
- * Verifies a payment by calling the verify edge function.
- */
-export async function verifyMonimePayment(reference: string): Promise<{ status: string; reason?: string }> {
+export async function verifyMonimePayment(reference: string): Promise<{
+  status: string;
+  reason?: string;
+  purpose?: PaymentPurpose;
+  related_id?: string | null;
+}> {
   const { data, error } = await supabase.functions.invoke('verify-monime-payment', {
     body: { reference },
   });
@@ -118,5 +220,7 @@ export async function verifyMonimePayment(reference: string): Promise<{ status: 
   return {
     status: data?.status || 'pending',
     reason: data?.reason,
+    purpose: data?.purpose,
+    related_id: data?.related_id,
   };
 }

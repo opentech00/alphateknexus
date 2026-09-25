@@ -275,7 +275,7 @@ export function ServiceFinancePage({
     await loadLedger(selected);
   };
 
-  const setQuote = async (entry: LedgerEntry, amount: number, note: string) => {
+  const setQuote = async (entry: LedgerEntry, amount: number, note: string, deposit: number | null) => {
     if (!selected || !entry.booking_id) return;
     setBusyId('quote');
     const { data, error: err } = await supabase.rpc('finance_set_booking_quote', {
@@ -283,10 +283,19 @@ export function ServiceFinancePage({
       p_amount: amount,
       p_note: note || null,
     });
-    setBusyId(null);
-    if (err) { setError(err.message); return; }
+    if (err) { setBusyId(null); setError(err.message); return; }
     const result = data as { success?: boolean; error?: string } | null;
-    if (result && result.success === false) { setError(result.error || 'Could not set quote'); return; }
+    if (result && result.success === false) { setBusyId(null); setError(result.error || 'Could not set quote'); return; }
+    const { data: depData, error: depErr } = await supabase.rpc('set_quote_deposit', {
+      p_booking_id: entry.booking_id,
+      p_deposit: deposit,
+    });
+    setBusyId(null);
+    const depResult = depData as { success?: boolean; error?: string } | null;
+    if (depErr || depResult?.success === false) {
+      setError(depResult?.error || depErr?.message || 'Quote saved, but the deposit could not be set');
+      return;
+    }
     setQuoteEntry(null);
     await loadLedger(selected);
   };
@@ -629,7 +638,7 @@ export function ServiceFinancePage({
           entry={quoteEntry}
           busy={busyId === 'quote'}
           onClose={() => setQuoteEntry(null)}
-          onSave={(amount, note) => void setQuote(quoteEntry, amount, note)}
+          onSave={(amount, note, deposit) => void setQuote(quoteEntry, amount, note, deposit)}
         />
       )}
       {settleEntry && (
@@ -758,10 +767,14 @@ function QuoteModal({
   entry: LedgerEntry;
   busy: boolean;
   onClose: () => void;
-  onSave: (amount: number, note: string) => void;
+  onSave: (amount: number, note: string, deposit: number | null) => void;
 }) {
   const [amount, setAmount] = useState(String(Number(entry.amount_sle) || ''));
+  const [deposit, setDeposit] = useState('');
   const [note, setNote] = useState('');
+  const amountNum = parseFloat(amount) || 0;
+  const depositNum = parseFloat(deposit) || 0;
+  const depositInvalid = depositNum > 0 && depositNum >= amountNum;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -772,13 +785,24 @@ function QuoteModal({
         </div>
         <form
           className="px-5 py-5 space-y-4"
-          onSubmit={(e) => { e.preventDefault(); onSave(parseFloat(amount) || 0, note); }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (depositInvalid) return;
+            onSave(amountNum, note, depositNum > 0 ? depositNum : null);
+          }}
         >
           <p className="text-sm text-slate-500">{entry.description}</p>
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5">Quoted amount (SLE)</label>
             <input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} required
               className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-800 mb-1.5">Deposit to start (SLE, optional)</label>
+            <input type="number" step="0.01" min="0" value={deposit} onChange={(e) => setDeposit(e.target.value)}
+              placeholder="Leave empty to require full payment"
+              className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none" />
+            {depositInvalid && <p className="mt-1 text-xs text-red-600">The deposit must be less than the quoted amount.</p>}
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5">Note (optional)</label>

@@ -13,7 +13,7 @@ import { CrewTrackMap } from '../map/CrewTrackMap';
 import { SubscriptionLifecycle } from '../SubscriptionLifecycle';
 import { CancelDeleteBookingModal } from '../CancelDeleteBookingModal';
 import { BookingPayNowModal } from '../BookingPayNowModal';
-import { bookingNeedsPayment, bookingPayAmount } from '../../lib/bookingPay';
+import { bookingDepositAmount, bookingDueAmount, bookingNeedsPayment } from '../../lib/bookingPay';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { useHaptics } from '../../hooks/useHaptics';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
@@ -38,6 +38,7 @@ interface Booking {
   cancellation_reason: string | null;
   payment_status?: string | null;
   payment_method?: string | null;
+  amount_paid_sle?: number | null;
   services: { name: string; icon: string; slug: string };
 }
 
@@ -96,7 +97,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
   const fetchBookings = useCallback(async () => {
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, notes, created_at, service_id, details, deleted_at, cancellation_reason, payment_status, payment_method, services(name, icon, slug)')
+      .select('id, status, scheduled_date, scheduled_time, location, contact_name, contact_phone, contact_email, notes, created_at, service_id, details, deleted_at, cancellation_reason, payment_status, payment_method, amount_paid_sle, services(name, icon, slug)')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -518,7 +519,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                               onClick={() => setPayBooking(booking)}
                               className="h-8 px-3 rounded-lg text-[11px] font-semibold text-white bg-emerald-600 active:scale-95 transition-transform"
                             >
-                              Pay now
+                              {booking.payment_status === 'deposit_paid' ? 'Pay balance' : 'Pay now'}
                             </button>
                           )}
                           {(isCompleted || booking.status === 'cancelled') && (
@@ -586,7 +587,8 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
       {payBooking && (
         <BookingPayNowModal
           bookingId={payBooking.id}
-          amount={bookingPayAmount(payBooking)}
+          amount={bookingDueAmount(payBooking)}
+          depositAmount={bookingDepositAmount(payBooking)}
           serviceName={payBooking.services.name}
           serviceSlug={payBooking.services.slug}
           onClose={() => setPayBooking(null)}

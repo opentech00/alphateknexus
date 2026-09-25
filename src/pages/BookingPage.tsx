@@ -1,12 +1,12 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import {
   ArrowLeft, Calendar, MapPin, Clock, CheckCircle2,
-  ChevronRight, CreditCard, Wallet, Smartphone, ShieldCheck,
-  Loader2, Lock, Receipt as ReceiptIcon, XCircle, Banknote,
+  ChevronRight, Wallet, Smartphone, ShieldCheck,
+  Loader2, Receipt as ReceiptIcon, XCircle, Banknote,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from '../components/toast/toast';
-import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
+import { pollPaymentStatus, startMonimePayment } from '../lib/monime';
 
 const SERVICE_FEE = 25;
 import { SchedulingCalendar } from '../components/SchedulingCalendar';
@@ -32,6 +32,7 @@ import { ProcurementQuoteForm } from '../components/ProcurementQuoteForm';
 import { PrivateSecurityHireForm } from '../components/PrivateSecurityHireForm';
 import { PrivateSecurityQuoteForm } from '../components/PrivateSecurityQuoteForm';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
+import { ChannelPills, le, PayOption, SecureNote } from '../components/checkout/CheckoutUi';
 
 interface Service {
   id: string;
@@ -62,16 +63,6 @@ interface BookingPageProps {
 }
 
 type Step = 'form' | 'summary' | 'payment' | 'success' | 'payment_failed';
-
-const PAYMENT_METHODS = [
-  { id: 'orange-money',  label: 'Orange Money',  category: 'mobile',   color: 'bg-orange-500',  initials: 'OM' },
-  { id: 'afrimoney',     label: 'Afrimoney',     category: 'mobile',   color: 'bg-blue-600',     initials: 'AF' },
-  { id: 'qmoney',        label: 'QMoney',        category: 'mobile',   color: 'bg-emerald-600',  initials: 'QM' },
-  { id: 'visa',          label: 'Visa Card',     category: 'card',     color: 'bg-slate-800',    initials: 'V'  },
-  { id: 'mastercard',    label: 'Mastercard',    category: 'card',     color: 'bg-red-600',      initials: 'MC' },
-  { id: 'wallet',        label: 'Wallet Balance',category: 'wallet',   color: 'bg-slate-700',    initials: 'W'  },
-  { id: 'cash',          label: 'Cash on Delivery', category: 'cash', color: 'bg-amber-600',   initials: 'C'  },
-];
 
 function MobileHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
@@ -216,123 +207,76 @@ function PaymentStep({
   onPay: (methodId: string) => void;
   paying: boolean;
 }) {
-  const [selected, setSelected] = useState<string>('orange-money');
+  const [selected, setSelected] = useState<string>('monime');
   const { wallet_enabled } = useFeatureFlags();
-
-  const mobileMethods = PAYMENT_METHODS.filter(m => m.category === 'mobile');
-  const cardMethods = PAYMENT_METHODS.filter(m => m.category === 'card');
-  const walletMethods = wallet_enabled ? PAYMENT_METHODS.filter(m => m.category === 'wallet') : [];
-  const cashMethods = PAYMENT_METHODS.filter(m => m.category === 'cash');
-
-  const renderMethod = (m: typeof PAYMENT_METHODS[0]) => (
-    <button
-      key={m.id}
-      onClick={() => setSelected(m.id)}
-      className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all active:scale-[0.98] no-select ${
-        selected === m.id
-          ? 'border-blue-600 bg-blue-50'
-          : 'border-slate-200 bg-white hover:border-slate-300'
-      }`}
-    >
-      <div className={`w-10 h-10 rounded-lg ${m.color} flex items-center justify-center text-white font-bold text-xs flex-shrink-0`}>
-        {m.initials}
-      </div>
-      <span className="flex-1 text-left text-sm font-medium text-slate-800">{m.label}</span>
-      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-        selected === m.id ? 'border-blue-600 bg-blue-600' : 'border-slate-300'
-      }`}>
-        {selected === m.id && <CheckCircle2 className="w-3 h-3 text-white" />}
-      </div>
-    </button>
-  );
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
-      <div className="flex-1 overflow-y-auto mobile-scroll p-4 md:p-6 pb-28">
-        <h2 className="text-lg font-bold text-slate-900 mb-1 md:hidden">Payment Method</h2>
-        <p className="text-sm text-slate-500 mb-5 md:hidden">Choose how you want to pay for your booking.</p>
+      <div className="flex-1 overflow-y-auto mobile-scroll p-4 md:p-6 pb-4">
+        <h2 className="text-lg font-bold text-slate-900 mb-1">How would you like to pay?</h2>
+        <p className="text-sm text-slate-500 mb-5">{service.name}</p>
 
-        {/* Mobile Money */}
-        <div className="mb-5">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-            <Smartphone className="w-3.5 h-3.5" />
-            Mobile Money
-          </p>
-          <div className="space-y-2.5">
-            {mobileMethods.map(renderMethod)}
+        <div className="md:grid md:grid-cols-[minmax(0,1fr)_240px] md:gap-5 md:items-start">
+          <div role="radiogroup" aria-label="Payment method" className="space-y-2.5">
+            <PayOption
+              accent="blue"
+              selected={selected === 'monime'}
+              onSelect={() => setSelected('monime')}
+              title="Pay with Monime"
+              hint="Mobile money, card, or bank"
+              icon={<span className="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center text-white"><Smartphone className="w-5 h-5" /></span>}
+            />
+            {selected === 'monime' && (
+              <div className="px-1 animate-slideUp"><ChannelPills /></div>
+            )}
+            {wallet_enabled && (
+              <PayOption
+                accent="blue"
+                selected={selected === 'wallet'}
+                onSelect={() => setSelected('wallet')}
+                title="Wallet balance"
+                hint="Use store credit"
+                icon={<span className="w-11 h-11 rounded-xl bg-slate-700 flex items-center justify-center text-white"><Wallet className="w-5 h-5" /></span>}
+              />
+            )}
+            <PayOption
+              accent="blue"
+              selected={selected === 'cash'}
+              onSelect={() => setSelected('cash')}
+              title="Cash on delivery"
+              hint="Pay the crew when they arrive"
+              icon={<span className="w-11 h-11 rounded-xl bg-amber-600 flex items-center justify-center text-white"><Banknote className="w-5 h-5" /></span>}
+            />
+            {selected === 'cash' && (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 leading-relaxed animate-slideUp">
+                Have {le(total)} ready. A numbered receipt is issued when it is collected.
+              </div>
+            )}
+          </div>
+          <div className="hidden md:block rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+            <p className="text-xs font-medium text-slate-500">Due now</p>
+            <p key={total} className="text-2xl font-bold text-slate-900 tabular-nums animate-scaleIn">{le(total)}</p>
+            <SecureNote />
           </div>
         </div>
-
-        {/* Cards */}
-        <div className="mb-5">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-            <CreditCard className="w-3.5 h-3.5" />
-            Cards
-          </p>
-          <div className="space-y-2.5">
-            {cardMethods.map(renderMethod)}
-          </div>
-        </div>
-
-        {/* Wallet */}
-        {walletMethods.length > 0 && (
-        <div className="mb-5">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-            <Wallet className="w-3.5 h-3.5" />
-            Wallet
-          </p>
-          <div className="space-y-2.5">
-            {walletMethods.map(renderMethod)}
-          </div>
-        </div>
-        )}
-
-        {/* Cash */}
-        <div className="mb-5">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-            <Banknote className="w-3.5 h-3.5" />
-            Cash
-          </p>
-          <div className="space-y-2.5">
-            {cashMethods.map(renderMethod)}
-          </div>
-          {selected === 'cash' && (
-            <div className="mt-2.5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 leading-relaxed">
-              Pay in cash when our team arrives to deliver the service. A numbered receipt will be issued on collection. Your booking is confirmed immediately.
-            </div>
-          )}
-        </div>
-
-        {/* Security note */}
-        <div className="flex items-center gap-2 px-4 py-3 bg-slate-100 rounded-xl text-xs text-slate-500">
-          <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-          Your payment is secured with 256-bit SSL encryption.
-        </div>
+        <div className="mt-4 md:hidden"><SecureNote /></div>
       </div>
 
-      {/* Sticky pay button */}
-      <div className="flex-shrink-0 bg-white border-t border-slate-100 px-4 md:px-6 py-3 safe-area-pb">
-        <div className="flex items-center justify-between mb-2.5 px-1">
-          <span className="text-sm text-slate-500">Total</span>
-          <span className="text-lg font-bold text-slate-900">Le {total.toLocaleString()}</span>
+      <div className="flex-shrink-0 bg-white/95 backdrop-blur border-t border-slate-100 px-4 md:px-6 py-3 safe-area-pb">
+        <div className="flex items-center gap-3 max-w-3xl mx-auto">
+          <div className="md:hidden min-w-0">
+            <p className="text-[11px] text-slate-500">Due now</p>
+            <p key={selected} className="text-lg font-bold text-slate-900 tabular-nums animate-scaleIn">{le(total)}</p>
+          </div>
+          <button
+            onClick={() => onPay(selected)}
+            disabled={paying}
+            className="flex-1 min-h-[48px] py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm no-select flex items-center justify-center gap-2 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            {paying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+            <span className="truncate">{paying ? 'Opening secure checkout…' : selected === 'monime' ? 'Pay with Monime' : `Pay ${le(total)}`}</span>
+          </button>
         </div>
-        <button
-          onClick={() => onPay(selected)}
-          disabled={paying}
-          className="w-full py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm no-select flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-          {paying ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            <>
-              <ShieldCheck className="w-4 h-4" />
-              Pay Le {total.toLocaleString()}
-            </>
-          )}
-        </button>
       </div>
     </div>
   );
@@ -408,6 +352,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
         <SmartSortSubscribeForm
           service={service}
           onCancel={() => onNavigate('services')}
+          onSuccess={() => onNavigate('smart-sort-subs')}
         />
       );
     }
@@ -598,17 +543,16 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
         return;
       }
 
-      // Online payment methods route through Monime checkout
-      const result = await createMonimeCheckout(SERVICE_FEE, 'booking', bookingData.id, `BK-${bookingData.id.slice(0, 8)}`);
+      const result = await startMonimePayment(
+        SERVICE_FEE,
+        'booking',
+        bookingData.id,
+        `BK-${bookingData.id.slice(0, 8)}`,
+        { nextPage: 'bookings' },
+      );
       setPayReference(result.reference);
-      const popup = window.open(result.checkoutUrl, '_blank', 'width=500,height=700,scrollbars=yes');
-      if (!popup) {
-        setPaymentError('Popup was blocked. Please allow popups and try again. Your booking was created — you can complete payment from your bookings page.');
-        setStep('payment_failed');
-        return;
-      }
+      if (result.redirected) return;
       const pollResult = await pollPaymentStatus(result.reference);
-      if (!popup.closed) popup.close();
       if (pollResult.status !== 'completed') {
         setPaymentError(
           pollResult.status === 'failed' ? 'Payment was declined or failed.' :
@@ -618,7 +562,6 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
         setStep('payment_failed');
         return;
       }
-      await supabase.from('bookings').update({ payment_status: 'paid' }).eq('id', bookingData.id);
       setStep('success');
     } catch (err: any) {
       setPaymentError(err.message || 'Payment failed. Your booking was created — you can retry from your bookings page.');

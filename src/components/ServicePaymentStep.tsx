@@ -1,24 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Smartphone, CreditCard, Wallet, Banknote, Lock,
+  Smartphone, Wallet, Banknote,
   CheckCircle2, Loader2, ShieldCheck, ArrowLeft,
   XCircle, Building2, Upload, FileText, X,
-  AlertTriangle, Plus, ArrowUpRight,
+  AlertTriangle, Plus,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { createMonimeCheckout, pollPaymentStatus } from '../lib/monime';
+import { startMonimePayment, pollPaymentStatus } from '../lib/monime';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
-
-export const PAYMENT_METHODS = [
-  { id: 'orange-money', label: 'Orange Money', category: 'mobile', color: 'bg-orange-500', initials: 'OM' },
-  { id: 'afrimoney', label: 'Afrimoney', category: 'mobile', color: 'bg-blue-600', initials: 'AF' },
-  { id: 'qmoney', label: 'QMoney', category: 'mobile', color: 'bg-emerald-600', initials: 'QM' },
-  { id: 'visa', label: 'Visa Card', category: 'card', color: 'bg-slate-800', initials: 'V' },
-  { id: 'mastercard', label: 'Mastercard', category: 'card', color: 'bg-red-600', initials: 'MC' },
-  { id: 'wallet', label: 'Wallet Balance', category: 'wallet', color: 'bg-slate-700', initials: 'W' },
-  { id: 'bank', label: 'Bank Transfer', category: 'bank', color: 'bg-indigo-600', initials: 'B' },
-  { id: 'cash', label: 'Cash on Delivery', category: 'cash', color: 'bg-amber-600', initials: 'C' },
-];
+import { AmountFigure, ChannelPills, le, PayOption, SecureNote, StatusOrb } from './checkout/CheckoutUi';
 
 const BANK_DOC_TYPES = [
   { id: 'payslip', label: 'Payslip' },
@@ -37,12 +27,17 @@ interface ServicePaymentStepProps {
   onBack: () => void;
   onSuccess: (method: string, reference?: string) => void;
   onFail: (message: string) => void;
+  depositAmount?: number | null;
+  nextPage?: string;
 }
 
 export function ServicePaymentStep({
-  amount, bookingId, serviceName, serviceSlug, onBack, onSuccess, onFail,
+  amount, bookingId, serviceName, serviceSlug, onBack, onSuccess, onFail, depositAmount, nextPage = 'bookings',
 }: ServicePaymentStepProps) {
-  const [selected, setSelected] = useState('orange-money');
+  const [selected, setSelected] = useState('monime');
+  const canPayDeposit = !!depositAmount && depositAmount > 0 && depositAmount < amount;
+  const [payMode, setPayMode] = useState<'full' | 'deposit'>(canPayDeposit ? 'deposit' : 'full');
+  const monimeAmount = selected === 'monime' && canPayDeposit && payMode === 'deposit' ? depositAmount! : amount;
   const { wallet_enabled } = useFeatureFlags();
   const [paying, setPaying] = useState(false);
   const [bankDocType, setBankDocType] = useState('payslip');
@@ -71,11 +66,7 @@ export function ServicePaymentStep({
   const insufficientWallet = walletBalance !== null && walletBalance < amount;
   const walletDifference = insufficientWallet ? amount - walletBalance : 0;
 
-  const mobileMethods = PAYMENT_METHODS.filter(m => m.category === 'mobile');
-  const cardMethods = PAYMENT_METHODS.filter(m => m.category === 'card');
-  const walletMethods = wallet_enabled ? PAYMENT_METHODS.filter(m => m.category === 'wallet') : [];
-  const bankMethods = PAYMENT_METHODS.filter(m => m.category === 'bank');
-  const cashMethods = PAYMENT_METHODS.filter(m => m.category === 'cash');
+  const walletEnabled = wallet_enabled;
 
   const handlePay = async () => {
     setPaying(true);
@@ -203,22 +194,16 @@ export function ServicePaymentStep({
     }
 
     try {
-      await supabase.from('bookings').update({
-        payment_method: 'monime',
-        payment_status: 'pending',
-      }).eq('id', bookingId);
-
-      const result = await createMonimeCheckout(amount, 'booking', bookingId, `BK-${bookingId.slice(0, 8)}`);
-      const popup = window.open(result.checkoutUrl, '_blank', 'width=500,height=700,scrollbars=yes');
-      if (!popup) {
-        onFail('Popup was blocked. Please allow popups and try again.');
-        setPaying(false);
-        return;
-      }
+      const result = await startMonimePayment(
+        monimeAmount,
+        'booking',
+        bookingId,
+        `BK-${bookingId.slice(0, 8)}`,
+        { nextPage, mode: canPayDeposit ? payMode : 'full' },
+      );
+      if (result.redirected) return;
 
       const pollResult = await pollPaymentStatus(result.reference);
-      if (!popup.closed) popup.close();
-
       if (pollResult.status !== 'completed') {
         onFail(
           pollResult.status === 'failed' ? 'Payment was declined or failed.' :
@@ -229,7 +214,6 @@ export function ServicePaymentStep({
         return;
       }
 
-      await supabase.from('bookings').update({ payment_status: 'paid' }).eq('id', bookingId);
       setPaying(false);
       onSuccess('monime', result.reference);
     } catch (err: any) {
@@ -238,68 +222,95 @@ export function ServicePaymentStep({
     }
   };
 
-  const renderMethod = (m: typeof PAYMENT_METHODS[0]) => (
-    <button
-      key={m.id}
-      onClick={() => setSelected(m.id)}
-      className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all active:scale-[0.98] no-select ${
-        selected === m.id
-          ? 'border-emerald-600 bg-emerald-50'
-          : 'border-slate-200 bg-white hover:border-slate-300'
-      }`}
-    >
-      <div className={`w-10 h-10 rounded-lg ${m.color} flex items-center justify-center text-white font-bold text-xs flex-shrink-0`}>
-        {m.initials}
+  const payLabel = paying
+    ? 'Opening secure checkout…'
+    : selected === 'bank'
+      ? 'Submit for verification'
+      : selected === 'monime'
+        ? (monimeAmount < amount ? 'Pay deposit with Monime' : 'Pay with Monime')
+        : `Pay ${le(amount)}`;
+
+  const summary = (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+      <AmountFigure amount={selected === 'wallet' || selected === 'cash' || selected === 'bank' ? amount : monimeAmount} caption="Due now" />
+      <div className="text-sm text-slate-500 space-y-1">
+        <div className="flex justify-between"><span>Service</span><span className="font-medium text-slate-800 text-right">{serviceName}</span></div>
+        {monimeAmount < amount && selected === 'monime' && (
+          <div className="flex justify-between"><span>Balance later</span><span className="font-medium text-slate-800">{le(amount - monimeAmount)}</span></div>
+        )}
       </div>
-      <span className="flex-1 text-left text-sm font-medium text-slate-800">{m.label}</span>
-      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-        selected === m.id ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
-      }`}>
-        {selected === m.id && <CheckCircle2 className="w-3 h-3 text-white" />}
-      </div>
-    </button>
+      <SecureNote />
+      <button
+        onClick={handlePay}
+        disabled={paying || (selected === 'bank' && !bankFile) || (selected === 'wallet' && insufficientWallet)}
+        className="hidden lg:flex w-full min-h-[48px] py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-sm items-center justify-center gap-2 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+      >
+        {paying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+        {payLabel}
+      </button>
+    </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-16">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-6 lg:pt-10">
-        <button onClick={onBack} className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 mb-6">
-          <ArrowLeft className="w-4 h-4" /> Back to review
+    <div className="min-h-screen bg-slate-50 pb-28 lg:pb-10">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-4 sm:pt-8">
+        <button onClick={onBack} className="inline-flex items-center gap-2 min-h-[44px] text-sm text-slate-500 hover:text-slate-700 mb-3">
+          <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-5">
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-5 flex items-center gap-3">
-            <ShieldCheck className="w-6 h-6 text-white" />
-            <div>
-              <h1 className="text-lg font-bold text-white">Payment Method</h1>
-              <p className="text-emerald-100 text-sm">{serviceName}</p>
-            </div>
-          </div>
+        <div className="mb-5 animate-fadeIn">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">How would you like to pay?</h1>
+          <p className="text-sm text-slate-500 mt-1">{serviceName}</p>
+        </div>
 
-          <div className="p-6 space-y-6">
-            {/* Mobile Money */}
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <Smartphone className="w-3.5 h-3.5" /> Mobile Money
-              </p>
-              <div className="space-y-2.5">{mobileMethods.map(renderMethod)}</div>
-            </div>
-
-            {/* Cards */}
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <CreditCard className="w-3.5 h-3.5" /> Cards
-              </p>
-              <div className="space-y-2.5">{cardMethods.map(renderMethod)}</div>
-            </div>
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-6 lg:items-start">
+        <div className="space-y-5">
+            <div role="radiogroup" aria-label="Payment method" className="space-y-2.5">
+              <PayOption
+                selected={selected === 'monime'}
+                onSelect={() => setSelected('monime')}
+                title="Pay with Monime"
+                hint="Mobile money, card, or bank"
+                icon={<span className="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center"><Smartphone className="w-5 h-5" /></span>}
+              />
+              {selected === 'monime' && (
+                <div className="px-1 animate-slideUp">
+                  <ChannelPills />
+                  {canPayDeposit && (
+                    <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="How much to pay now">
+                      {([
+                        { id: 'deposit' as const, label: 'Deposit now', value: depositAmount! },
+                        { id: 'full' as const, label: 'Pay in full', value: amount },
+                      ]).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={payMode === opt.id}
+                          onClick={() => setPayMode(opt.id)}
+                          className={`min-h-[64px] p-3 rounded-2xl border text-left transition-all duration-200 active:scale-[0.98] ${
+                            payMode === opt.id ? 'border-emerald-600 bg-emerald-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{opt.label}</span>
+                          <span className="block text-base font-bold text-slate-900 tabular-nums">{le(opt.value)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
             {/* Wallet */}
-            {walletMethods.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <Wallet className="w-3.5 h-3.5" /> Wallet
-              </p>
-              <div className="space-y-2.5">{walletMethods.map(renderMethod)}</div>
+            {walletEnabled && (
+            <div className="space-y-2.5">
+              <PayOption
+                selected={selected === 'wallet'}
+                onSelect={() => setSelected('wallet')}
+                title="Wallet balance"
+                hint={walletBalance === null ? 'Store credit' : `${le(walletBalance)} available`}
+                icon={<span className="w-11 h-11 rounded-xl bg-slate-700 flex items-center justify-center"><Wallet className="w-5 h-5" /></span>}
+              />
               {selected === 'wallet' && walletBalance !== null && (
                 <div className={`mt-2.5 p-3.5 rounded-xl border text-xs leading-relaxed ${
                   insufficientWallet
@@ -339,12 +350,14 @@ export function ServicePaymentStep({
             </div>
             )}
 
-            {/* Bank Transfer */}
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5" /> Bank Transfer
-              </p>
-              <div className="space-y-2.5">{bankMethods.map(renderMethod)}</div>
+            <div className="space-y-2.5">
+              <PayOption
+                selected={selected === 'bank'}
+                onSelect={() => setSelected('bank')}
+                title="Bank transfer"
+                hint="Upload a slip for finance to confirm"
+                icon={<span className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center"><Building2 className="w-5 h-5" /></span>}
+              />
               {selected === 'bank' && (
                 <div className="mt-3 space-y-3 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
                   <p className="text-xs text-indigo-800 leading-relaxed">
@@ -420,42 +433,37 @@ export function ServicePaymentStep({
               )}
             </div>
 
-            {/* Cash */}
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <Banknote className="w-3.5 h-3.5" /> Cash
-              </p>
-              <div className="space-y-2.5">{cashMethods.map(renderMethod)}</div>
+            <div className="space-y-2.5">
+              <PayOption
+                selected={selected === 'cash'}
+                onSelect={() => setSelected('cash')}
+                title="Cash on delivery"
+                hint="Pay the crew when they arrive"
+                icon={<span className="w-11 h-11 rounded-xl bg-amber-600 flex items-center justify-center"><Banknote className="w-5 h-5" /></span>}
+              />
               {selected === 'cash' && (
-                <div className="mt-2.5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 leading-relaxed">
-                  Pay in cash when our team arrives to deliver the service. A numbered receipt will be issued on collection.
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 leading-relaxed animate-slideUp">
+                  Have {le(amount)} ready. A numbered receipt is issued when it is collected.
                 </div>
               )}
             </div>
-
-            <div className="flex items-center gap-2 px-4 py-3 bg-slate-100 rounded-xl text-xs text-slate-500">
-              <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-              Your payment is secured with 256-bit SSL encryption.
-            </div>
-          </div>
         </div>
-
-        <div className="flex items-center justify-between mb-3 px-1">
-          <span className="text-sm text-slate-500">Total</span>
-          <span className="text-lg font-bold text-slate-900">Le {amount.toLocaleString()}</span>
+        <div className="hidden lg:block lg:sticky lg:top-6">{summary}</div>
         </div>
+      </div>
 
-        <button
-          onClick={handlePay}
-          disabled={paying || (selected === 'bank' && !bankFile) || (selected === 'wallet' && insufficientWallet)}
-          className="w-full py-3.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-          {paying ? (
-            <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
-          ) : (
-            <><ShieldCheck className="w-4 h-4" /> {selected === 'bank' ? 'Submit for Verification' : `Pay Le ${amount.toLocaleString()}`}</>
-          )}
-        </button>
+      <div className="lg:hidden fixed bottom-0 inset-x-0 z-20 bg-white/95 backdrop-blur border-t border-slate-200 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="max-w-5xl mx-auto flex items-center gap-3">
+          <AmountFigure compact amount={selected === 'monime' ? monimeAmount : amount} />
+          <button
+            onClick={handlePay}
+            disabled={paying || (selected === 'bank' && !bankFile) || (selected === 'wallet' && insufficientWallet)}
+            className="flex-1 min-h-[48px] px-4 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {paying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+            <span className="truncate">{payLabel}</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -478,11 +486,9 @@ export function PaymentSuccessScreen({
   const isCash = method === 'cash';
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-16">
-      <div className="text-center max-w-md">
-        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-        </div>
+    <div className="min-h-screen flex items-center justify-center px-4 py-10 sm:py-16">
+      <div className="text-center max-w-md w-full animate-slideUp">
+        <StatusOrb tone="emerald"><CheckCircle2 className="w-9 h-9" /></StatusOrb>
         <h2 className="text-2xl font-bold text-slate-900">
           {isCash ? 'Booking Confirmed!' : 'Payment Successful!'}
         </h2>
@@ -506,10 +512,10 @@ export function PaymentSuccessScreen({
           <p className="mt-3 text-xs text-slate-400">Reference: {reference}</p>
         )}
         <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-          <button onClick={onViewBookings} className="px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition-colors">
+          <button onClick={onViewBookings} className="min-h-[48px] px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 active:scale-[0.98] transition-all">
             View My Bookings
           </button>
-          <button onClick={onDone} className="px-6 py-3 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition-colors">
+          <button onClick={onDone} className="min-h-[48px] px-6 py-3 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 active:scale-[0.98] transition-all">
             Back to Services
           </button>
         </div>
@@ -526,18 +532,16 @@ interface PaymentFailedScreenProps {
 
 export function PaymentFailedScreen({ message, onRetry, onViewBookings }: PaymentFailedScreenProps) {
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-16">
-      <div className="text-center max-w-md">
-        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <XCircle className="w-8 h-8 text-red-600" />
-        </div>
+    <div className="min-h-screen flex items-center justify-center px-4 py-10 sm:py-16">
+      <div className="text-center max-w-md w-full animate-slideUp">
+        <StatusOrb tone="red"><XCircle className="w-9 h-9" /></StatusOrb>
         <h2 className="text-2xl font-bold text-slate-900">Payment Incomplete</h2>
         <p className="mt-3 text-slate-500">{message}</p>
         <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-          <button onClick={onRetry} className="px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition-colors">
+          <button onClick={onRetry} className="min-h-[48px] px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 active:scale-[0.98] transition-all">
             Retry Payment
           </button>
-          <button onClick={onViewBookings} className="px-6 py-3 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition-colors">
+          <button onClick={onViewBookings} className="min-h-[48px] px-6 py-3 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 active:scale-[0.98] transition-all">
             View My Bookings
           </button>
         </div>

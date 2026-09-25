@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Wallet, Pause, Play, X, TrendingUp, Users, CalendarCheck, Recycle,
-  Search, ChevronDown, ChevronUp, SlidersHorizontal, Mail, Phone, MapPin,
-  Clock, CreditCard, AlertCircle, Download, RefreshCw, CalendarOff,
+  Search, ChevronDown, ChevronUp, SlidersHorizontal, Mail, Phone,
+  CreditCard, AlertCircle, Download, RefreshCw, CalendarOff,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -72,6 +72,14 @@ export function SmartSortSubscriptionsTab() {
   const [editNote, setEditNote] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  const [plans, setPlans] = useState<{ id: string; name: string; price_sle: number; bin_size_liters: number; frequency: string }[]>([]);
+  const [editPlanName, setEditPlanName] = useState('');
+  const [editFrequency, setEditFrequency] = useState('weekly');
+  const [editSlot, setEditSlot] = useState('morning');
+  const [editAddress, setEditAddress] = useState('');
+  const [editLandmark, setEditLandmark] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [pauseUntil, setPauseUntil] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -86,6 +94,8 @@ export function SmartSortSubscriptionsTab() {
     } else {
       setSubs((data as Sub[]) || []);
     }
+    const plansRes = await supabase.from('smart_sort_plans').select('id, name, price_sle, bin_size_liters, frequency').eq('is_active', true).order('sort_order');
+    if (plansRes.data) setPlans(plansRes.data as typeof plans);
     setLoading(false);
   };
 
@@ -145,33 +155,76 @@ export function SmartSortSubscriptionsTab() {
   };
 
   const resumeSub = async (id: string) => {
-    await updateSub(id, { status: 'active', paused_until: null } as any);
+    const { error: err } = await supabase.rpc('resume_smart_sort_subscription', { p_subscription_id: id });
+    if (err) { setError(err.message); return; }
+    await load();
   };
 
-  const pauseSub = async (id: string) => {
-    const days = prompt('Pause for how many days?', '30');
-    if (!days) return;
-    const n = parseInt(days, 10);
-    if (isNaN(n) || n <= 0) return;
-    const until = new Date(Date.now() + n * 86400000).toISOString().split('T')[0];
-    await updateSub(id, { status: 'paused', paused_until: until } as any);
+  const pauseSub = async (id: string, until?: string) => {
+    const pausedUntil = until || pauseUntil;
+    if (!pausedUntil) {
+      const days = prompt('Pause until date (YYYY-MM-DD)', new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]);
+      if (!days) return;
+      const { error: err } = await supabase.rpc('pause_smart_sort_subscription', {
+        p_subscription_id: id,
+        p_paused_until: days,
+      });
+      if (err) { setError(err.message); return; }
+      await load();
+      return;
+    }
+    const { error: err } = await supabase.rpc('pause_smart_sort_subscription', {
+      p_subscription_id: id,
+      p_paused_until: pausedUntil,
+    });
+    if (err) { setError(err.message); return; }
+    await load();
   };
 
   const openDetail = (sub: Sub) => {
     setSelected(sub);
     setEditNote(sub.special_instructions || '');
     setEditPrice(sub.plan_price_sle != null ? String(sub.plan_price_sle) : '');
+    setEditPlanName(sub.plan_name || '');
+    setEditFrequency(sub.frequency);
+    setEditSlot(sub.time_slot);
+    setEditAddress(sub.address);
+    setEditLandmark(sub.landmark || '');
+    setEditPhone(sub.contact_phone);
+    setPauseUntil(sub.paused_until || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]);
+  };
+
+  const applyCatalogPlan = (planId: string) => {
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return;
+    setEditPlanName(plan.name);
+    setEditPrice(String(plan.price_sle));
+    setEditFrequency(plan.frequency);
   };
 
   const saveDetail = async () => {
     if (!selected) return;
     setSavingNote(true);
-    const patch: Partial<Sub> = { special_instructions: editNote.trim() || null };
+    const patch: Partial<Sub> = {
+      special_instructions: editNote.trim() || null,
+      plan_name: editPlanName.trim() || null,
+      frequency: editFrequency,
+      time_slot: editSlot,
+      address: editAddress.trim(),
+      landmark: editLandmark.trim() || null,
+      contact_phone: editPhone.trim(),
+    };
     if (editPrice.trim() !== '') {
       const p = parseInt(editPrice, 10);
       if (!isNaN(p) && p >= 0) patch.plan_price_sle = p;
     }
+    const catalog = plans.find(p => p.name === editPlanName);
+    if (catalog) patch.bin_size_liters = catalog.bin_size_liters;
+    const scheduleChanged = editFrequency !== selected.frequency || editSlot !== selected.time_slot;
     await updateSub(selected.id, patch);
+    if (scheduleChanged) {
+      await supabase.rpc('refresh_smart_sort_schedule', { p_subscription_id: selected.id });
+    }
     setSavingNote(false);
   };
 
@@ -488,15 +541,25 @@ export function SmartSortSubscriptionsTab() {
               {/* Plan */}
               <div>
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Plan</h4>
-                <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-900">{selected.plan_name || 'Custom plan'}</span>
-                    <span className="font-bold text-slate-900">{fmtMoney(selected.plan_price_sle)}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-white border border-slate-200 text-slate-600">{WASTE_LABELS[selected.waste_type] ?? selected.waste_type}</span>
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-white border border-slate-200 text-slate-600">{selected.bin_size_liters}L bin</span>
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-white border border-slate-200 text-slate-600 capitalize">{selected.frequency}</span>
+                <div className="space-y-2">
+                  <select
+                    value={plans.find(p => p.name === editPlanName)?.id || ''}
+                    onChange={e => applyCatalogPlan(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  >
+                    <option value="">Custom / snapshot</option>
+                    {plans.map(p => <option key={p.id} value={p.id}>{p.name} · SLE {p.price_sle}</option>)}
+                  </select>
+                  <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-900">{editPlanName || 'Custom plan'}</span>
+                      <span className="font-bold text-slate-900">{fmtMoney(editPrice ? parseInt(editPrice, 10) : selected.plan_price_sle)}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="px-2 py-0.5 text-xs rounded-full bg-white border border-slate-200 text-slate-600">{WASTE_LABELS[selected.waste_type] ?? selected.waste_type}</span>
+                      <span className="px-2 py-0.5 text-xs rounded-full bg-white border border-slate-200 text-slate-600">{selected.bin_size_liters}L bin</span>
+                      <span className="px-2 py-0.5 text-xs rounded-full bg-white border border-slate-200 text-slate-600 capitalize">{editFrequency}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -504,10 +567,18 @@ export function SmartSortSubscriptionsTab() {
               {/* Schedule */}
               <div>
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Pickup Schedule</h4>
-                <div className="space-y-1.5 text-sm text-slate-600">
-                  <p className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-slate-400" /> <span className="capitalize">{selected.frequency}</span> · {selected.time_slot}</p>
-                  <p className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-slate-400" /> {selected.address}</p>
-                  {selected.landmark && <p className="flex items-center gap-2 text-slate-400"><MapPin className="w-3.5 h-3.5" /> Landmark: {selected.landmark}</p>}
+                <div className="space-y-2">
+                  <select value={editFrequency} onChange={e => setEditFrequency(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white">
+                    {['daily', 'twice-weekly', 'weekly', 'bi-weekly', 'three-weeks', 'monthly'].map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                  <select value={editSlot} onChange={e => setEditSlot(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white">
+                    {['morning', 'afternoon', 'evening'].map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <input type="text" value={editAddress} onChange={e => setEditAddress(e.target.value)} placeholder="Address" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+                  <input type="text" value={editLandmark} onChange={e => setEditLandmark(e.target.value)} placeholder="Landmark" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+                  <input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="Phone" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
                 </div>
               </div>
 
@@ -563,19 +634,22 @@ export function SmartSortSubscriptionsTab() {
               </div>
 
               {/* Lifecycle actions */}
-              <div className="flex gap-2 pt-2 border-t border-slate-100">
+              <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
                 {selected.status === 'active' && (
-                  <button onClick={() => pauseSub(selected.id)} className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors">
-                    <Pause className="w-4 h-4" /> Pause
-                  </button>
+                  <div className="flex gap-2">
+                    <input type="date" value={pauseUntil} onChange={e => setPauseUntil(e.target.value)} className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+                    <button onClick={() => pauseSub(selected.id, pauseUntil)} className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors">
+                      <Pause className="w-4 h-4" /> Pause
+                    </button>
+                  </div>
                 )}
                 {selected.status === 'paused' && (
-                  <button onClick={() => resumeSub(selected.id)} className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors">
+                  <button onClick={() => resumeSub(selected.id)} className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors">
                     <Play className="w-4 h-4" /> Resume
                   </button>
                 )}
                 {selected.status !== 'cancelled' && (
-                  <button onClick={() => cancelSub(selected.id)} className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
+                  <button onClick={() => cancelSub(selected.id)} className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
                     <X className="w-4 h-4" /> Cancel
                   </button>
                 )}

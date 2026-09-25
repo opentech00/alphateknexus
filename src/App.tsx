@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { Loader2, AlertTriangle, X } from 'lucide-react';
+import { Loader2, AlertTriangle, X, CheckCircle2, XCircle } from 'lucide-react';
+import { StatusOrb } from './components/checkout/CheckoutUi';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -19,6 +20,7 @@ import { SmartSortSubscriptionsPage } from './pages/SmartSortSubscriptionsPage';
 import { BillingPage } from './pages/BillingPage';
 import { QuotesPage } from './pages/QuotesPage';
 import { SupportPage } from './pages/SupportPage';
+import { PaymentReturnPage } from './pages/PaymentReturnPage';
 import { TopNav } from './components/TopNav';
 import { MobileShell } from './components/mobile/MobileShell';
 import { SplashScreen } from './components/mobile/SplashScreen';
@@ -86,6 +88,24 @@ function PortalAnnouncement({ enabled, text }: { enabled: boolean; text: string 
   );
 }
 
+function FieldPaidScreen({ cancelled }: { cancelled: boolean }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-10">
+      <div className="max-w-sm w-full bg-white border border-slate-200 rounded-3xl p-8 text-center shadow-sm animate-slideUp">
+        <StatusOrb tone={cancelled ? 'amber' : 'emerald'}>
+          {cancelled ? <XCircle className="w-9 h-9" /> : <CheckCircle2 className="w-9 h-9" />}
+        </StatusOrb>
+        <h1 className="text-xl font-bold text-slate-900">{cancelled ? 'Payment cancelled' : 'Payment sent'}</h1>
+        <p className="mt-3 text-sm text-slate-500 leading-relaxed">
+          {cancelled
+            ? 'No money was taken. Let the Alphatek crew know and they can show you a new code.'
+            : 'Thank you. The Alphatek crew will see the confirmation on their device. You can close this page.'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function PortalContent() {
   const { user, isAdmin, loading, needs2FA, needsEmailVerification, needsPhoneVerification, pending2FAEmail, pending2FAPassword, clear2FA, refreshVerification, signOut, profile } = useAuth();
   const portal = usePortalSettings();
@@ -117,7 +137,15 @@ function PortalContent() {
     if (params.get('reset') === 'true') {
       setAuthView('reset');
     }
+    if (params.get('page') === 'payment-return') {
+      setPage('payment-return');
+    }
   }, []);
+
+  const [fieldPaidStatus] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('page') === 'field-paid' ? (params.get('status') || 'success') : null;
+  });
 
   const [showSplash, setShowSplash] = useState(() => {
     try {
@@ -128,6 +156,10 @@ function PortalContent() {
     setShowSplash(false);
     try { localStorage.setItem('atn-onboarded', '1'); } catch {}
   };
+
+  if (fieldPaidStatus) {
+    return <FieldPaidScreen cancelled={fieldPaidStatus === 'cancel'} />;
+  }
 
   if (showSplash && isMobile) {
     return (
@@ -240,6 +272,26 @@ function PortalContent() {
         <main className="pt-16 min-h-screen">
             <PortalAnnouncement enabled={portal.portal_announcement_enabled} text={portal.portal_announcement} />
             <BookingPage service={bookingService} onNavigate={handleNavigate} rebookData={rebookData} mode={bookingMode} />
+          </main>
+        </div>
+        <IdleWarningWrapper />
+        <FailedLoginBanner />
+      </>
+    );
+  }
+
+  if (page === 'payment-return') {
+    const body = <PaymentReturnPage onNavigate={handleNavigate} />;
+    return (
+      <>
+        <div className="block md:hidden fixed inset-0 h-[100dvh] w-full overflow-y-auto bg-slate-50 safe-area-pt">
+          {body}
+        </div>
+        <div className="hidden md:block min-h-screen bg-slate-50">
+          <TopNav currentPage={page} onNavigate={handleNavigate} devAdmin={devAdmin} onToggleDevAdmin={() => {}} />
+          <main className="pt-16 min-h-screen">
+            <PortalAnnouncement enabled={portal.portal_announcement_enabled} text={portal.portal_announcement} />
+            {body}
           </main>
         </div>
         <IdleWarningWrapper />

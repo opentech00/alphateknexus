@@ -83,3 +83,10 @@ export function normalizePhone(
 export function toWhatsAppRecipient(e164: string): string {
   return onlyDigits(e164);
 }
+
+/** Monime expects Sierra Leone numbers as 232XXXXXXXX (no plus). */
+export function toMonimePhone(e164: string): string | null {
+  const digits = onlyDigits(e164);
+  if (digits.length === 11 && digits.startsWith("232")) return digits;
+  return null;
+}

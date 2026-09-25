@@ -34,6 +34,7 @@ interface Props {
 }
 
 const CURRENCIES = ['SLE', 'USD', 'EUR'];
+const PROCUREMENT_FEE_SLE = 100;
 
 function newItem(): Item {
   return { description: '', qty: 1, unit: 'unit', specs: '' };
@@ -99,6 +100,7 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
       needed_by: neededBy || null,
       delivery_address: deliveryAddress.trim() || null,
       items: validItems,
+      total_sle: PROCUREMENT_FEE_SLE,
     };
 
     setLoading(true);
@@ -138,7 +140,7 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
 
   if (step === 'payment') return (
     <ServicePaymentStep
-      amount={100}
+      amount={PROCUREMENT_FEE_SLE}
       bookingId={bookingId}
       serviceName={service.name}
       serviceSlug={service.slug}
@@ -170,7 +172,7 @@ export function ProcurementHireForm({ service, onCancel, onSuccess }: Props) {
     return (
       <PaymentSuccessScreen
         serviceName={service.name}
-        amount={100}
+        amount={PROCUREMENT_FEE_SLE}
         method={payMethod}
         contactName={contactName}
         contactPhone={phone}

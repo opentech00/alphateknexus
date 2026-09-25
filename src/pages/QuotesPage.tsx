@@ -6,7 +6,7 @@ import { toast } from '../components/toast/toast';
 import { BookingPayNowModal } from '../components/BookingPayNowModal';
 import { PortalPage } from '../components/portal/PortalPage';
 import { moneySLE } from '../lib/money';
-import { bookingNeedsPayment, bookingPayAmount } from '../lib/bookingPay';
+import { bookingDepositAmount, bookingDueAmount, bookingNeedsPayment, bookingPayAmount } from '../lib/bookingPay';
 
 interface QuoteRow {
   id: string;
@@ -15,6 +15,7 @@ interface QuoteRow {
   notes: string | null;
   created_at: string;
   payment_status: string | null;
+  amount_paid_sle: number | null;
   details: Record<string, unknown> | null;
   services: { name: string; slug: string } | null;
 }
@@ -46,7 +47,7 @@ export function QuotesPage({ onBack }: { onBack?: () => void }) {
     setLoading(true);
     const { data, error: err } = await supabase
       .from('bookings')
-      .select('id, status, location, notes, created_at, payment_status, details, services(name, slug)')
+      .select('id, status, location, notes, created_at, payment_status, amount_paid_sle, details, services(name, slug)')
       .eq('user_id', user.id)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
@@ -121,6 +122,8 @@ export function QuotesPage({ onBack }: { onBack?: () => void }) {
           {visible.map((row, i) => {
             const meta = stage(row);
             const amount = bookingPayAmount({ details: row.details }, 0);
+            const due = bookingDueAmount(row, 0);
+            const deposit = bookingDepositAmount(row);
             const canDecide = row.status === 'approved' && amount > 0;
             const canWithdraw = ['pending', 'pending_review', 'approved'].includes(row.status);
             return (
@@ -139,11 +142,17 @@ export function QuotesPage({ onBack }: { onBack?: () => void }) {
                 </p>
                 {row.notes && <p className="text-sm text-slate-600 mt-2 line-clamp-3">{row.notes}</p>}
                 <p className="mt-3 text-lg font-bold text-slate-900">{amount > 0 ? moneySLE(amount) : 'Price pending'}</p>
+                {deposit !== null && (
+                  <p className="text-sm text-slate-500">Deposit to start: {moneySLE(deposit)}</p>
+                )}
+                {row.payment_status === 'deposit_paid' && (
+                  <p className="text-sm text-emerald-700">Deposit received · balance {moneySLE(due)}</p>
+                )}
                 {canWithdraw && (
                   <div className="mt-4 flex flex-wrap gap-2">
                     {canDecide && (
                       <button type="button" disabled={busyId === row.id} onClick={() => void respond(row, 'accept')} className="min-h-[44px] inline-flex items-center gap-1.5 px-4 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60">
-                        <Check className="w-4 h-4" aria-hidden="true" /> Accept and pay
+                        <Check className="w-4 h-4" aria-hidden="true" /> {deposit !== null ? 'Accept and pay deposit' : 'Accept and pay'}
                       </button>
                     )}
                     <button type="button" disabled={busyId === row.id} onClick={() => void respond(row, 'decline')} className="min-h-[44px] inline-flex items-center gap-1.5 px-4 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60">
@@ -153,7 +162,7 @@ export function QuotesPage({ onBack }: { onBack?: () => void }) {
                 )}
                 {row.status === 'confirmed' && bookingNeedsPayment(row) && (
                   <button type="button" onClick={() => setPaying(row)} className="mt-4 min-h-[44px] px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
-                    Pay {moneySLE(amount)}
+                    {row.payment_status === 'deposit_paid' ? `Pay balance ${moneySLE(due)}` : `Pay ${moneySLE(due)}`}
                   </button>
                 )}
               </li>
@@ -165,7 +174,9 @@ export function QuotesPage({ onBack }: { onBack?: () => void }) {
       {paying && (
         <BookingPayNowModal
           bookingId={paying.id}
-          amount={bookingPayAmount({ details: paying.details }, 0)}
+          amount={bookingDueAmount(paying, 0)}
+          depositAmount={bookingDepositAmount(paying)}
+          nextPage="quotes"
           serviceName={paying.services?.name || 'Quote'}
           serviceSlug={paying.services?.slug}
           onClose={() => setPaying(null)}

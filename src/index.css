@@ -111,8 +111,10 @@ body {
   .emp-fade-in,
   .animate-fadeIn,
   .animate-scaleIn,
-  .animate-slideUp {
+  .animate-slideUp,
+  .checkout-ring {
     animation: none !important;
+    transition: none !important;
   }
 }
 
@@ -142,6 +144,9 @@ body {
 }
 .animate-slideUp {
   animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.checkout-ring {
+  transition: stroke-dashoffset 0.45s ease;
 }
 
 @keyframes shakeX {
