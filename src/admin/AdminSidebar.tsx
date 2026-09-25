@@ -16,6 +16,7 @@ import { AdminNotificationsBell } from '../components/AdminNotificationsBell';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { toast } from '../components/toast/toast';
 import { useAppLogo } from '../lib/media';
+import { BrandLogo } from '../components/BrandLogo';
 
 interface AdminSidebarProps {
   currentPage: string;
@@ -267,7 +268,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
       {/* Mobile Top Bar */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-slate-900 h-16 flex items-center px-2 gap-1">
         <div className="flex items-center gap-2.5 min-w-0 pl-2">
-          <img src={logoUrl} alt="Alphatek Nexus" className="w-8 h-8 rounded-lg object-contain p-0.5" />
+          <BrandLogo src={logoUrl} alt="Alphatek Nexus" className="w-8 h-8 rounded-lg p-0.5" />
           <span className="font-bold text-white text-sm truncate">Admin Panel</span>
         </div>
         <div className="flex items-center gap-0.5 ml-auto">
@@ -322,7 +323,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
         {/* Logo Area */}
         <div className="h-16 lg:h-16 flex items-center justify-between px-6 border-b border-slate-800 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <img src={logoUrl} alt="Alphatek Nexus" className="w-9 h-9 rounded-lg object-contain p-0.5" />
+            <BrandLogo src={logoUrl} alt="Alphatek Nexus" className="w-9 h-9 rounded-lg p-0.5" />
             <div>
               <p className="font-bold text-white text-sm leading-tight">Alphatek Nexus</p>
               <p className="text-[10px] text-slate-400 uppercase tracking-widest">Admin Panel</p>

@@ -32,7 +32,7 @@ import { ProcurementQuoteForm } from '../components/ProcurementQuoteForm';
 import { PrivateSecurityHireForm } from '../components/PrivateSecurityHireForm';
 import { PrivateSecurityQuoteForm } from '../components/PrivateSecurityQuoteForm';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
-import { ChannelPills, le, PayOption, SecureNote } from '../components/checkout/CheckoutUi';
+import { ChannelPills, le, PayOption, SecureNote, StatusOrb } from '../components/checkout/CheckoutUi';
 
 interface Service {
   id: string;
@@ -194,9 +194,7 @@ function SummaryStep({
 
 function PaymentStep({
   service,
-  formData,
   total,
-  onBack,
   onPay,
   paying,
 }: {
@@ -575,11 +573,9 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
   if (step === 'success') {
     return (
       <>
-      <div className="min-h-screen flex items-center justify-center pt-4 px-4 safe-area-pt">
-        <div className="text-center max-w-md">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 rounded-full mb-6">
-            <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-          </div>
+      <div className="min-h-screen flex items-center justify-center px-4 py-10 sm:py-16 safe-area-pt">
+        <div className="text-center max-w-md w-full animate-slideUp">
+          <StatusOrb tone="emerald"><CheckCircle2 className="w-9 h-9" /></StatusOrb>
           <h2 className="text-2xl font-bold text-gray-900">Booking Confirmed!</h2>
           <p className="mt-3 text-gray-600">
             Your booking for <span className="font-semibold">{service.name}</span> has been submitted successfully. Our team will reach out to confirm the details.
@@ -603,13 +599,13 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             <button
               onClick={() => onNavigate('bookings')}
-              className="px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition-colors"
+              className="min-h-[48px] px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 active:scale-[0.98] transition-all"
             >
               View My Bookings
             </button>
             <button
               onClick={() => onNavigate('services')}
-              className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+              className="min-h-[48px] px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 active:scale-[0.98] transition-all"
             >
               Book Another Service
             </button>
@@ -630,11 +626,9 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
   // Payment failed screen
   if (step === 'payment_failed') {
     return (
-      <div className="min-h-screen flex items-center justify-center pt-4 px-4 safe-area-pt">
-        <div className="text-center max-w-md">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-6">
-            <XCircle className="w-8 h-8 text-red-600" />
-          </div>
+      <div className="min-h-screen flex items-center justify-center px-4 py-10 sm:py-16 safe-area-pt">
+        <div className="text-center max-w-md w-full animate-slideUp">
+          <StatusOrb tone="red"><XCircle className="w-9 h-9" /></StatusOrb>
           <h2 className="text-2xl font-bold text-gray-900">Payment Incomplete</h2>
           <p className="mt-3 text-gray-600">
             {paymentError || 'Payment could not be completed. Your booking was created — you can retry payment from your bookings page.'}
@@ -642,13 +636,13 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             <button
               onClick={() => setStep('payment')}
-              className="px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition-colors"
+              className="min-h-[48px] px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 active:scale-[0.98] transition-all"
             >
               Retry Payment
             </button>
             <button
               onClick={() => onNavigate('bookings')}
-              className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+              className="min-h-[48px] px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 active:scale-[0.98] transition-all"
             >
               View My Bookings
             </button>

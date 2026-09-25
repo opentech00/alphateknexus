@@ -9,5 +9,9 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    function blackVariant({ addVariant }) {
+      addVariant('black', '.black &');
+    },
+  ],
 };

@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme, type ThemeMode } from '../contexts/ThemeContext';
 import { NotificationsPanel } from './NotificationsPanel';
 import { useAppLogo } from '../lib/media';
+import { BrandLogo } from './BrandLogo';
 import { usePortalSettings } from '../hooks/usePortalSettings';
 
 interface TopNavProps {
@@ -87,10 +88,10 @@ export function TopNav({ currentPage, onNavigate, devAdmin, onToggleDevAdmin }: 
               className="flex items-center gap-3 group flex-shrink-0"
             >
               <div className="relative p-1 rounded-xl group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/30 transition-colors">
-                <img
+                <BrandLogo
                   src={logoUrl}
                   alt={portal_company_name}
-                  className="h-8 w-auto object-contain transition-transform group-hover:scale-105 group-active:scale-95"
+                  className="h-8 w-auto transition-transform group-hover:scale-105 group-active:scale-95"
                 />
               </div>
               <div className="hidden sm:block text-left">

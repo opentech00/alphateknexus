@@ -38,7 +38,9 @@ export function PayOption({
       role="radio"
       aria-checked={selected}
       onClick={onSelect}
-      className={`group w-full min-h-[64px] flex items-center gap-3 p-3.5 rounded-2xl border text-left transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+      className={`group w-full min-h-[64px] flex items-center gap-3 p-3.5 rounded-2xl border text-left transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-2 ${
+        accent === 'blue' ? 'focus-visible:ring-blue-500' : 'focus-visible:ring-emerald-500'
+      } ${
         selected ? on : 'border-slate-200 bg-white hover:border-slate-300 hover:-translate-y-0.5'
       }`}
     >
@@ -93,7 +95,15 @@ export function SecureNote() {
   );
 }
 
-export function StatusOrb({ tone, children }: { tone: 'emerald' | 'amber' | 'red' | 'slate'; children: ReactNode }) {
+export function StatusOrb({
+  tone,
+  pulse = false,
+  children,
+}: {
+  tone: 'emerald' | 'amber' | 'red' | 'slate';
+  pulse?: boolean;
+  children: ReactNode;
+}) {
   const ring = {
     emerald: 'bg-emerald-400/25',
     amber: 'bg-amber-400/25',
@@ -108,7 +118,7 @@ export function StatusOrb({ tone, children }: { tone: 'emerald' | 'amber' | 'red
   }[tone];
   return (
     <div className="relative w-20 h-20 mx-auto mb-5">
-      <span className={`absolute inset-0 rounded-full ${ring} motion-safe:animate-ping`} />
+      {pulse && <span className={`absolute inset-0 rounded-full ${ring} motion-safe:animate-ping`} />}
       <span className={`relative w-20 h-20 rounded-full flex items-center justify-center animate-scaleIn ${disc}`}>
         {children}
       </span>

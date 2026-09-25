@@ -22,6 +22,8 @@ body {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: auto;
   touch-action: pan-y;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv11', 'ss01', 'kern';
 }
 
 .mobile-scroll {
@@ -112,7 +114,10 @@ body {
   .animate-fadeIn,
   .animate-scaleIn,
   .animate-slideUp,
-  .checkout-ring {
+  .animate-slideDown,
+  .checkout-ring,
+  .caution-banner-stripes,
+  .caution-banner-icon {
     animation: none !important;
     transition: none !important;
   }
@@ -144,6 +149,13 @@ body {
 }
 .animate-slideUp {
   animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slideDown {
+  animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .checkout-ring {
   transition: stroke-dashoffset 0.45s ease;
@@ -794,10 +806,121 @@ html[data-accent="violet"] {
   background-color: rgba(0, 0, 0, 0.9) !important;
 }
 
-/* ── Slate-300 text/icons in dark ── */
+/* ── Slate-300 text/icons in dark (must stay lighter than 400) ── */
 .dark .text-slate-300,
 .black .text-slate-300 {
-  color: #64748b !important;
+  color: #cbd5e1 !important;
+}
+
+.dark .text-gray-900, .black .text-gray-900 { color: #f8fafc !important; }
+.dark .text-gray-800, .black .text-gray-800 { color: #f1f5f9 !important; }
+.dark .text-gray-700, .black .text-gray-700 { color: #e2e8f0 !important; }
+.dark .text-gray-600, .black .text-gray-600 { color: #cbd5e1 !important; }
+.dark .text-gray-500, .black .text-gray-500 { color: #94a3b8 !important; }
+.dark .text-gray-400, .black .text-gray-400 { color: #94a3b8 !important; }
+
+.dark .text-amber-800, .black .text-amber-800,
+.dark .text-amber-900, .black .text-amber-900 { color: #fde68a !important; }
+.dark .text-emerald-800, .black .text-emerald-800 { color: #6ee7b7 !important; }
+.dark .text-red-800, .black .text-red-800 { color: #fecaca !important; }
+.dark .text-indigo-800, .black .text-indigo-800 { color: #c7d2fe !important; }
+.dark .text-blue-800, .black .text-blue-800 { color: #bfdbfe !important; }
+
+.dark .bg-white\/95, .black .bg-white\/95 { background-color: rgba(15, 23, 42, 0.95) !important; }
+.black .bg-white\/95 { background-color: rgba(0, 0, 0, 0.95) !important; }
+.dark .bg-white\/85, .black .bg-white\/85 { background-color: rgba(15, 23, 42, 0.85) !important; }
+.black .bg-white\/85 { background-color: rgba(0, 0, 0, 0.85) !important; }
+.dark .bg-white\/60, .black .bg-white\/60 { background-color: rgba(30, 41, 59, 0.6) !important; }
+
+.dark textarea:not(.theme-exempt),
+.black textarea:not(.theme-exempt),
+.dark select:not(.theme-exempt),
+.black select:not(.theme-exempt) {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+.black textarea:not(.theme-exempt),
+.black select:not(.theme-exempt) {
+  background-color: #111111;
+  border-color: #2a2a2a;
+}
+
+img, svg {
+  max-width: 100%;
+}
+.brand-logo {
+  object-fit: contain;
+  image-rendering: auto;
+}
+.dark .brand-logo,
+.black .brand-logo {
+  filter: drop-shadow(0 0 0.65px rgba(255, 255, 255, 0.7)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+.light .brand-logo {
+  filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.08));
+}
+.media-photo {
+  object-fit: cover;
+}
+.dark .media-photo, .black .media-photo {
+  filter: brightness(0.92) contrast(1.06);
+}
+
+.caution-banner-amber {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #78350f;
+}
+.dark .caution-banner-amber, .black .caution-banner-amber {
+  background: #422006;
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #fde68a;
+}
+.caution-banner-red {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #7f1d1d;
+}
+.dark .caution-banner-red, .black .caution-banner-red {
+  background: #450a0a;
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+@keyframes cautionStripes {
+  from { background-position: 0 0; }
+  to { background-position: 28px 0; }
+}
+.caution-banner-stripes {
+  height: 4px;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #f59e0b 0 10px,
+    #111827 10px 20px
+  );
+  background-size: 28px 28px;
+  animation: cautionStripes 0.9s linear infinite;
+}
+.caution-banner .caution-banner-stripes {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+}
+.caution-banner-red .caution-banner-stripes {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #ef4444 0 10px,
+    #111827 10px 20px
+  );
+}
+@keyframes cautionIconPulse {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+.caution-banner-icon {
+  animation: cautionIconPulse 2.4s ease-in-out infinite;
+  display: inline-flex;
 }
 
 /* ── Emerald-100 ring in dark (tracker active) ── */

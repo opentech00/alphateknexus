@@ -4,6 +4,7 @@ import {
   CheckCircle2, Star,
 } from 'lucide-react';
 import { useAppLogo, useServiceBrandingImages, useSplashImages, fallbackServiceImage } from '../../lib/media';
+import { BrandLogo } from '../BrandLogo';
 
 interface SplashScreenProps {
   onGetStarted: () => void;
@@ -219,10 +220,10 @@ export function SplashScreen({ onGetStarted, onLogin }: SplashScreenProps) {
 
           {/* Logo & badge row */}
           <div className="flex items-center justify-between px-6 pt-10 pb-2">
-            <img
+            <BrandLogo
               src={logoUrl}
               alt="AlphaTek Nexus"
-              className="h-8 object-contain"
+              className="h-8"
             />
             <span className={`text-xs font-semibold px-3 py-1 rounded-full ${slide.iconBg} ${slide.iconColor}`}>
               {slide.badge}

@@ -51,7 +51,10 @@ export function ThemeToggle({
         aria-expanded={open}
         aria-controls={menuId}
       >
-        <Sun className="w-5 h-5" aria-hidden="true" />
+        <Sun className={`w-5 h-5 ${theme === 'light' ? '' : 'hidden'}`} aria-hidden="true" />
+        <Moon className={`w-5 h-5 ${theme === 'dark' ? '' : 'hidden'}`} aria-hidden="true" />
+        <Circle className={`w-5 h-5 fill-current ${theme === 'black' ? '' : 'hidden'}`} aria-hidden="true" />
+        <Monitor className={`w-5 h-5 ${theme === 'system' ? '' : 'hidden'}`} aria-hidden="true" />
         <span className="sr-only">Current: {current.label}</span>
       </button>
       <div

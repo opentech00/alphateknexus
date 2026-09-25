@@ -53,10 +53,15 @@ function applyThemeToDOM(mode: ThemeMode, accent: AccentColor, reducedMotion: bo
   const resolved = resolveTheme(mode);
   root.classList.add(resolved);
   root.classList.add(mode);
+  if (resolved === 'black') root.classList.add('dark');
   root.setAttribute('data-accent', accent);
   if (reducedMotion) root.classList.add('reduced-motion');
   if (compactMode) root.classList.add('compact-mode');
   root.style.colorScheme = resolved === 'light' ? 'light' : 'dark';
+  const themeColor = resolved === 'light' ? '#f5f8ff' : resolved === 'black' ? '#000000' : '#0f172a';
+  document.querySelectorAll('meta[name="theme-color"]').forEach((el) => {
+    if (!el.hasAttribute('media')) el.setAttribute('content', themeColor);
+  });
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

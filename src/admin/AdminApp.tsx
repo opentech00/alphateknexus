@@ -55,6 +55,8 @@ import { AdminSessionsPage } from './pages/AdminSessionsPage';
 import { TaskDelegationPage } from './pages/TaskDelegationPage';
 import { MediaLibraryPage } from './pages/MediaLibraryPage';
 import { AdminOperationsProvider } from './contexts/AdminOperationsContext';
+import { PortalCautionStack } from '../components/CautionBanner';
+import { usePortalSettings } from '../hooks/usePortalSettings';
 
 function AdminIdleWarning() {
   const { idleWarningVisible, idleWarningSecondsLeft, dismissIdleWarning, signOut } = useAuth();
@@ -71,6 +73,7 @@ function AdminIdleWarning() {
 function AdminContent() {
   const [currentPage, setCurrentPage] = useState('overview');
   const { user, isAdmin, loading, needs2FA, pending2FAEmail, pending2FAPassword, clear2FA, signOut, hasAdminPermission, isSuperAdmin } = useAuth();
+  const portal = usePortalSettings();
 
   useEffect(() => {
     return registerToastNotificationOpener((n) => {
@@ -249,6 +252,11 @@ function AdminContent() {
     <div className="min-h-screen bg-slate-50">
       <AdminSidebar currentPage={currentPage} onNavigate={setCurrentPage} />
       <main className="lg:ml-72 pt-16 lg:pt-16 min-h-screen">
+        <PortalCautionStack
+          announcementEnabled={false}
+          announcement=""
+          portalClosed={!portal.portal_enabled}
+        />
         <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto" key={currentPage}>
           <div className="animate-[fadeInUp_0.3s_ease]">
             {renderPage()}

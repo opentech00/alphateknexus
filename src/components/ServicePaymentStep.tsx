@@ -66,8 +66,6 @@ export function ServicePaymentStep({
   const insufficientWallet = walletBalance !== null && walletBalance < amount;
   const walletDifference = insufficientWallet ? amount - walletBalance : 0;
 
-  const walletEnabled = wallet_enabled;
-
   const handlePay = async () => {
     setPaying(true);
 
@@ -264,19 +262,19 @@ export function ServicePaymentStep({
         </div>
 
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-6 lg:items-start">
-        <div className="space-y-5">
-            <div role="radiogroup" aria-label="Payment method" className="space-y-2.5">
+          <div role="radiogroup" aria-label="Payment method" className="space-y-2.5">
               <PayOption
                 selected={selected === 'monime'}
                 onSelect={() => setSelected('monime')}
                 title="Pay with Monime"
                 hint="Mobile money, card, or bank"
-                icon={<span className="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center"><Smartphone className="w-5 h-5" /></span>}
+                icon={<span className="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center text-white"><Smartphone className="w-5 h-5" /></span>}
               />
               {selected === 'monime' && (
                 <div className="px-1 animate-slideUp">
                   <ChannelPills />
                   {canPayDeposit && (
+                    <>
                     <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="How much to pay now">
                       {([
                         { id: 'deposit' as const, label: 'Deposit now', value: depositAmount! },
@@ -297,22 +295,27 @@ export function ServicePaymentStep({
                         </button>
                       ))}
                     </div>
+                    {payMode === 'deposit' && (
+                      <p className="mt-2 text-xs text-slate-500">
+                        Balance of {le(amount - depositAmount!)} is due before the job is completed.
+                      </p>
+                    )}
+                    </>
                   )}
                 </div>
               )}
 
-            {/* Wallet */}
-            {walletEnabled && (
-            <div className="space-y-2.5">
+            {wallet_enabled && (
               <PayOption
                 selected={selected === 'wallet'}
                 onSelect={() => setSelected('wallet')}
                 title="Wallet balance"
                 hint={walletBalance === null ? 'Store credit' : `${le(walletBalance)} available`}
-                icon={<span className="w-11 h-11 rounded-xl bg-slate-700 flex items-center justify-center"><Wallet className="w-5 h-5" /></span>}
+                icon={<span className="w-11 h-11 rounded-xl bg-slate-700 flex items-center justify-center text-white"><Wallet className="w-5 h-5" /></span>}
               />
-              {selected === 'wallet' && walletBalance !== null && (
-                <div className={`mt-2.5 p-3.5 rounded-xl border text-xs leading-relaxed ${
+            )}
+              {selected === 'wallet' && wallet_enabled && walletBalance !== null && (
+                <div className={`p-3.5 rounded-2xl border text-xs leading-relaxed animate-slideUp ${
                   insufficientWallet
                     ? 'bg-red-50 border-red-200 text-red-800'
                     : 'bg-emerald-50 border-emerald-200 text-emerald-800'
@@ -334,7 +337,7 @@ export function ServicePaymentStep({
                         onClick={() => {
                           window.dispatchEvent(new CustomEvent('open-wallet-topup', { detail: { amount: Math.ceil(walletDifference) } }));
                         }}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition-colors"
+                        className="w-full min-h-[44px] flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 active:scale-[0.98] transition-all"
                       >
                         <Plus className="w-3.5 h-3.5" /> Top Up SLE {Math.ceil(walletDifference).toLocaleString()}
                       </button>
@@ -347,31 +350,29 @@ export function ServicePaymentStep({
                   )}
                 </div>
               )}
-            </div>
-            )}
 
-            <div className="space-y-2.5">
               <PayOption
                 selected={selected === 'bank'}
                 onSelect={() => setSelected('bank')}
                 title="Bank transfer"
                 hint="Upload a slip for finance to confirm"
-                icon={<span className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center"><Building2 className="w-5 h-5" /></span>}
+                icon={<span className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center text-white"><Building2 className="w-5 h-5" /></span>}
               />
               {selected === 'bank' && (
-                <div className="mt-3 space-y-3 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
+                <div className="space-y-3 p-4 bg-indigo-50 border border-indigo-200 rounded-2xl animate-slideUp">
                   <p className="text-xs text-indigo-800 leading-relaxed">
                     Transfer to our bank account, then upload proof of payment for verification by the divisional manager.
                     Your booking will be confirmed once the document is verified.
                   </p>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">Document Type</label>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {BANK_DOC_TYPES.map((t) => (
                         <button
                           key={t.id}
+                          type="button"
                           onClick={() => setBankDocType(t.id)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                          className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                             bankDocType === t.id
                               ? 'border-indigo-600 bg-indigo-600 text-white'
                               : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -410,6 +411,7 @@ export function ServicePaymentStep({
                         <FileText className="w-4 h-4 text-indigo-600 flex-shrink-0" />
                         <span className="text-xs text-slate-700 font-medium flex-1 truncate">{bankFile.name}</span>
                         <button
+                          type="button"
                           onClick={() => { setBankFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
                           className="p-1 rounded text-slate-400 hover:text-red-500"
                         >
@@ -418,8 +420,9 @@ export function ServicePaymentStep({
                       </div>
                     ) : (
                       <button
+                        type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-indigo-300 rounded-lg text-xs text-indigo-600 hover:bg-indigo-50 transition-colors font-medium"
+                        className="w-full min-h-[48px] flex items-center justify-center gap-2 p-3 border-2 border-dashed border-indigo-300 rounded-lg text-xs text-indigo-600 hover:bg-indigo-50 transition-colors font-medium"
                       >
                         <Upload className="w-4 h-4" />
                         Choose file (PDF, PNG, JPG)
@@ -431,24 +434,21 @@ export function ServicePaymentStep({
                   </div>
                 </div>
               )}
-            </div>
 
-            <div className="space-y-2.5">
               <PayOption
                 selected={selected === 'cash'}
                 onSelect={() => setSelected('cash')}
                 title="Cash on delivery"
                 hint="Pay the crew when they arrive"
-                icon={<span className="w-11 h-11 rounded-xl bg-amber-600 flex items-center justify-center"><Banknote className="w-5 h-5" /></span>}
+                icon={<span className="w-11 h-11 rounded-xl bg-amber-600 flex items-center justify-center text-white"><Banknote className="w-5 h-5" /></span>}
               />
               {selected === 'cash' && (
                 <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 leading-relaxed animate-slideUp">
                   Have {le(amount)} ready. A numbered receipt is issued when it is collected.
                 </div>
               )}
-            </div>
-        </div>
-        <div className="hidden lg:block lg:sticky lg:top-6">{summary}</div>
+          </div>
+          <div className="hidden lg:block lg:sticky lg:top-6 mt-5 lg:mt-0">{summary}</div>
         </div>
       </div>
 

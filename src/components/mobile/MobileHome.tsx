@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import type { Service } from '../../types';
 import { ServiceDetailModal } from '../ServiceDetailModal';
 import { useAppLogo, useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
+import { BrandLogo } from '../BrandLogo';
 import { useHaptics } from '../../hooks/useHaptics';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { ServiceCardSkeleton, BookingMiniSkeleton } from './Skeleton';
@@ -104,7 +105,7 @@ function ServiceGridCard({
         <img
           src={meta.image}
           alt={meta.label}
-          className="absolute inset-0 w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover media-photo"
           loading="lazy"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
@@ -270,7 +271,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
       <div className={`home-float-header ${showFloatHeader ? 'is-visible' : ''}`}>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <img src={logoUrl} alt="Alphatek Nexus" className="h-7 w-auto object-contain flex-shrink-0" />
+            <BrandLogo src={logoUrl} alt="Alphatek Nexus" className="h-7 w-auto flex-shrink-0" />
             <p className="text-sm font-bold text-[#173362] dark:text-slate-100 truncate">Hello, {firstName}</p>
           </div>
           <div className="flex items-center gap-1.5">
@@ -294,7 +295,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
       <div className="home-safe-header pb-3" style={{ animation: 'fadeInUp 0.4s ease-out both' }}>
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5 min-w-0">
-            <img src={logoUrl} alt="Alphatek Nexus" className="h-9 w-auto object-contain flex-shrink-0" />
+            <BrandLogo src={logoUrl} alt="Alphatek Nexus" className="h-9 w-auto flex-shrink-0" />
             <div className="min-w-0">
               <p className="text-lg leading-5 font-bold text-[#173362] tracking-tight truncate">
                 Alphatek <span className="text-emerald-500">Nexus</span>

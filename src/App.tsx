@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Loader2, AlertTriangle, X, CheckCircle2, XCircle } from 'lucide-react';
@@ -30,6 +30,7 @@ import { destinationForClientNotification } from './lib/notificationDestinations
 import { IdleWarningModal } from './components/IdleWarningModal';
 import { PwaProvider } from './components/pwa/PwaProvider';
 import { PortalMaintenanceScreen } from './components/PortalMaintenanceScreen';
+import { PortalCautionStack } from './components/CautionBanner';
 import { usePortalSettings } from './hooks/usePortalSettings';
 
 
@@ -42,7 +43,7 @@ function FailedLoginBanner() {
   });
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[9990] bg-amber-50 border-b border-amber-200 px-4 py-3 shadow-sm">
+    <div className="fixed top-0 left-0 right-0 z-[9990] bg-amber-50 dark:bg-amber-950/80 border-b border-amber-200 px-4 py-3 shadow-sm">
       <div className="max-w-4xl mx-auto flex items-start gap-3">
         <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
@@ -75,16 +76,48 @@ function IdleWarningWrapper() {
   );
 }
 
-function PortalAnnouncement({ enabled, text }: { enabled: boolean; text: string }) {
-  const [hidden, setHidden] = useState(false);
-  if (!enabled || !text.trim() || hidden) return null;
+function ClientShell({
+  page,
+  onNavigate,
+  mobileOverflow = 'auto',
+  mobile,
+  desktop,
+}: {
+  page: string;
+  onNavigate: (p: string) => void;
+  mobileOverflow?: 'auto' | 'hidden';
+  mobile: ReactNode;
+  desktop: ReactNode;
+}) {
+  const portal = usePortalSettings();
+  const { isAdmin } = useAuth();
+  const cautionProps = {
+    announcementEnabled: portal.portal_announcement_enabled,
+    announcement: portal.portal_announcement,
+    portalClosed: !portal.portal_enabled && isAdmin,
+  };
   return (
-    <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-sm text-amber-900 flex items-start gap-2">
-      <span className="flex-1">{text}</span>
-      <button type="button" onClick={() => setHidden(true)} className="text-amber-700 font-semibold px-1" aria-label="Dismiss announcement">
-        ×
-      </button>
-    </div>
+    <>
+      <div
+        className={`block md:hidden fixed inset-0 h-[100dvh] w-full flex flex-col bg-slate-50 ${
+          mobileOverflow === 'hidden' ? 'overflow-hidden' : 'overflow-y-auto'
+        }`}
+      >
+        <div className="flex-shrink-0 safe-area-pt">
+          <PortalCautionStack {...cautionProps} />
+        </div>
+        <div className="flex-1 min-h-0 relative">{mobile}</div>
+      </div>
+      <div className="hidden md:block min-h-screen bg-slate-50">
+        <TopNav currentPage={page} onNavigate={onNavigate} devAdmin={false} onToggleDevAdmin={() => {}} />
+        <main className="pt-16 min-h-screen">
+          <PortalCautionStack {...cautionProps} />
+          {desktop}
+        </main>
+      </div>
+      <IdleWarningWrapper />
+      <FailedLoginBanner />
+    </>
   );
 }
 
@@ -111,7 +144,6 @@ function PortalContent() {
   const portal = usePortalSettings();
   const [page, setPage] = useState('home');
   const [authView, setAuthView] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
-  const [devAdmin] = useState(false);
   const [bookingService, setBookingService] = useState<any>(null);
   const [bookingMode, setBookingMode] = useState<'hire' | 'quote' | 'pickup' | 'subscribe'>('hire');
   const [rebookData, setRebookData] = useState<any>(null);
@@ -263,40 +295,23 @@ function PortalContent() {
 
   if (page === 'booking') {
     return (
-      <>
-        <div className="block md:hidden fixed inset-0 h-[100dvh] w-full overflow-y-auto bg-slate-50 safe-area-pt">
-          <BookingPage service={bookingService} onNavigate={handleNavigate} rebookData={rebookData} mode={bookingMode} />
-        </div>
-        <div className="hidden md:block min-h-screen bg-slate-50">
-          <TopNav currentPage={page} onNavigate={handleNavigate} devAdmin={devAdmin} onToggleDevAdmin={() => {}} />
-        <main className="pt-16 min-h-screen">
-            <PortalAnnouncement enabled={portal.portal_announcement_enabled} text={portal.portal_announcement} />
-            <BookingPage service={bookingService} onNavigate={handleNavigate} rebookData={rebookData} mode={bookingMode} />
-          </main>
-        </div>
-        <IdleWarningWrapper />
-        <FailedLoginBanner />
-      </>
+      <ClientShell
+        page={page}
+        onNavigate={handleNavigate}
+        mobile={<BookingPage service={bookingService} onNavigate={handleNavigate} rebookData={rebookData} mode={bookingMode} />}
+        desktop={<BookingPage service={bookingService} onNavigate={handleNavigate} rebookData={rebookData} mode={bookingMode} />}
+      />
     );
   }
 
   if (page === 'payment-return') {
-    const body = <PaymentReturnPage onNavigate={handleNavigate} />;
     return (
-      <>
-        <div className="block md:hidden fixed inset-0 h-[100dvh] w-full overflow-y-auto bg-slate-50 safe-area-pt">
-          {body}
-        </div>
-        <div className="hidden md:block min-h-screen bg-slate-50">
-          <TopNav currentPage={page} onNavigate={handleNavigate} devAdmin={devAdmin} onToggleDevAdmin={() => {}} />
-          <main className="pt-16 min-h-screen">
-            <PortalAnnouncement enabled={portal.portal_announcement_enabled} text={portal.portal_announcement} />
-            {body}
-          </main>
-        </div>
-        <IdleWarningWrapper />
-        <FailedLoginBanner />
-      </>
+      <ClientShell
+        page={page}
+        onNavigate={handleNavigate}
+        mobile={<PaymentReturnPage onNavigate={handleNavigate} />}
+        desktop={<PaymentReturnPage onNavigate={handleNavigate} />}
+      />
     );
   }
 
@@ -307,73 +322,53 @@ function PortalContent() {
         ? <QuotesPage onBack={() => setPage('home')} />
         : <SupportPage onBack={() => setPage('home')} />;
     return (
-      <>
-        <div className="block md:hidden fixed inset-0 h-[100dvh] w-full overflow-y-auto bg-slate-50 safe-area-pt">
-          {body}
-        </div>
-        <div className="hidden md:block min-h-screen bg-slate-50">
-          <TopNav currentPage={page} onNavigate={handleNavigate} devAdmin={devAdmin} onToggleDevAdmin={() => {}} />
-          <main className="pt-16 min-h-screen">
-            <PortalAnnouncement enabled={portal.portal_announcement_enabled} text={portal.portal_announcement} />
-            {body}
-          </main>
-        </div>
-        <IdleWarningWrapper />
-        <FailedLoginBanner />
-      </>
+      <ClientShell
+        page={page}
+        onNavigate={handleNavigate}
+        mobile={body}
+        desktop={page === 'billing'
+          ? <BillingPage onBack={() => setPage('home')} />
+          : page === 'quotes'
+            ? <QuotesPage onBack={() => setPage('home')} />
+            : <SupportPage onBack={() => setPage('home')} />}
+      />
     );
   }
 
   if (page === 'smart-sort-subs') {
     return (
-      <>
-        <div className="block md:hidden fixed inset-0 h-[100dvh] w-full overflow-y-auto bg-slate-50 safe-area-pt">
-          <SmartSortSubscriptionsPage onNavigate={handleNavigate} />
-        </div>
-        <div className="hidden md:block min-h-screen bg-slate-50">
-          <TopNav currentPage={page} onNavigate={handleNavigate} devAdmin={devAdmin} onToggleDevAdmin={() => {}} />
-        <main className="pt-16 min-h-screen">
-            <PortalAnnouncement enabled={portal.portal_announcement_enabled} text={portal.portal_announcement} />
-            <SmartSortSubscriptionsPage onNavigate={handleNavigate} />
-          </main>
-        </div>
-        <IdleWarningWrapper />
-        <FailedLoginBanner />
-      </>
+      <ClientShell
+        page={page}
+        onNavigate={handleNavigate}
+        mobile={<SmartSortSubscriptionsPage onNavigate={handleNavigate} />}
+        desktop={<SmartSortSubscriptionsPage onNavigate={handleNavigate} />}
+      />
     );
   }
 
   return (
-    <>
-      <div className="block md:hidden fixed inset-0 h-[100dvh] w-full overflow-hidden bg-slate-50">
-        <PortalAnnouncement enabled={portal.portal_announcement_enabled} text={portal.portal_announcement} />
+    <ClientShell
+      page={page}
+      onNavigate={handleNavigate}
+      mobileOverflow="hidden"
+      mobile={
         <MobileShell
           onNavigate={handleNavigate}
           onSelectService={handleSelectService}
           onRebook={handleRebook}
           onQuickBook={handleQuickBook}
         />
-      </div>
-
-      <div className="hidden md:block min-h-screen bg-slate-50">
-        <TopNav
-          currentPage={page}
-          onNavigate={handleNavigate}
-          devAdmin={devAdmin}
-          onToggleDevAdmin={() => {}}
-        />
-        <main className="pt-16 min-h-screen">
-          <PortalAnnouncement enabled={portal.portal_announcement_enabled} text={portal.portal_announcement} />
+      }
+      desktop={
+        <>
           {page === 'home'     && <DashboardPage onNavigate={handleNavigate} onSelectService={handleSelectService} onQuickBook={handleQuickBook} />}
           {page === 'services' && <ServicesPage onNavigate={handleNavigate} onSelectService={handleSelectService} />}
           {page === 'bookings' && <BookingsPage onNavigate={handleNavigate} onRebook={handleRebook} />}
           {page === 'account'  && <AccountPage onNavigate={handleNavigate} onQuickBook={handleQuickBook} />}
           {page === 'calendar' && <CalendarPage onNavigate={handleNavigate} />}
-        </main>
-      </div>
-      <IdleWarningWrapper />
-      <FailedLoginBanner />
-    </>
+        </>
+      }
+    />
   );
 }
 

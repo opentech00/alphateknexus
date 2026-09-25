@@ -14,6 +14,7 @@ import { DisputeModal } from './DisputeModal';
 import { Portal } from '../lib/portal';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { CurrencySwitcher } from './CurrencySwitcher';
+import { ChannelPills } from './checkout/CheckoutUi';
 
 interface Transaction {
   id: string;
@@ -847,11 +848,14 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
                   </div>
 
                   {topupMethod === 'monime' ? (
-                    <div className="bg-slate-50 rounded-xl p-3.5 flex items-start gap-3 text-sm text-slate-600">
-                      <Smartphone className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-xs leading-relaxed">
-                        A secure Monime checkout window will open. Complete your payment there -- your wallet will be credited automatically here once confirmed.
-                      </span>
+                    <div className="bg-slate-50 rounded-xl p-3.5 text-sm text-slate-600 animate-slideUp">
+                      <div className="flex items-start gap-3">
+                        <Smartphone className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                        <span className="text-xs leading-relaxed">
+                          A secure Monime checkout opens next. Your wallet is credited automatically once the payment is confirmed.
+                        </span>
+                      </div>
+                      <ChannelPills />
                     </div>
                   ) : (
                     <div className="bg-amber-50 rounded-xl p-3.5 flex items-start gap-3 text-sm text-amber-800">

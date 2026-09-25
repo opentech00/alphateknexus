@@ -1,6 +1,7 @@
 import { useState, useEffect, ReactNode } from 'react';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { useAppLogo, useLoginCarouselImages, fallbackLoginImage } from '../../lib/media';
+import { BrandLogo } from '../BrandLogo';
 
 export interface AuthSlide {
   src: string;
@@ -147,7 +148,7 @@ export function AuthLayout({ children, slides = DEFAULT_SLIDES, heroTitle, heroD
         <div className="relative z-10 flex flex-col justify-end lg:justify-between h-full p-4 lg:px-12 lg:py-10 xl:px-16 xl:py-12">
           <div className="hidden lg:flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-lg shadow-black/20">
-              <img src={logoUrl} alt={companyName} className="w-8 h-8 object-contain" />
+              <BrandLogo src={logoUrl} alt={companyName} className="w-8 h-8" />
             </div>
             <div>
               <p className="text-white font-bold text-lg leading-tight">{companyName}</p>
@@ -247,7 +248,7 @@ export function AuthLayout({ children, slides = DEFAULT_SLIDES, heroTitle, heroD
         <div className="w-full max-w-sm">
           <div className="flex lg:hidden items-center gap-2.5 mb-5">
             <div className="w-9 h-9 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
-              <img src={logoUrl} alt={companyName} className="w-6 h-6 object-contain" />
+              <BrandLogo src={logoUrl} alt={companyName} className="w-6 h-6" />
             </div>
             <div>
               <p className="text-slate-900 font-bold text-base leading-tight">{companyName}</p>

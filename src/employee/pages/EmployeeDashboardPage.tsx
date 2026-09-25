@@ -20,6 +20,7 @@ import { DivisionWorkspacePage } from './DivisionWorkspacePage';
 import { EmployeeNotificationsBell } from '../components/EmployeeNotificationsBell';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { useAppLogo } from '../../lib/media';
+import { BrandLogo } from '../../components/BrandLogo';
 import { EmployeeNotificationsPage } from './EmployeeNotificationsPage';
 import { WorkInboxPage } from './WorkQueuePage';
 import { LeaveAttendancePage } from './LeaveAttendancePage';
@@ -171,7 +172,7 @@ export function EmployeeDashboardPage() {
           {sidebarOpen ? <X className="w-5 h-5" aria-hidden="true" /> : <Menu className="w-5 h-5" aria-hidden="true" />}
         </button>
         <div className="flex items-center gap-2.5 min-w-0">
-          <img src={logoUrl} alt="Alphatek Nexus" className="w-8 h-8 rounded-lg object-contain p-0.5 flex-shrink-0" />
+          <BrandLogo src={logoUrl} alt="Alphatek Nexus" className="w-8 h-8 rounded-lg p-0.5 flex-shrink-0" />
           <span className="font-bold text-slate-900 text-sm truncate">Employee Portal</span>
         </div>
         <div className="flex items-center gap-0.5 ml-auto">
@@ -195,7 +196,7 @@ export function EmployeeDashboardPage() {
         aria-label="Employee portal"
       >
         <div className="h-16 flex items-center gap-3 px-5 border-b border-slate-800 flex-shrink-0">
-          <img src={logoUrl} alt="Alphatek Nexus" className="w-9 h-9 rounded-lg object-contain p-0.5 flex-shrink-0" />
+          <BrandLogo src={logoUrl} alt="Alphatek Nexus" className="w-9 h-9 rounded-lg p-0.5 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="font-bold text-white text-sm leading-tight">Alphatek Nexus</p>
             <p className="text-[10px] text-slate-400 uppercase tracking-widest">Employee Portal</p>

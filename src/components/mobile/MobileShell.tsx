@@ -3,6 +3,7 @@ import {
   Home, CalendarDays, Wallet, UserCircle, ChevronLeft,
 } from 'lucide-react';
 import { useAppLogo } from '../../lib/media';
+import { BrandLogo } from '../BrandLogo';
 import { NotificationsPanel } from '../NotificationsPanel';
 import { MobileHome } from './MobileHome';
 import { MobileBookingsPage } from './MobileBookingsPage';
@@ -90,7 +91,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 h-[100dvh] w-full flex flex-col overflow-hidden bg-[#f5f8ff] dark:bg-slate-950 black:bg-black no-tap-highlight z-20 min-h-0"
+      className="h-full min-h-0 w-full flex flex-col overflow-hidden bg-[#f5f8ff] dark:bg-slate-950 black:bg-black no-tap-highlight z-20"
     >
       {/* Top Bar — fixed height, safe-area top padding */}
       {showTopBar && (
@@ -107,10 +108,10 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
             </button>
           ) : (
             <button onClick={() => handleSetPage('home')} className="active:scale-95 transition-transform no-select">
-              <img
+              <BrandLogo
                 src={logoUrl}
                 alt="Alphatek Nexus"
-                className="h-7 w-auto object-contain"
+                className="h-7 w-auto"
               />
             </button>
           )}

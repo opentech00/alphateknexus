@@ -196,7 +196,7 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
         )}
         {phase === 'pending' && (
           <>
-            <StatusOrb tone="amber"><Loader2 className="w-9 h-9 animate-spin" /></StatusOrb>
+            <StatusOrb tone="amber" pulse><Loader2 className="w-9 h-9 animate-spin" /></StatusOrb>
             <h1 className="text-xl font-bold text-slate-900">Still waiting on the bank</h1>
             <p className="mt-3 text-sm text-slate-500 leading-relaxed">
               Complete payment in Monime. This page updates when the bank confirms.
