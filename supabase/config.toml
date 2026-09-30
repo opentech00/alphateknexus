@@ -1,6 +1,11 @@
 # Cloud project is the source of truth for schema and secrets.
 # This file only documents Edge Function JWT exceptions. Do not put secrets here.
 
+# Local Auth. Cloud still needs Dashboard → Authentication → Hooks (or scripts/apply-live-platform.mjs).
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/public/custom_access_token_hook"
+
 # Public signup: the function validates input and uses the service role internally.
 [functions.create-account]
 verify_jwt = false

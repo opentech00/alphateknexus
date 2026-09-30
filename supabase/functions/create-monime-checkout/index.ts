@@ -1,4 +1,5 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { resolveReturnOrigin } from "../_shared/appOrigin.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { toMonimePhone } from "../_shared/phone.ts";
 import {
@@ -24,7 +25,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const { amount, purpose, related_id, reference, app_origin, mode } = await req.json();
-    const appOrigin = app_origin || req.headers.get("Origin") || "https://alphateknexus.app";
+    const appOrigin = resolveReturnOrigin(app_origin || req.headers.get("Origin"));
 
     if (!["invoice", "wallet_topup", "booking"].includes(purpose)) {
       return json({ error: "Invalid purpose" }, 400);

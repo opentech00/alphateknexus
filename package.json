@@ -10,6 +10,8 @@
     "dev": "vite",
     "typecheck": "tsc -b",
     "lint": "eslint .",
+    "pwa:icons": "node scripts/generate-pwa-icons.mjs",
+    "platform:live": "node scripts/apply-live-platform.mjs",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "cap:sync": "npm run build && npx cap sync android && node scripts/fix-gradle-versions.mjs",

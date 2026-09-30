@@ -1247,3 +1247,146 @@ img, svg {
   opacity: 1;
 }
 
+.ios-pwa-launch {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  animation: iosPwaLaunchOut 0.35s ease 0.55s forwards;
+}
+.ios-pwa-launch-icon {
+  width: 88px;
+  height: 88px;
+  border-radius: 22px;
+  box-shadow: 0 12px 40px rgba(16, 185, 129, 0.25);
+}
+@keyframes iosPwaLaunchOut {
+  to { opacity: 0; visibility: hidden; }
+}
+
+.ios-pwa-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.ios-pwa-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(6px);
+}
+.ios-pwa-sheet-card {
+  position: relative;
+  width: 100%;
+  max-width: 28rem;
+  background: #fff;
+  border-radius: 1.5rem 1.5rem 0 0;
+  padding: 0.75rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.18);
+  animation: iosPwaSheetIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.dark .ios-pwa-sheet-card,
+.black .ios-pwa-sheet-card {
+  background: #0f172a;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+}
+.dark .ios-pwa-sheet-handle,
+.black .ios-pwa-sheet-handle {
+  background: #334155;
+}
+.ios-pwa-sheet-handle {
+  width: 2.5rem;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  margin: 0 auto 1rem;
+}
+.ios-pwa-step {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #059669;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ios-pwa-homescreen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.85rem 0 0.25rem;
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.ios-pwa-homescreen-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.9rem;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+  animation: iosPwaIconPop 1.6s ease-in-out infinite;
+}
+.ios-pwa-homescreen-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+@keyframes iosPwaSheetIn {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes iosPwaIconPop {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4px) scale(1.04); }
+}
+
+.ios-pwa-offline {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 125;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: calc(0.55rem + env(safe-area-inset-top, 0px)) 1rem 0.55rem;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+html.is-ios-pwa,
+html.is-ios-pwa body {
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-pwa-launch,
+  .ios-pwa-sheet-card,
+  .ios-pwa-homescreen-icon {
+    animation: none !important;
+  }
+}
+

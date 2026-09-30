@@ -88,7 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (rememberMe) return;
 
     const interval = setInterval(() => {
-      const timeout = profile?.role === 'admin' ? ADMIN_IDLE_TIMEOUT_MS : IDLE_TIMEOUT_MS;
+      const timeout = jwtAppRole(session) === 'admin' || profile?.role === 'admin'
+        ? ADMIN_IDLE_TIMEOUT_MS
+        : IDLE_TIMEOUT_MS;
       const elapsed = Date.now() - lastActivityRef.current;
       const remaining = timeout - elapsed;
 
@@ -159,6 +161,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(newSession?.user ?? null);
       if (newSession?.user) {
         lastActivityRef.current = Date.now();
+        // Hook-enabled JWTs carry app_role; skip waiting on profiles for admin gates.
+        if (jwtAppRole(newSession, newSession.user)) setLoading(false);
         loadUserExtras(newSession.user.id);
         return;
       }
@@ -403,7 +407,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const adminRole = profile?.role === 'admin' || jwtAppRole(session) === 'admin';
+  const adminRole = jwtAppRole(session, user) === 'admin' || profile?.role === 'admin';
   const { hasPermission: hasAdminPermission, isSuperAdmin, refresh: refreshAdminPermissions } = useAdminPermissions(profile, adminRole);
 
   return (

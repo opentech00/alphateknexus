@@ -85,7 +85,7 @@ Set these as **Supabase Edge Function secrets** (Dashboard → Edge Functions �
 
 Pin requests to API version `caph.2025-08-23` (`Monime-Version` header). Checkout sessions enable cards, Sierra Leone banks, and mobile money (`disable: false` so Monime shows every MoMo it supports, currently Orange Money `m17` and AfriMoney `m18`). Do not send `m13` in `enabledProviders`; the Caph create-session schema rejects it with HTTP 400.
 
-Optional secret `MONIME_RETURN_ORIGIN` overrides `window.location.origin` for success/cancel URLs (useful if local `http://localhost` is rejected). Keep those URLs under 255 characters.
+Set Edge Function secret `MONIME_RETURN_ORIGIN=https://alphateknexus.app` so Monime cancel/success use `/payment-return` on production HTTPS. Loopback Origins (`localhost`) are ignored so iPhone/Safari does not bounce through a local Vite URL. Keep those URLs under 255 characters.
 
 In the Monime dashboard, register:
 
@@ -116,11 +116,17 @@ Platform upgrades (queues, knowledge search, JWT claims, image transforms)
 
 - **Job queue.** `job_queue` uses `FOR UPDATE SKIP LOCKED` with retries and a dead letter. Unmatched Monime webhooks enqueue `retry_monime`; new help articles enqueue `index_article`. Cron calls `process-jobs` every minute. Admins can retry jobs in Settings-adjacent **Notification Log**.
 - **Knowledge search.** `knowledge_articles` has full-text search (and optional pgvector embeddings). Clients search on Support. Staff edit articles under Admin → Support → Help articles. Optional Edge Function secret `OPENAI_API_KEY` enables semantic search (`text-embedding-3-small`); without it, keyword search still works.
-- **Custom access token hook.** Migration defines `public.custom_access_token_hook` which stamps `app_role` on the JWT. Enable it in Dashboard → Authentication → Hooks (Custom Access Token). Until then, `is_admin()` still reads `profiles.role`.
+- **Custom access token hook.** `public.custom_access_token_hook` stamps `app_role` on the JWT. Enable it in Dashboard → Authentication → Hooks (Custom Access Token), or run `npm run platform:live`. Until the hook is enabled, `is_admin()` and the client still round-trip `profiles.role`.
 - **Image transforms.** Logos and avatars use Storage Image Transformation (`getPublicUrl` / `createSignedUrl` with width/height). Private documents still use short-lived signed URLs.
 - **Field presence.** Field app and Field Dispatch share Realtime Presence channel `field-ops`. No extra table: crew appear live while the app is open.
 
 After changing checkout, verify, webhook, fulfillment, jobs, or knowledge search:
+
+```bash
+npm run platform:live
+```
+
+That enables the custom access token hook, sets `MONIME_RETURN_ORIGIN=https://alphateknexus.app`, deploys `create-monime-checkout` and `create-field-collection`, and stores `OPENAI_API_KEY` only if it is already in `.env`. Individual deploys:
 
 ```bash
 supabase db push --project-ref "$SUPABASE_PROJECT_REF"

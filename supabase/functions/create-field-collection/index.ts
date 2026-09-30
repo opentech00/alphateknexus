@@ -1,5 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { resolveReturnOrigin } from "../_shared/appOrigin.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { jwtAppRoleFromHeader } from "../_shared/jwtAppRole.ts";
 import { refreshMonimeSession } from "../_shared/monimeFulfill.ts";
 import {
   assertOnlineAmount,
@@ -35,7 +37,7 @@ Deno.serve(async (req: Request) => {
   try {
     const { booking_id, action = "summary", reference, app_origin } = await req.json();
     if (!booking_id) return json({ error: "Missing booking_id" }, 400);
-    const appOrigin = app_origin || req.headers.get("Origin") || "https://alphateknexus.app";
+    const appOrigin = resolveReturnOrigin(app_origin || req.headers.get("Origin"));
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Unauthorized" }, 401);
@@ -49,7 +51,7 @@ Deno.serve(async (req: Request) => {
     if (userErr || !user) return json({ error: "Unauthorized" }, 401);
 
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-    const isAdmin = profile?.role === "admin";
+    const isAdmin = jwtAppRoleFromHeader(authHeader) === "admin" || profile?.role === "admin";
 
     if (!isAdmin) {
       const { data: employees } = await supabase.from("employees").select("id").eq("user_id", user.id);
@@ -123,7 +125,7 @@ Deno.serve(async (req: Request) => {
       kind: "field",
       initiatedBy: user.id,
       appOrigin,
-      returnPage: "field-paid",
+      returnPage: "payment-return",
       referenceBase: `FLD-${booking.id.slice(0, 8).toUpperCase()}`,
       label: "On-site payment",
     });

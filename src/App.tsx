@@ -23,6 +23,7 @@ import { SupportPage } from './pages/SupportPage';
 import { PaymentReturnPage } from './pages/PaymentReturnPage';
 import { TopNav } from './components/TopNav';
 import { parsePaymentReturnLocation } from './lib/paymentReturn';
+import { isClientPwaPage } from './lib/pwa';
 import { MobileShell } from './components/mobile/MobileShell';
 import { SplashScreen } from './components/mobile/SplashScreen';
 import { ToastContainer } from './components/toast/ToastContainer';
@@ -143,9 +144,11 @@ function FieldPaidScreen({ cancelled }: { cancelled: boolean }) {
 function PortalContent() {
   const { user, isAdmin, loading, needs2FA, needsEmailVerification, needsPhoneVerification, pending2FAEmail, pending2FAPassword, clear2FA, refreshVerification, signOut, profile } = useAuth();
   const portal = usePortalSettings();
-  const [page, setPage] = useState(() =>
-    parsePaymentReturnLocation()?.kind === 'payment-return' ? 'payment-return' : 'home',
-  );
+  const [page, setPage] = useState(() => {
+    if (parsePaymentReturnLocation()?.kind === 'payment-return') return 'payment-return';
+    const fromQuery = new URLSearchParams(window.location.search).get('page');
+    return isClientPwaPage(fromQuery) ? fromQuery : 'home';
+  });
   const [authView, setAuthView] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
   const [bookingService, setBookingService] = useState<any>(null);
   const [bookingMode, setBookingMode] = useState<'hire' | 'quote' | 'pickup' | 'subscribe'>('hire');
@@ -173,7 +176,12 @@ function PortalContent() {
       setAuthView('reset');
     }
     const link = parsePaymentReturnLocation();
-    if (link?.kind === 'payment-return') setPage('payment-return');
+    if (link?.kind === 'payment-return') {
+      setPage('payment-return');
+      return;
+    }
+    const fromQuery = params.get('page');
+    if (isClientPwaPage(fromQuery)) setPage(fromQuery);
   }, []);
 
   const [fieldPaidStatus] = useState(() => {

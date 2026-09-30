@@ -1,3 +1,4 @@
+import { resolveReturnOrigin } from "./appOrigin.ts";
 import { MONIME_API_BASE, monimeHeaders, sha256Hex } from "./monime.ts";
 import { refreshMonimeSession } from "./monimeFulfill.ts";
 
@@ -194,7 +195,7 @@ export async function createCheckoutSession(supabase: any, opts: SessionOpts): P
   const suffix = idempotencyKey.slice(0, 8).toUpperCase();
   const base = (opts.referenceBase || `ATN-${PURPOSE_CODE[opts.purpose] || "PAY"}`).slice(0, 40);
   const reference = `${base}-${suffix}`;
-  const returnOrigin = (Deno.env.get("MONIME_RETURN_ORIGIN") || opts.appOrigin).replace(/\/$/, "");
+  const returnOrigin = resolveReturnOrigin(opts.appOrigin);
   const returnBase = `${returnOrigin}/${opts.returnPage}?ref=${encodeURIComponent(reference)}`;
   const successUrl = `${returnBase}&status=success`;
   const cancelUrl = `${returnBase}&status=cancel`;
