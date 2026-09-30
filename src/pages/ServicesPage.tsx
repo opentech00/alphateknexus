@@ -10,6 +10,8 @@ import { ServiceDetailModal } from '../components/ServiceDetailModal';
 import { ServiceBundleSection } from '../components/ServiceBundleSection';
 import type { Bundle } from '../components/ServiceBundleSection';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
+import { AnimatedMeshBackdrop } from '../components/AnimatedMeshBackdrop';
+import { toSleCurrencyText } from '../lib/money';
 
 const iconMap: Record<string, React.ReactNode> = {
   Trash2: <Trash2 className="w-6 h-6" />,
@@ -301,9 +303,9 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                       alt={service.name}
                       width={320}
                       height={224}
-                      className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500"
+                      className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500 opacity-80 saturate-[1.15]"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-900/40 to-transparent" />
+                    <AnimatedMeshBackdrop tone={service.slug} keepPhoto />
                     <button
                       onClick={(e) => toggleFavorite(e, service.id)}
                       className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center hover:bg-black/60 transition-colors shadow-sm"
@@ -318,7 +320,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                       />
                     </button>
                     {extras && (
-                      <div className="absolute top-3 left-3 flex items-center gap-2">
+                      <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
                         <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold rounded-full shadow-sm">
                           <Zap className="w-3 h-3 fill-white" />
                           {extras.responseTime}
@@ -331,7 +333,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                         )}
                       </div>
                     )}
-                    <div className="absolute bottom-0 left-0 right-0 p-5">
+                    <div className="absolute bottom-0 left-0 right-0 z-10 p-5">
                       <p className="text-xs text-emerald-300 font-semibold uppercase tracking-wider mb-1 line-clamp-1">
                         {extras?.category || 'Service'}
                       </p>
@@ -425,11 +427,13 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
             return (
               <div
                 key={service.id}
-                className={`glass-card glass-card-hover rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 transition-all duration-500 group relative ${
+                className={`glass-card glass-card-hover rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 transition-all duration-500 group relative overflow-hidden ${
                   animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
                 }`}
                 style={{ transitionDelay: `${500 + index * 100}ms` }}
               >
+                <AnimatedMeshBackdrop tone={service.slug} variant="subtle" />
+                <div className="relative z-[1]">
                 {/* Card Header */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-start gap-4">
@@ -488,7 +492,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                 <div className="flex gap-8 mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                   <div>
                     <p className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Pricing</p>
-                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">{service.price_range}</p>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">{toSleCurrencyText(service.price_range)}</p>
                   </div>
                   {extras && (
                     <div>
@@ -566,6 +570,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                   View more details
                   <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover/details:translate-x-1" />
                 </button>
+                </div>
               </div>
             );
           })}

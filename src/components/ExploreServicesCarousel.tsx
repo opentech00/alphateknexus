@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
+import { AnimatedMeshBackdrop } from './AnimatedMeshBackdrop';
 
 export interface ExploreSlide {
   slug: string;
@@ -15,11 +16,13 @@ export function ExploreServicesCarousel({
   onSelect,
   onViewAll,
   contentClassName,
+  animatedBackdrop = false,
 }: {
   slides: ExploreSlide[];
   onSelect: (slug: string) => void;
   onViewAll?: () => void;
   contentClassName?: string;
+  animatedBackdrop?: boolean;
 }) {
   const [index, setIndex] = useState(0);
   const touchStartX = useRef(0);
@@ -54,10 +57,18 @@ export function ExploreServicesCarousel({
       <img
         src={slide.image}
         alt={slide.title}
-        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+          animatedBackdrop ? 'opacity-80 saturate-[1.15]' : ''
+        }`}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-black/45" />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/25 to-transparent" />
+      {animatedBackdrop ? (
+        <AnimatedMeshBackdrop tone={slide.slug} keepPhoto />
+      ) : (
+        <>
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-black/45" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/25 to-transparent" />
+        </>
+      )}
       <div className={`relative p-4 min-h-[200px] flex flex-col justify-between ${contentClassName ?? ''}`}>
         <div>
           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500 text-white">

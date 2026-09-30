@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
+import { transformedMediaUrl } from './storageUrls';
 import type { MediaAsset, MediaCategory } from '../types';
 
 export const MAX_MEDIA_FILE_SIZE = 50 * 1024 * 1024;
@@ -301,7 +302,7 @@ export function useAppLogo(): { url: string; loading: boolean } {
     let cancelled = false;
     fetchMediaAsset('app_logo', 'app-logo')
       .then((asset) => {
-        if (!cancelled && asset) setUrl(asset.file_url);
+        if (!cancelled && asset) setUrl(transformedMediaUrl(asset.file_url, 128));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

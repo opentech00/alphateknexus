@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { toast } from '../components/toast/toast';
 import { signedDocumentUrl } from '../lib/storageUrls';
 import { PortalPage } from '../components/portal/PortalPage';
+import { KnowledgeSearch } from '../components/support/KnowledgeSearch';
 
 const CATEGORIES = [
   { id: 'booking', label: 'Booking' },
@@ -171,7 +172,8 @@ export function SupportPage({ onBack }: { onBack?: () => void }) {
   };
 
   return (
-    <PortalPage title="Support" subtitle="Open a ticket and keep the conversation with Alphatek in one place." onBack={onBack}>
+    <PortalPage title="Support" subtitle="Search help, or open a ticket and keep the conversation with Alphatek in one place." onBack={onBack}>
+      <KnowledgeSearch />
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <div className="lg:col-span-2 space-y-3">
           <form onSubmit={createTicket} className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-sm">

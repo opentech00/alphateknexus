@@ -1,11 +1,15 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import { PageHeader, StatCard, Card, EmptyState, Spinner, ErrorBanner } from '../components/ui';
 import { LiveDispatchMap } from '../../components/map/LiveDispatchMap';
 import { RouteReplayMap } from '../../components/map/RouteReplayMap';
 import { AddressPickerMap } from '../../components/map/AddressPickerMap';
 import { LocationAutocomplete } from '../../components/LocationAutocomplete';
 import { searchAddresses } from '../../lib/addressSearch';
+import { FIELD_OPS_CHANNEL, onlineEmployeeIds, usePresence } from '../../lib/presence';
+import { LiveCrewBar, LiveDot } from '../../components/ops/LiveCrewBar';
+import { transformedMediaUrl } from '../../lib/storageUrls';
 import {
   MapPin, Users, Briefcase, Award, Navigation, Calendar, Clock,
   Plus, X, Loader2, CheckCircle2, AlertCircle, Truck, Zap, Star,
@@ -147,6 +151,7 @@ type View = 'dispatch' | 'map' | 'calendar' | 'leaderboard' | 'auto' | 'routes' 
 // Main Component
 // ============================================================
 export function FieldDispatchPage() {
+  const { user, profile } = useAuth();
   const [view, setView] = useState<View>('dispatch');
   const [employees, setEmployees] = useState<AdminEmployee[]>([]);
   const [assignments, setAssignments] = useState<AdminAssignment[]>([]);
@@ -161,6 +166,19 @@ export function FieldDispatchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const peers = usePresence({
+    channel: FIELD_OPS_CHANNEL,
+    key: user ? `dispatch:${user.id}` : null,
+    meta: user ? {
+      employeeId: user.id,
+      name: profile?.full_name || 'Dispatch',
+      role: 'dispatch',
+      photoUrl: null,
+      jobId: null,
+      onlineAt: new Date().toISOString(),
+    } : null,
+  });
+  const liveFieldIds = onlineEmployeeIds(peers);
 
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -314,7 +332,10 @@ export function FieldDispatchPage() {
         }
       />
 
-      {/* Stats */}
+      <LiveCrewBar
+        peers={peers}
+        workerPhotos={Object.fromEntries(employees.map((e) => [e.id, e.photo_url]))}
+      />
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
         <StatCard label="Workers" value={stats.totalWorkers} icon={Users} color="text-blue-600" accent="bg-blue-50" />
         <StatCard label="Active" value={stats.activeWorkers} icon={Zap} color="text-amber-600" accent="bg-amber-50" />
@@ -351,7 +372,7 @@ export function FieldDispatchPage() {
         })}
       </div>
 
-      {view === 'dispatch' && <DispatchView workers={workerStats} assignments={assignments} jobEvents={jobEvents} onAssign={() => setShowAssignModal(true)} />}
+      {view === 'dispatch' && <DispatchView workers={workerStats} assignments={assignments} jobEvents={jobEvents} onAssign={() => setShowAssignModal(true)} liveFieldIds={liveFieldIds} />}
       {view === 'map' && <MapView workers={workerStats} pings={locationPings} assignments={assignments} geofenceEvents={geofenceEvents} />}
       {view === 'auto' && <AutoDispatchView workers={workerStats} assignments={assignments} bookings={bookings} suggestions={suggestions} onRefresh={() => loadData(false)} />}
       {view === 'routes' && <RouteOptimizationView workers={workerStats} assignments={assignments} routeStops={routeStops} onRefresh={() => loadData(false)} />}
@@ -377,11 +398,12 @@ export function FieldDispatchPage() {
 // ============================================================
 // DISPATCH VIEW — Worker availability + assignment list with timeline
 // ============================================================
-function DispatchView({ workers, assignments, jobEvents, onAssign }: {
+function DispatchView({ workers, assignments, jobEvents, onAssign, liveFieldIds }: {
   workers: (AdminEmployee & { activeJobCount: number; completedJobCount: number; latestPing?: LocationPing; latestEvent?: JobEvent; pendingSyncCount: number; status: string })[];
   assignments: AdminAssignment[];
   jobEvents: JobEvent[];
   onAssign: () => void;
+  liveFieldIds: Set<string>;
 }) {
   const [selectedWorker, setSelectedWorker] = useState<string | null>(null);
   const [selectedAssignment, setSelectedAssignment] = useState<string | null>(null);
@@ -418,13 +440,16 @@ function DispatchView({ workers, assignments, jobEvents, onAssign }: {
                   }`}
                 >
                   <div className="flex items-center gap-3">
+                    <div className="relative flex-shrink-0">
                     {w.photo_url ? (
-                      <img src={w.photo_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                      <img src={transformedMediaUrl(w.photo_url, 80)} alt="" className="w-10 h-10 rounded-full object-cover" />
                     ) : (
                       <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center">
                         <span className="text-sm font-semibold text-slate-600">{w.full_name?.[0]?.toUpperCase()}</span>
                       </div>
                     )}
+                    <LiveDot on={liveFieldIds.has(w.id)} />
+                    </div>
                     <div className="flex-1 min-w0">
                       <p className="font-semibold text-sm text-slate-900 truncate">{w.full_name}</p>
                       <p className="text-xs text-slate-400 truncate">{w.position || 'Field Staff'}</p>

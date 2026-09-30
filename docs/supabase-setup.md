@@ -112,7 +112,15 @@ How amounts and crediting work:
 
 - **Failed payments.** Webhooks and `verify-monime-payment` record `failure_code` and `failure_reason` on `monime_payments` (insufficient funds, declined, expired, cancelled). The client shows a Retry / Cancel screen and does not leave automatically on failure. Wallet history lists failed top-up attempts; they do not change the balance.
 
-After changing checkout, verify, webhook, or fulfillment:
+Platform upgrades (queues, knowledge search, JWT claims, image transforms)
+
+- **Job queue.** `job_queue` uses `FOR UPDATE SKIP LOCKED` with retries and a dead letter. Unmatched Monime webhooks enqueue `retry_monime`; new help articles enqueue `index_article`. Cron calls `process-jobs` every minute. Admins can retry jobs in Settings-adjacent **Notification Log**.
+- **Knowledge search.** `knowledge_articles` has full-text search (and optional pgvector embeddings). Clients search on Support. Staff edit articles under Admin → Support → Help articles. Optional Edge Function secret `OPENAI_API_KEY` enables semantic search (`text-embedding-3-small`); without it, keyword search still works.
+- **Custom access token hook.** Migration defines `public.custom_access_token_hook` which stamps `app_role` on the JWT. Enable it in Dashboard → Authentication → Hooks (Custom Access Token). Until then, `is_admin()` still reads `profiles.role`.
+- **Image transforms.** Logos and avatars use Storage Image Transformation (`getPublicUrl` / `createSignedUrl` with width/height). Private documents still use short-lived signed URLs.
+- **Field presence.** Field app and Field Dispatch share Realtime Presence channel `field-ops`. No extra table: crew appear live while the app is open.
+
+After changing checkout, verify, webhook, fulfillment, jobs, or knowledge search:
 
 ```bash
 supabase db push --project-ref "$SUPABASE_PROJECT_REF"
@@ -121,6 +129,8 @@ supabase functions deploy verify-monime-payment
 supabase functions deploy monime-webhook
 supabase functions deploy create-field-collection
 supabase functions deploy process-monime-payout
+supabase functions deploy process-jobs
+supabase functions deploy search-knowledge
 ```
 
 WhatsApp Cloud API (optional, not used at signup)

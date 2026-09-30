@@ -187,7 +187,7 @@ export function CompensationEditor({ employeeId }: { employeeId: string }) {
       </div>
       <p className="text-xs text-slate-400">Used to prefill monthly payslip drafts. Staff cannot see this template.</p>
       <div>
-        <label className={fieldLabelCls} htmlFor={`basic-${employeeId}`}>Basic salary (Le)</label>
+        <label className={fieldLabelCls} htmlFor={`basic-${employeeId}`}>Basic salary (SLE)</label>
         <input
           id={`basic-${employeeId}`}
           type="number"

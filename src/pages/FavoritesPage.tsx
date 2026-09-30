@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Portal } from '../lib/portal';
 import { LocationAutocomplete } from '../components/LocationAutocomplete';
+import { toSleCurrencyText } from '../lib/money';
 
 interface FavoriteService {
   favorite_id: string;
@@ -74,7 +75,7 @@ export function FavoritesPage({ onNavigate, onQuickBook }: FavoritesPageProps) {
         service_slug: f.services?.slug || '',
         service_icon: f.services?.icon || '',
         service_description: f.services?.description || '',
-        service_price_range: f.services?.price_range || '',
+        service_price_range: toSleCurrencyText(f.services?.price_range),
         avg_rating: review ? Math.round((review.total / review.count) * 10) / 10 : null,
         review_count: review?.count || 0,
       };

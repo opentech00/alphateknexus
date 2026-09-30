@@ -294,7 +294,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
-                Wallet: Le {walletBalance.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                Wallet: SLE {walletBalance.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
               </p>
             </div>
             <button

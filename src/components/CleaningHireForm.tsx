@@ -12,6 +12,7 @@ import {
   applyFieldErrors, collectErrors, todayISO,
   validateAddress, validateDate, validateEmail, validateName, validatePhone,
 } from '../lib/serviceFormValidation';
+import { toSleCurrencyText } from '../lib/money';
 
 interface Service {
   id: string; name: string; slug: string;
@@ -35,7 +36,7 @@ const FREQUENCIES = [
   { label: 'Bi-weekly',discount: 0.10 },
   { label: 'Monthly',  discount: 0.05 },
 ];
-const BASE_RATE = 15_000; // Le per area
+const BASE_RATE = 15_000; // SLE per area
 
 function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: string }) {
   return (
@@ -50,7 +51,7 @@ function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: 
 
 type Step = 'form' | 'review' | 'payment' | 'success' | 'payment_failed' | 'review_submitted';
 
-const fmtSLE = (n: number) => `Le ${n.toLocaleString()}`;
+const fmtSLE = (n: number) => `SLE ${n.toLocaleString()}`;
 
 export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
   const [step, setStep] = useState<Step>('form');
@@ -249,7 +250,7 @@ export function CleaningHireForm({ service, onCancel, onSuccess }: Props) {
             </div>
             <div className="flex-1">
               <h1 className="text-xl font-bold text-slate-900">Book Cleaning &amp; Janitorial</h1>
-              <p className="mt-1 text-sm text-slate-500">Fill in your details to book this service. From {service.price_range}</p>
+              <p className="mt-1 text-sm text-slate-500">Fill in your details to book this service. From {toSleCurrencyText(service.price_range)}</p>
             </div>
             <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 flex-shrink-0"><X className="w-5 h-5" /></button>
           </div>

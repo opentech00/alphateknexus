@@ -195,9 +195,15 @@ export async function createCheckoutSession(supabase: any, opts: SessionOpts): P
   const base = (opts.referenceBase || `ATN-${PURPOSE_CODE[opts.purpose] || "PAY"}`).slice(0, 40);
   const reference = `${base}-${suffix}`;
   const returnOrigin = (Deno.env.get("MONIME_RETURN_ORIGIN") || opts.appOrigin).replace(/\/$/, "");
-  const returnBase = `${returnOrigin}/?page=${opts.returnPage}&ref=${encodeURIComponent(reference)}`;
-  const successUrl = `${returnBase}&status=success`.slice(0, 255);
-  const cancelUrl = `${returnBase}&status=cancel`.slice(0, 255);
+  const returnBase = `${returnOrigin}/${opts.returnPage}?ref=${encodeURIComponent(reference)}`;
+  const successUrl = `${returnBase}&status=success`;
+  const cancelUrl = `${returnBase}&status=cancel`;
+  if (successUrl.length > 255 || cancelUrl.length > 255) {
+    throw new CheckoutError(
+      "Return URL is too long for Monime (max 255). Set a shorter MONIME_RETURN_ORIGIN.",
+      500,
+    );
+  }
   const label = (opts.label || `${opts.purpose.replace("_", " ")} payment`).slice(0, 100);
 
   const monimeRes = await fetch(`${MONIME_API_BASE}/checkout-sessions`, {

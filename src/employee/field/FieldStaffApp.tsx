@@ -8,6 +8,8 @@ import { FieldClockInPrompt } from '../components/FieldClockInPrompt';
 import { initPushNotifications } from '../../lib/pushNotifications';
 import { useAppLogo } from '../../lib/media';
 import { BrandLogo } from '../../components/BrandLogo';
+import { FIELD_OPS_CHANNEL, usePresence } from '../../lib/presence';
+import { transformedMediaUrl } from '../../lib/storageUrls';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { JobsScreen } from './screens/JobsScreen';
 import { JobDetailScreen } from './screens/JobDetailScreen';
@@ -22,10 +24,25 @@ type Tab = 'dashboard' | 'offers' | 'jobs' | 'attendance' | 'inbox' | 'performan
 function FieldStaffContent() {
   const { employee, signOut, hasCapability } = useAuth();
   const { url: logoUrl } = useAppLogo();
-  const { loading, error, online, pendingSync, refresh } = useFieldStaff();
+  const { loading, error, online, pendingSync, refresh, assignments } = useFieldStaff();
   const [tab, setTab] = useState<Tab>('dashboard');
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showIncident, setShowIncident] = useState(false);
+  const activeJob = assignments.find((a) => ['accepted', 'in_progress', 'paused'].includes(a.status));
+  const livePeers = usePresence({
+    channel: FIELD_OPS_CHANNEL,
+    key: employee ? `field:${employee.id}` : null,
+    meta: employee ? {
+      employeeId: employee.id,
+      name: employee.full_name,
+      role: 'field',
+      photoUrl: employee.photo_url,
+      jobId: activeJob?.id || null,
+      onlineAt: new Date().toISOString(),
+    } : null,
+    track: online,
+  });
+  const liveCount = livePeers.filter((p) => p.role === 'field').length;
 
   useEffect(() => {
     return registerToastNotificationOpener(() => setTab('inbox'));
@@ -80,7 +97,15 @@ function FieldStaffContent() {
           <BrandLogo src={logoUrl} alt="Alphatek Nexus" className="w-9 h-9 rounded-xl p-0.5 flex-shrink-0" />
           <div className="min-w-0">
             <p className="font-bold text-slate-900 text-sm leading-tight truncate">Field Staff</p>
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest">Alphatek Nexus</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest inline-flex items-center gap-1.5">
+              Alphatek Nexus
+              {online && (
+                <span className="inline-flex items-center gap-1 normal-case tracking-normal text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Live{liveCount > 1 ? ` · ${liveCount}` : ''}
+                </span>
+              )}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -98,7 +123,7 @@ function FieldStaffContent() {
             </button>
           ) : null}
           {employee?.photo_url ? (
-            <img src={employee.photo_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+            <img src={transformedMediaUrl(employee.photo_url, 64)} alt="" className="w-8 h-8 rounded-full object-cover" />
           ) : (
             <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center">
               <span className="text-xs font-semibold text-slate-600">{employee?.full_name?.[0]?.toUpperCase()}</span>

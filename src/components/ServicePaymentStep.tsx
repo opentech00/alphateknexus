@@ -181,7 +181,7 @@ export function ServicePaymentStep({
         const balance = Number(result?.balance ?? 0);
         onFail(
           result?.error === 'Insufficient wallet balance.'
-            ? `Insufficient wallet balance. You have Le ${balance.toLocaleString()} but need Le ${amount.toLocaleString()}.`
+            ? `Insufficient wallet balance. You have SLE ${balance.toLocaleString()} but need SLE ${amount.toLocaleString()}.`
             : result?.error || 'Wallet payment could not be completed.',
           result?.error === 'Insufficient wallet balance.' ? 'insufficient_funds' : 'unknown',
         );
@@ -495,7 +495,7 @@ export function PaymentSuccessScreen({
         <p className="mt-3 text-slate-500 leading-relaxed">
           Your <span className="font-semibold text-slate-700">{serviceName}</span> booking has been submitted
           {isCash ? '. Our team will contact ' : ' and payment of '}
-          {!isCash && <span className="font-semibold text-slate-700">Le {amount.toLocaleString()}</span>}
+          {!isCash && <span className="font-semibold text-slate-700">SLE {amount.toLocaleString()}</span>}
           {!isCash ? ' has been received. Our team will contact ' : ''}
           <span className="font-medium text-slate-700">{contactName}</span> at{' '}
           <span className="font-medium text-slate-700">{contactPhone}</span> to confirm.
@@ -505,7 +505,7 @@ export function PaymentSuccessScreen({
             <div className="flex items-center gap-2 font-semibold mb-1">
               <Banknote className="w-4 h-4" /> Cash on Delivery
             </div>
-            Please have <span className="font-semibold">Le {amount.toLocaleString()}</span> ready when our team arrives.
+            Please have <span className="font-semibold">SLE {amount.toLocaleString()}</span> ready when our team arrives.
           </div>
         )}
         {reference && (

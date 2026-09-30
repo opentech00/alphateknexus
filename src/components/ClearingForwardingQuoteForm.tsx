@@ -419,7 +419,7 @@ export function ClearingForwardingQuoteForm({ service, onCancel, onSuccess }: Pr
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Agreed Service Fee / Retainer (Le)">
+                <Field label="Agreed Service Fee / Retainer (SLE)">
                   <input
                     className={inputClass(false, 'blue')}
                     type="text"

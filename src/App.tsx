@@ -22,6 +22,7 @@ import { QuotesPage } from './pages/QuotesPage';
 import { SupportPage } from './pages/SupportPage';
 import { PaymentReturnPage } from './pages/PaymentReturnPage';
 import { TopNav } from './components/TopNav';
+import { parsePaymentReturnLocation } from './lib/paymentReturn';
 import { MobileShell } from './components/mobile/MobileShell';
 import { SplashScreen } from './components/mobile/SplashScreen';
 import { ToastContainer } from './components/toast/ToastContainer';
@@ -142,7 +143,9 @@ function FieldPaidScreen({ cancelled }: { cancelled: boolean }) {
 function PortalContent() {
   const { user, isAdmin, loading, needs2FA, needsEmailVerification, needsPhoneVerification, pending2FAEmail, pending2FAPassword, clear2FA, refreshVerification, signOut, profile } = useAuth();
   const portal = usePortalSettings();
-  const [page, setPage] = useState('home');
+  const [page, setPage] = useState(() =>
+    parsePaymentReturnLocation()?.kind === 'payment-return' ? 'payment-return' : 'home',
+  );
   const [authView, setAuthView] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
   const [bookingService, setBookingService] = useState<any>(null);
   const [bookingMode, setBookingMode] = useState<'hire' | 'quote' | 'pickup' | 'subscribe'>('hire');
@@ -169,14 +172,13 @@ function PortalContent() {
     if (params.get('reset') === 'true') {
       setAuthView('reset');
     }
-    if (params.get('page') === 'payment-return') {
-      setPage('payment-return');
-    }
+    const link = parsePaymentReturnLocation();
+    if (link?.kind === 'payment-return') setPage('payment-return');
   }, []);
 
   const [fieldPaidStatus] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('page') === 'field-paid' ? (params.get('status') || 'success') : null;
+    const link = parsePaymentReturnLocation();
+    return link?.kind === 'field-paid' ? (link.status || 'success') : null;
   });
 
   const [showSplash, setShowSplash] = useState(() => {
@@ -191,6 +193,17 @@ function PortalContent() {
 
   if (fieldPaidStatus) {
     return <FieldPaidScreen cancelled={fieldPaidStatus === 'cancel'} />;
+  }
+
+  if (page === 'payment-return') {
+    return (
+      <PaymentReturnPage
+        onNavigate={(next) => {
+          window.history.replaceState({}, '', '/');
+          setPage(next);
+        }}
+      />
+    );
   }
 
   if (showSplash && isMobile) {
@@ -300,17 +313,6 @@ function PortalContent() {
         onNavigate={handleNavigate}
         mobile={<BookingPage service={bookingService} onNavigate={handleNavigate} rebookData={rebookData} mode={bookingMode} />}
         desktop={<BookingPage service={bookingService} onNavigate={handleNavigate} rebookData={rebookData} mode={bookingMode} />}
-      />
-    );
-  }
-
-  if (page === 'payment-return') {
-    return (
-      <ClientShell
-        page={page}
-        onNavigate={handleNavigate}
-        mobile={<PaymentReturnPage onNavigate={handleNavigate} />}
-        desktop={<PaymentReturnPage onNavigate={handleNavigate} />}
       />
     );
   }

@@ -11,6 +11,7 @@ import {
 } from '../../../lib/companyDocs';
 import { downloadHtmlAsPdf } from '../../../lib/invoicePdf';
 import { toast } from '../../../components/toast/toast';
+import { toSleCurrencyText } from '../../../lib/money';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null; phone: string | null };
@@ -28,7 +29,7 @@ interface Invoice {
 }
 
 function fmtMoney(n: number, currency = 'SLE') {
-  return `${currency} ${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${toSleCurrencyText(currency) || 'SLE'} ${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function invoiceHtml(inv: Invoice) {
@@ -37,7 +38,7 @@ function invoiceHtml(inv: Invoice) {
     invoiceNumber: inv.invoice_number,
     issueDate: inv.issue_date,
     dueDate: inv.due_date,
-    currency: inv.currency,
+    currency: toSleCurrencyText(inv.currency) || 'SLE',
     subtotal: Number(inv.subtotal),
     discountRate: Number(inv.tax_rate),
     discountAmount: Number(inv.tax_amount),

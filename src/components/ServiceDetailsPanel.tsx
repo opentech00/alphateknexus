@@ -30,7 +30,7 @@ function formatPrimitive(key: string, value: string | number | boolean): string 
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'number') {
     if (key.includes('price') || key.includes('amount') || key.includes('cost') || key.endsWith('_sle')) {
-      return `Le ${value.toLocaleString()}`;
+      return `SLE ${value.toLocaleString()}`;
     }
     return value.toLocaleString();
   }

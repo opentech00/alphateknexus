@@ -87,7 +87,7 @@ function RadioCard({ label, sub, checked, onClick }: { label: string; sub?: stri
   );
 }
 
-function fmtSLE(n: number) { return `Le ${n.toLocaleString()}`; }
+function fmtSLE(n: number) { return `SLE ${n.toLocaleString()}`; }
 
 export function PrivateSecurityHireForm({ service, onCancel, onSuccess }: Props) {
   const [step, setStep] = useState<Step>('form');

@@ -17,6 +17,7 @@ import { useDisplayCurrency } from '../../hooks/useDisplayCurrency';
 import { ExploreServicesCarousel } from '../ExploreServicesCarousel';
 import { CampaignPromoBanner } from '../CampaignPromoBanner';
 import { DueInvoicesBanner } from '../portal/DueInvoicesBanner';
+import { toSleCurrencyText } from '../../lib/money';
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -248,8 +249,9 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
   const pullIndicatorHeight = refreshing ? 40 : pulling ? Math.round(progress * 40) : 0;
 
   const priceLabel = (raw: string) => {
-    const match = raw.match(/([\d,]+(?:\.\d+)?)/);
-    if (!match) return raw;
+    const text = toSleCurrencyText(raw);
+    const match = text.match(/([\d,]+(?:\.\d+)?)/);
+    if (!match) return text;
     return `From ${format(Number(match[1].replace(/,/g, '')), { compact: true })}`;
   };
 

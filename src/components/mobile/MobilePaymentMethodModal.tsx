@@ -182,7 +182,7 @@ export function MobilePaymentMethodModal({ open, onClose, totalAmount, onProceed
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm text-slate-500 font-medium">Total Amount</span>
               <span className="text-base font-bold text-blue-600">
-                Le {totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                SLE {totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
           )}

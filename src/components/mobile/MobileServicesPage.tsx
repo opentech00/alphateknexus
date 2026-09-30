@@ -10,6 +10,7 @@ import type { Service } from '../../types';
 import { ServiceDetailModal } from '../ServiceDetailModal';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
+import { toSleCurrencyText } from '../../lib/money';
 
 interface Props {
   onSelectService: (svc: Service, mode?: 'hire' | 'quote' | 'pickup' | 'subscribe') => void;
@@ -376,7 +377,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
                 <div className="flex items-center gap-4 min-w-0">
                   <div>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-medium">Pricing</p>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5">{service?.price_range || '—'}</p>
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5">{toSleCurrencyText(service?.price_range) || '—'}</p>
                   </div>
                   <div className="h-8 w-px bg-slate-100 dark:bg-slate-700" />
                   <div>

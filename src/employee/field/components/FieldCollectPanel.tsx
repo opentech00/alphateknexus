@@ -87,7 +87,7 @@ export function FieldCollectPanel({ bookingId }: { bookingId: string }) {
 
   const share = async () => {
     if (!session) return;
-    const text = `Pay Le ${session.amount.toLocaleString()} to Alphatek Nexus securely with Monime: ${session.url}`;
+    const text = `Pay SLE ${session.amount.toLocaleString()} to Alphatek Nexus securely with Monime: ${session.url}`;
     if (navigator.share) {
       try { await navigator.share({ title: 'Alphatek Nexus payment', text, url: session.url }); return; } catch { /* cancelled */ }
     }
@@ -129,7 +129,7 @@ export function FieldCollectPanel({ bookingId }: { bookingId: string }) {
       ) : !session || status === 'failed' ? (
         <>
           <p className="text-sm text-slate-600">
-            Balance due: <span className="font-bold text-slate-900">Le {due.toLocaleString()}</span>
+            Balance due: <span className="font-bold text-slate-900">SLE {due.toLocaleString()}</span>
           </p>
           {status === 'failed' && <p className="text-xs text-amber-700">The last checkout was not completed. Start a new one.</p>}
           <button
@@ -146,7 +146,7 @@ export function FieldCollectPanel({ bookingId }: { bookingId: string }) {
       ) : (
         <div className="space-y-3 text-center animate-scaleIn">
           <p className="text-sm text-slate-600">
-            Ask the customer to scan and pay <span className="font-bold text-slate-900">Le {session.amount.toLocaleString()}</span>
+            Ask the customer to scan and pay <span className="font-bold text-slate-900">SLE {session.amount.toLocaleString()}</span>
           </p>
           <img src={qrImageUrl(session.url)} alt="Monime payment QR code" width={240} height={240} className="mx-auto w-full max-w-[240px] h-auto rounded-2xl border border-slate-200 shadow-sm" />
           <div className="flex items-center justify-center gap-2 text-xs text-slate-500">

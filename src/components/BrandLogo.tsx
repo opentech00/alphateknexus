@@ -12,6 +12,8 @@ export function BrandLogo({ src, alt, className = '' }: BrandLogoProps) {
       alt={alt}
       className={`brand-logo object-contain ${className}`.trim()}
       decoding="async"
+      width={96}
+      height={96}
     />
   );
 }

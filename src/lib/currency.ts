@@ -1,3 +1,5 @@
+import { toSleCurrencyText } from './money';
+
 export const DISPLAY_CURRENCIES = ['SLE', 'USD', 'EUR'] as const;
 export type DisplayCurrency = (typeof DISPLAY_CURRENCIES)[number];
 
@@ -116,10 +118,11 @@ export function rewriteSlePriceHint(
   currency: DisplayCurrency,
   rateToSle?: number,
 ): string {
-  const match = hint.match(/([\d,]+(?:\.\d+)?)/);
-  if (!match) return hint;
+  const normalized = toSleCurrencyText(hint);
+  const match = normalized.match(/([\d,]+(?:\.\d+)?)/);
+  if (!match) return normalized;
   const amount = Number(match[1].replace(/,/g, ''));
-  if (!Number.isFinite(amount)) return hint;
+  if (!Number.isFinite(amount)) return normalized;
   const converted = formatFromSle(amount, currency, rateToSle, { compact: amount >= 1000 });
-  return hint.replace(match[0], converted.replace(/^(SLE |\$|€)/, '')).replace(/SLE|Le\b|Leone/i, CURRENCY_META[currency].label);
+  return normalized.replace(match[0], converted.replace(/^(SLE |\$|€)/, '')).replace(/SLE|Le\b|Leone/i, CURRENCY_META[currency].label);
 }

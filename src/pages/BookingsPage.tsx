@@ -340,7 +340,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
           <StatCard
             icon={<Wallet className="w-4 h-4" />}
             label="Wallet Balance"
-            value={`Le ${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+            value={`SLE ${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
             color="amber"
             onClick={() => onNavigate('account')}
           />
@@ -677,7 +677,7 @@ function BookingDetailPanel({
             <div className="flex flex-wrap gap-2 pt-2">
               {bookingNeedsPayment(booking) && (
                 <button onClick={() => onPayNow(booking)} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors">
-                  <Wallet className="w-3.5 h-3.5" /> {booking.payment_status === 'deposit_paid' ? `Pay balance Le ${bookingDueAmount(booking).toLocaleString()}` : 'Pay now'}
+                  <Wallet className="w-3.5 h-3.5" /> {booking.payment_status === 'deposit_paid' ? `Pay balance SLE ${bookingDueAmount(booking).toLocaleString()}` : 'Pay now'}
                 </button>
               )}
               {!isCompleted && !isCancelled && (

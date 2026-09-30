@@ -165,7 +165,7 @@ function SummaryStep({
           <div className="space-y-2.5">
             <div className="flex justify-between text-sm">
               <span className="text-slate-500">Service charge</span>
-              <span className="text-slate-800 font-medium">Le {serviceFee.toLocaleString()}</span>
+              <span className="text-slate-800 font-medium">SLE {serviceFee.toLocaleString()}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-slate-500">Platform fee</span>
@@ -174,7 +174,7 @@ function SummaryStep({
             <div className="h-px bg-slate-100 my-2" />
             <div className="flex justify-between items-baseline">
               <span className="text-sm font-bold text-slate-900">Total</span>
-              <span className="text-xl font-bold text-slate-900">Le {total.toLocaleString()}</span>
+              <span className="text-xl font-bold text-slate-900">SLE {total.toLocaleString()}</span>
             </div>
           </div>
         </div>

@@ -117,7 +117,16 @@ body {
   .animate-slideDown,
   .checkout-ring,
   .caution-banner-stripes,
-  .caution-banner-icon {
+  .caution-banner-icon,
+  .animate-aurora,
+  .animate-orb-a,
+  .animate-orb-b,
+  .animate-orb-c,
+  .animate-pulse-glow,
+  .animate-float,
+  .animate-banner-shine,
+  .animate-word-rise,
+  .animate-word-swap {
     animation: none !important;
     transition: none !important;
   }
@@ -1166,6 +1175,59 @@ img, svg {
 }
 .animate-float {
   animation: floatSubtle 3s ease-in-out infinite;
+}
+
+@keyframes auroraShift {
+  0% { background-position: 0% 40%; }
+  50% { background-position: 100% 60%; }
+  100% { background-position: 0% 40%; }
+}
+.animate-aurora {
+  background-size: 240% 240%;
+  animation: auroraShift 16s ease-in-out infinite;
+}
+
+@keyframes orbDriftA {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+  50% { transform: translate(-12%, 10%) scale(1.18); opacity: 0.9; }
+}
+@keyframes orbDriftB {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+  50% { transform: translate(14%, -10%) scale(1.22); opacity: 0.8; }
+}
+@keyframes orbDriftC {
+  0%, 100% { transform: translate(0, 0) scale(1.05); opacity: 0.35; }
+  50% { transform: translate(-8%, -14%) scale(1.12); opacity: 0.7; }
+}
+.animate-orb-a { animation: orbDriftA 12s ease-in-out infinite; }
+.animate-orb-b { animation: orbDriftB 17s ease-in-out infinite; }
+.animate-orb-c { animation: orbDriftC 14s ease-in-out infinite 1.4s; }
+
+@keyframes bannerShine {
+  0% { transform: translateX(-130%) skewX(-16deg); opacity: 0; }
+  18% { opacity: 0.28; }
+  55% { opacity: 0.08; }
+  100% { transform: translateX(170%) skewX(-16deg); opacity: 0; }
+}
+.animate-banner-shine {
+  animation: bannerShine 8s ease-in-out infinite;
+}
+
+@keyframes wordRise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-word-rise {
+  animation: wordRise 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes wordSwap {
+  0% { opacity: 0; transform: translateY(10px); }
+  12%, 82% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+.animate-word-swap {
+  animation: wordSwap 2.8s ease-in-out both;
 }
 
 .badge-glow {

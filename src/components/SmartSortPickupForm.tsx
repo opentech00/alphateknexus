@@ -58,13 +58,13 @@ const WASTE_CLASSES = [
 ];
 
 const BIN_SIZES = [
-  { value: '25', label: '25 L — Le 15' },
-  { value: '50', label: '50 L — Le 25' },
-  { value: '120', label: '120 L — Le 50' },
-  { value: '250', label: '250 L — Le 90' },
-  { value: '350', label: '350 L — Le 120' },
-  { value: '600', label: '600 L — Le 250' },
-  { value: '1000', label: '1,000 L — Le 350' },
+  { value: '25', label: '25 L — SLE 15' },
+  { value: '50', label: '50 L — SLE 25' },
+  { value: '120', label: '120 L — SLE 50' },
+  { value: '250', label: '250 L — SLE 90' },
+  { value: '350', label: '350 L — SLE 120' },
+  { value: '600', label: '600 L — SLE 250' },
+  { value: '1000', label: '1,000 L — SLE 350' },
   { value: '1000+', label: 'Above 1,000 L — Negotiable' },
 ];
 
@@ -198,7 +198,7 @@ export function SmartSortPickupForm({ service, onCancel, onSuccess, rebookData }
   const pickupPrice = (() => {
     const bin = BIN_SIZES.find(b => b.value === binSize);
     if (!bin) return 0;
-    const match = bin.label.match(/Le\s+(\d+)/);
+    const match = bin.label.match(/SLE\s+(\d+)/);
     return match ? parseInt(match[1]) : 0;
   })();
 

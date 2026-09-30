@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Mail, Bell, Smartphone, CheckCircle2, XCircle, MinusCircle, Loader2, RefreshCw, Filter } from 'lucide-react';
+import { Mail, Bell, Smartphone, CheckCircle2, XCircle, MinusCircle, Loader2, RefreshCw, Filter, RotateCcw } from 'lucide-react';
 import { PageHeader } from '../components/ui';
 import { supabase } from '../../lib/supabase';
 
@@ -133,7 +133,7 @@ export function NotificationLogPage() {
     <div>
       <PageHeader
         title="Notification Log"
-        description="Audit trail of all notifications sent across the platform"
+        description="Audit trail of notifications and the background job queue"
         icon={Bell}
       />
 
@@ -271,6 +271,111 @@ export function NotificationLogPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      <JobQueuePanel />
+    </div>
+  );
+}
+
+interface JobRow {
+  id: number;
+  kind: string;
+  status: string;
+  attempts: number;
+  last_error: string | null;
+  available_at: string;
+  created_at: string;
+  payload: Record<string, unknown>;
+}
+
+function JobQueuePanel() {
+  const [jobs, setJobs] = useState<JobRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('job_queue')
+      .select('id, kind, status, attempts, last_error, available_at, created_at, payload')
+      .order('created_at', { ascending: false })
+      .limit(80);
+    if (!error) setJobs((data || []) as JobRow[]);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const retry = async (id: number) => {
+    setBusyId(id);
+    const { error } = await supabase.rpc('requeue_job', { p_id: id });
+    setBusyId(null);
+    if (error) return;
+    await load();
+  };
+
+  const queued = jobs.filter((j) => j.status === 'queued' || j.status === 'processing').length;
+  const dead = jobs.filter((j) => j.status === 'dead' || j.status === 'failed').length;
+
+  return (
+    <div className="mt-10">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Background jobs</h2>
+          <p className="text-sm text-slate-500">{queued} waiting · {dead} dead-lettered. Retry a dead job to run it again.</p>
+        </div>
+        <button type="button" onClick={() => void load()} className="text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100 inline-flex items-center gap-1.5">
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+        </button>
+      </div>
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        {loading && jobs.length === 0 ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
+        ) : jobs.length === 0 ? (
+          <p className="text-sm text-slate-500 text-center py-10">No jobs yet.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50">
+                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-500 uppercase">Kind</th>
+                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-500 uppercase">Status</th>
+                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-500 uppercase">Attempts</th>
+                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-500 uppercase">Error</th>
+                <th className="text-right px-4 py-2 text-xs font-semibold text-slate-500 uppercase"> </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {jobs.map((job) => (
+                <tr key={job.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-2 font-mono text-xs text-slate-700">{job.kind}</td>
+                  <td className="px-4 py-2">
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                      job.status === 'done' ? 'bg-emerald-50 text-emerald-700' :
+                      job.status === 'queued' || job.status === 'processing' ? 'bg-amber-50 text-amber-700' :
+                      'bg-red-50 text-red-700'
+                    }`}>{job.status}</span>
+                  </td>
+                  <td className="px-4 py-2 text-slate-500">{job.attempts}</td>
+                  <td className="px-4 py-2 text-xs text-red-500 max-w-xs truncate" title={job.last_error || ''}>{job.last_error || '—'}</td>
+                  <td className="px-4 py-2 text-right">
+                    {(job.status === 'dead' || job.status === 'failed' || job.status === 'queued') && (
+                      <button
+                        type="button"
+                        onClick={() => void retry(job.id)}
+                        disabled={busyId === job.id}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg px-2 py-1 hover:bg-white disabled:opacity-50"
+                      >
+                        {busyId === job.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+                        Retry
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

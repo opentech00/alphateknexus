@@ -14,11 +14,12 @@ import {
   type VerifyMonimeResult,
 } from '../lib/monime';
 import { toast } from '../components/toast/toast';
+import { parsePaymentReturnLocation, paymentReturnHref } from '../lib/paymentReturn';
 
 export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) => void }) {
-  const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const statusParam = params.get('status') || '';
-  const reference = params.get('ref') || readMonimeReturn()?.reference || '';
+  const link = useMemo(() => parsePaymentReturnLocation(), []);
+  const statusParam = link?.status || '';
+  const reference = link?.ref || readMonimeReturn()?.reference || '';
   const stored = useMemo(() => readMonimeReturn(), []);
 
   const [phase, setPhase] = useState<'loading' | 'success' | 'cancel' | 'pending' | 'failed'>(
@@ -33,7 +34,7 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
 
   const leave = (purpose?: PaymentPurpose) => {
     clearMonimeReturn();
-    window.history.replaceState({}, '', window.location.pathname);
+    window.history.replaceState({}, '', '/');
     onNavigate(destination(purpose));
   };
 
@@ -94,6 +95,11 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
         }
       } catch (err) {
         if (!cancelled) {
+          if (statusParam === 'cancel') {
+            applyFailure({ status: 'cancelled', failure_code: 'cancelled' });
+            toast.info('Payment was cancelled.');
+            return;
+          }
           setPhase('failed');
           setFailCode('unknown');
           setFailReason(err instanceof Error ? err.message : 'Could not confirm payment.');
@@ -135,7 +141,7 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
     try {
       const result = await retryMonimePayment(stored);
       if (!result.redirected) {
-        window.history.replaceState({}, '', `/?page=payment-return&ref=${encodeURIComponent(result.reference)}`);
+        window.history.replaceState({}, '', paymentReturnHref(result.reference));
         window.location.reload();
       }
     } catch (err) {

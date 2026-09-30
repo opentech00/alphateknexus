@@ -3,6 +3,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { initPushNotifications } from '../lib/pushNotifications';
 import { useAdminPermissions } from '../hooks/useAdminPermissions';
+import { jwtAppRole } from '../lib/jwtRole';
 import type { Profile } from '../types';
 
 interface AuthContextValue {
@@ -402,7 +403,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const adminRole = profile?.role === 'admin';
+  const adminRole = profile?.role === 'admin' || jwtAppRole(session) === 'admin';
   const { hasPermission: hasAdminPermission, isSuperAdmin, refresh: refreshAdminPermissions } = useAdminPermissions(profile, adminRole);
 
   return (

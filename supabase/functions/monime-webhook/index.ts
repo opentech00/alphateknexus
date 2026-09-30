@@ -104,6 +104,15 @@ Deno.serve(async (req: Request) => {
         : await supabase.from("monime_webhook_unmatched").insert(row);
       if (inboxErr) console.error("Failed to store unmatched webhook:", inboxErr.message);
 
+      if (parsed.reference) {
+        const { error: jobErr } = await supabase.rpc("enqueue_job", {
+          p_kind: "retry_monime",
+          p_payload: { reference: parsed.reference, event_id: parsed.eventId },
+          p_delay_seconds: 45,
+        });
+        if (jobErr) console.error("Failed to enqueue retry:", jobErr.message);
+      }
+
       if (kind === "completed") {
         const amountLabel = amountMinor ? `SLE ${(amountMinor / 100).toFixed(2)}` : "A payment";
         const { error: notifyErr } = await supabase.rpc("enqueue_admin_notification", {

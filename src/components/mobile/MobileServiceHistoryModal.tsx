@@ -216,7 +216,7 @@ export function MobileServiceHistoryModal({ open, onClose, onRebook }: Props) {
                       {/* Actions row */}
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-sm font-bold text-slate-900">
-                          Le {booking.details?.price_sle?.toLocaleString() || '—'}
+                          SLE {booking.details?.price_sle?.toLocaleString() || '—'}
                         </span>
                         <div className="flex items-center gap-1.5">
                           {booking.status === 'completed' && !hasReview && (
@@ -367,7 +367,7 @@ function BookingDetailModal({
               <DetailRow icon={<MapPin className="w-4 h-4 text-blue-500" />} label="Location" value={booking.location} />
             )}
             {booking.details?.price_sle && (
-              <DetailRow icon={<Receipt className="w-4 h-4 text-blue-500" />} label="Amount" value={`Le ${Number(booking.details.price_sle).toLocaleString()}`} />
+              <DetailRow icon={<Receipt className="w-4 h-4 text-blue-500" />} label="Amount" value={`SLE ${Number(booking.details.price_sle).toLocaleString()}`} />
             )}
           </div>
 

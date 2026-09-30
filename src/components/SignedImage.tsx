@@ -18,9 +18,11 @@ export function SignedImage({ source, alt, className, client }: SignedImageProps
 
   useEffect(() => {
     let active = true;
-    signedDocumentUrl(source, 300, client).then((signed) => {
-      if (active) setUrl(signed);
-    });
+    signedDocumentUrl(source, 3600, client, { width: 960, height: 960, resize: 'contain', quality: 75 })
+      .then((signed) => signed || signedDocumentUrl(source, 300, client))
+      .then((signed) => {
+        if (active) setUrl(signed);
+      });
     return () => {
       active = false;
     };

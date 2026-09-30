@@ -1,9 +1,40 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+function clientReturnFallback(): Plugin {
+  const rewrite = (url?: string) => {
+    if (!url) return url;
+    const qIndex = url.indexOf('?');
+    const path = qIndex === -1 ? url : url.slice(0, qIndex);
+    const query = qIndex === -1 ? '' : url.slice(qIndex);
+    const page = new URLSearchParams(query.startsWith('?') ? query.slice(1) : query).get('page');
+    const isReturn =
+      path === '/payment-return' || path === '/payment-return/' ||
+      path === '/field-paid' || path === '/field-paid/' ||
+      page === 'payment-return' || page === 'field-paid';
+    return isReturn ? `/index.html${query}` : url;
+  };
+  return {
+    name: 'client-return-fallback',
+    configureServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        req.url = rewrite(req.url);
+        next();
+      });
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        req.url = rewrite(req.url);
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
+    clientReturnFallback(),
     react(),
     VitePWA({
       registerType: 'prompt',

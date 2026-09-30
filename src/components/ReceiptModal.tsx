@@ -6,6 +6,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { Portal } from '../lib/portal';
 import { buildReceiptHtmlFromRow, openPrintableHtml } from '../lib/companyDocs';
+import { toSleCurrencyText } from '../lib/money';
 
 interface Receipt {
   id: string;
@@ -39,7 +40,7 @@ const PURPOSE_LABELS: Record<string, string> = {
 };
 
 function formatMoney(amount: number, currency: string) {
-  return `${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${toSleCurrencyText(currency) || 'SLE'} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatDate(iso: string) {

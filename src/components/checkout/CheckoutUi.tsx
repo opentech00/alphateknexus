@@ -9,7 +9,7 @@ export const MONIME_CHANNELS = [
 ] as const;
 
 export function le(amount: number) {
-  return `Le ${amount.toLocaleString()}`;
+  return `SLE ${amount.toLocaleString()}`;
 }
 
 export function PayOption({

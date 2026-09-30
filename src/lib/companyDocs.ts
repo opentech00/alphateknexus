@@ -164,7 +164,7 @@ export function formatDocDate(value: string | Date | null | undefined): string {
 export function formatLe(amount: number, opts?: { parens?: boolean; minus?: boolean }): string {
   const n = Number(amount) || 0;
   const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const body = n < 0 || opts?.minus ? `-Le ${abs}` : `Le ${abs}`;
+  const body = n < 0 || opts?.minus ? `-SLE ${abs}` : `SLE ${abs}`;
   return opts?.parens ? `(${body})` : body;
 }
 
@@ -583,7 +583,7 @@ export function buildReceiptHtmlFromRow(
     receiptNumber: r.receipt_number,
     reference: r.reference,
     amountSle: r.amount_sle,
-    currency: r.currency,
+    currency: /^(KES|KSH|LE)$/i.test((r.currency || '').trim()) ? 'SLE' : (r.currency || 'SLE'),
     purpose: r.purpose,
     description: r.description,
     paymentMethod: r.payment_method,

@@ -16,6 +16,7 @@ import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { CurrencySwitcher } from '../components/CurrencySwitcher';
 import { ExploreServicesCarousel } from '../components/ExploreServicesCarousel';
+import { AnimatedMeshBackdrop } from '../components/AnimatedMeshBackdrop';
 import { CampaignPromoBanner } from '../components/CampaignPromoBanner';
 import { DueInvoicesBanner } from '../components/portal/DueInvoicesBanner';
 import { fallbackServiceImage, useServiceBrandingImages } from '../lib/media';
@@ -47,6 +48,75 @@ const serviceLinks: {
   { slug: 'cleaning-janitorial', label: 'Cleaning & Janitorial', mode: 'hire' },
   { slug: 'procurement',         label: 'Procurement',           mode: 'quote' },
 ];
+
+const heroServiceIcons: Record<string, typeof Ship> = {
+  'clearing-forwarding': Ship,
+  'waste-management': Trash2,
+  'private-security': Shield,
+  'cleaning-janitorial': Sparkles,
+  procurement: ShoppingCart,
+};
+
+function HeroServiceWords({
+  onPick,
+}: {
+  onPick: (slug: string, mode?: 'hire' | 'quote' | 'pickup' | 'subscribe') => void;
+}) {
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setActive((i) => (i + 1) % serviceLinks.length);
+    }, 2800);
+    return () => window.clearInterval(id);
+  }, []);
+
+  return (
+    <div className="hidden md:flex flex-shrink-0 w-[17.5rem] flex-col justify-center">
+      <div className="relative rounded-2xl border border-white/15 bg-white/5 backdrop-blur-md px-4 py-4 shadow-xl overflow-hidden">
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-emerald-400/10 to-transparent" />
+        <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-400/90 mb-3">
+          Our services
+        </p>
+        <ul className="relative space-y-0.5">
+          {serviceLinks.map((s, i) => {
+            const Icon = heroServiceIcons[s.slug] ?? Briefcase;
+            const on = i === active;
+            return (
+              <li
+                key={s.slug}
+                className="animate-word-rise"
+                style={{ animationDelay: `${120 + i * 90}ms` }}
+              >
+                <button
+                  type="button"
+                  onClick={() => onPick(s.slug, s.mode)}
+                  className={`relative w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-all duration-500 ${
+                    on ? 'text-white' : 'text-white/40 hover:text-white/75'
+                  }`}
+                >
+                  {on && (
+                    <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-500/30 to-teal-400/10 border border-emerald-400/30 shadow-[0_0_24px_-8px_rgba(52,211,153,0.7)]" />
+                  )}
+                  <Icon className={`relative w-3.5 h-3.5 flex-shrink-0 ${on ? 'text-emerald-300' : 'text-white/35'}`} />
+                  <span
+                    className={`relative text-[13px] font-semibold tracking-tight leading-tight ${
+                      on
+                        ? 'text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-200'
+                        : ''
+                    }`}
+                  >
+                    {s.label}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
 
 function statusMeta(status: string) {
   switch (status) {
@@ -318,13 +388,12 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
       </div>
 
       <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 transition-all duration-700 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        <div className="relative bg-gradient-to-br from-slate-900 via-slate-850 to-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-slate-800/80">
-          <div className="absolute -top-24 -right-20 w-80 h-80 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none animate-pulse-glow" />
-          <div className="absolute -bottom-28 -left-16 w-72 h-72 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute top-1/2 left-1/3 w-60 h-60 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
-          
-          <div className="relative p-8 sm:p-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-            <div>
+        <div className="relative bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-slate-800/80">
+          <AnimatedMeshBackdrop tone="welcome" />
+          <div className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/15 to-transparent animate-banner-shine" />
+
+          <div className="relative p-8 sm:p-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="min-w-0">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/15 border border-emerald-500/30 rounded-full mb-3">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                 <span className="text-xs text-emerald-400 font-bold uppercase tracking-widest">Client Portal Overview</span>
@@ -353,9 +422,7 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
                 </button>
               </div>
             </div>
-            <div className="hidden sm:flex flex-shrink-0 items-center justify-center w-36 h-36 bg-gradient-to-br from-emerald-500/20 to-teal-500/10 rounded-3xl border border-white/15 backdrop-blur-md shadow-xl animate-float">
-              <Sparkles className="w-16 h-16 text-emerald-400" />
-            </div>
+            <HeroServiceWords onPick={handleServiceClick} />
           </div>
         </div>
       </section>
@@ -397,6 +464,7 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
 
       <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 transition-all duration-700 delay-150 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'}`}>
         <ExploreServicesCarousel
+          animatedBackdrop
           contentClassName="p-6 sm:p-8 min-h-[280px]"
           slides={serviceLinks.map((s) => ({
             slug: s.slug,

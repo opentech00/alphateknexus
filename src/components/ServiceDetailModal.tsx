@@ -7,6 +7,7 @@ import {
   ShoppingCart, Repeat2, PackageCheck, Phone, Award, Users,
   Route, Zap, Leaf, Lock,
 } from 'lucide-react';
+import { toSleCurrencyText } from '../lib/money';
 
 const CF_HERO = 'https://images.pexels.com/photos/6169033/pexels-photo-6169033.jpeg?auto=compress&cs=tinysrgb&w=900';
 const CF_HERO2 = 'https://images.pexels.com/photos/906494/pexels-photo-906494.jpeg?auto=compress&cs=tinysrgb&w=900';
@@ -55,7 +56,7 @@ interface ServiceDetail {
 const serviceDetails: Record<string, ServiceDetail> = {
   'clearing-forwarding': {
     heroImages: [CF_HERO, CF_HERO2],
-    price: 'From Le 150,000',
+    price: 'From SLE 150,000',
     duration: '2–5 business days',
     trusted: 'Licensed Brokers',
     overview:
@@ -89,7 +90,7 @@ const serviceDetails: Record<string, ServiceDetail> = {
   },
   'waste-management': {
     heroImages: [SS_HERO, SS_HERO2],
-    price: 'From Le 25,000/month',
+    price: 'From SLE 25,000/month',
     duration: 'Ongoing service',
     trusted: 'Licensed & Certified',
     overview:
@@ -124,7 +125,7 @@ const serviceDetails: Record<string, ServiceDetail> = {
   },
   'procurement': {
     heroImages: [PR_HERO, PR_HERO2],
-    price: 'From Le 50,000',
+    price: 'From SLE 50,000',
     duration: 'Project-based',
     trusted: 'Vetted Suppliers',
     overview:
@@ -158,7 +159,7 @@ const serviceDetails: Record<string, ServiceDetail> = {
   },
   'private-security': {
     heroImages: [PS_HERO, PS_HERO2],
-    price: 'From Le 200,000/month',
+    price: 'From SLE 200,000/month',
     duration: 'Contract-based',
     trusted: 'Licensed & Insured',
     overview:
@@ -192,7 +193,7 @@ const serviceDetails: Record<string, ServiceDetail> = {
   },
   'cleaning-janitorial': {
     heroImages: [CL_HERO, CL_HERO2],
-    price: 'From Le 30,000/session',
+    price: 'From SLE 30,000/session',
     duration: 'Per session / Monthly',
     trusted: 'Trained Crews',
     overview:
@@ -490,7 +491,7 @@ export function ServiceDetailModal({ service, rating, onClose, onHireNow, onRequ
               {/* Stat pills */}
               <div className="grid grid-cols-3 gap-2.5">
                 {[
-                  { icon: Wallet, label: 'PRICE', value: detail.price },
+                  { icon: Wallet, label: 'PRICE', value: toSleCurrencyText(detail.price) },
                   { icon: Clock, label: 'DURATION', value: detail.duration },
                   { icon: ShieldCheck, label: 'TRUSTED', value: detail.trusted },
                 ].map(({ icon: Icon, label, value }) => (

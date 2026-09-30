@@ -760,7 +760,7 @@ export function DocumentsManagementPage() {
                         <div className="flex items-center gap-3 mt-1 text-xs text-slate-500 flex-wrap">
                           <span className="flex items-center gap-1"><User className="w-3 h-3" /> {verif.bookings?.contact_name || 'Unknown'}</span>
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg ${div.bg} ${div.color}`}><DivIcon className="w-3 h-3" /> {verif.bookings?.services?.name || '—'}</span>
-                          {verif.amount_sle != null && <span className="font-semibold text-slate-700">Le {Number(verif.amount_sle).toLocaleString()}</span>}
+                          {verif.amount_sle != null && <span className="font-semibold text-slate-700">SLE {Number(verif.amount_sle).toLocaleString()}</span>}
                           <span>{new Date(verif.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                         </div>
                         {verif.status === 'rejected' && verif.rejection_reason && (

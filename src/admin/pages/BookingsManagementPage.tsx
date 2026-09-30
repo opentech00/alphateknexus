@@ -160,7 +160,7 @@ function ShipmentDetails({ details }: { details: BookingDetails }) {
           <DetailRow icon={Clock} label="Frequency" value={details.shipment_frequency} />
           <DetailRow icon={Package} label="Monthly Volume" value={details.monthly_volume} />
           <DetailRow icon={CreditCard} label="Payment" value={details.payment_method} />
-          <DetailRow icon={CreditCard} label="Agreed Fee" value={details.agreed_service_fee ? `Le ${details.agreed_service_fee}` : null} />
+          <DetailRow icon={CreditCard} label="Agreed Fee" value={details.agreed_service_fee ? `SLE ${details.agreed_service_fee}` : null} />
           <DetailRow icon={AlertCircle} label="Website" value={details.website} />
           {details.special_terms && (
             <div className="col-span-full">
@@ -246,7 +246,7 @@ function SecurityDetails({ details }: { details: BookingDetails }) {
           <DetailRow icon={AlertCircle} label="Risk Level" value={details.risk_level} />
           <DetailRow icon={MapPin} label="Site Address" value={details.site_address ? `${details.site_address}, ${details.city || ''}` : null} />
           {details.total_sle != null && (
-            <DetailRow icon={CreditCard} label="Total" value={`Le ${details.total_sle.toLocaleString()}`} />
+            <DetailRow icon={CreditCard} label="Total" value={`SLE ${details.total_sle.toLocaleString()}`} />
           )}
         </div>
       )}

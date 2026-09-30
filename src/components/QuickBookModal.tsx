@@ -12,6 +12,7 @@ import {
   applyFieldErrors, collectErrors,
   validateAddress, validateDate, validateName, validatePhone,
 } from '../lib/serviceFormValidation';
+import { toSleCurrencyText } from '../lib/money';
 
 interface Service {
   id: string;
@@ -246,7 +247,7 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-slate-900 text-sm">{svc.name}</p>
-                          <p className="text-xs text-slate-400">{svc.price_range}</p>
+                          <p className="text-xs text-slate-400">{toSleCurrencyText(svc.price_range)}</p>
                         </div>
                         <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wide">Book again</span>
                       </button>
@@ -301,7 +302,7 @@ export function QuickBookModal({ onClose, onBook }: QuickBookModalProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-slate-900 text-sm">{selectedService?.name}</p>
-                  <p className="text-xs text-slate-500">{selectedService?.price_range}</p>
+                  <p className="text-xs text-slate-500">{toSleCurrencyText(selectedService?.price_range)}</p>
                 </div>
                 <button
                   onClick={() => setStep('service')}

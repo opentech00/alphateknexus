@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   LayoutDashboard, Briefcase, CalendarDays, UserCircle, FileText, Receipt,
-  LogOut, Menu, X, Shield, ChevronDown,
+  LogOut, Menu, X, Shield, ChevronDown, Landmark,
   Sun, Moon, Monitor, Circle,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,9 +22,18 @@ const navItems = [
   { label: 'Home',     page: 'home',     icon: LayoutDashboard },
   { label: 'Services', page: 'services', icon: Briefcase },
   { label: 'Bookings', page: 'bookings', icon: CalendarDays },
-  { label: 'Quotes',   page: 'quotes',   icon: FileText },
-  { label: 'Billing',  page: 'billing',  icon: Receipt },
   { label: 'Account',  page: 'account',  icon: UserCircle },
+];
+
+const financeItems = [
+  { label: 'Quotes', page: 'quotes', icon: FileText, hint: 'Price offers to review' },
+  { label: 'Billing', page: 'billing', icon: Receipt, hint: 'Invoices and payments' },
+] as const;
+
+const mobileNavItems = [
+  ...navItems.slice(0, 3),
+  ...financeItems.map(({ label, page, icon }) => ({ label, page, icon })),
+  navItems[3],
 ];
 
 export function TopNav({ currentPage, onNavigate, devAdmin, onToggleDevAdmin }: TopNavProps) {
@@ -37,8 +46,10 @@ export function TopNav({ currentPage, onNavigate, devAdmin, onToggleDevAdmin }: 
   const [scrolled, setScrolled] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
+  const [financeOpen, setFinanceOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const themeRef = useRef<HTMLDivElement>(null);
+  const financeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -55,6 +66,9 @@ export function TopNav({ currentPage, onNavigate, devAdmin, onToggleDevAdmin }: 
       if (themeRef.current && !themeRef.current.contains(e.target as Node)) {
         setThemeOpen(false);
       }
+      if (financeRef.current && !financeRef.current.contains(e.target as Node)) {
+        setFinanceOpen(false);
+      }
     };
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
@@ -69,7 +83,10 @@ export function TopNav({ currentPage, onNavigate, devAdmin, onToggleDevAdmin }: 
     onNavigate(page);
     setMobileOpen(false);
     setProfileOpen(false);
+    setFinanceOpen(false);
   };
+
+  const financeActive = currentPage === 'quotes' || currentPage === 'billing';
 
   return (
     <>
@@ -105,7 +122,86 @@ export function TopNav({ currentPage, onNavigate, devAdmin, onToggleDevAdmin }: 
 
             {/* Desktop / Tablet Nav — visible at md and up */}
             <nav className="hidden md:flex items-center gap-1 bg-slate-100/60 dark:bg-slate-800/50 p-1 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
-              {navItems.map((item) => {
+              {navItems.slice(0, 3).map((item) => {
+                const Icon = item.icon;
+                const active = currentPage === item.page;
+                return (
+                  <button
+                    key={item.page}
+                    onClick={() => handleNav(item.page)}
+                    className={`relative flex items-center gap-1.5 px-2.5 lg:px-3.5 py-1.5 rounded-lg text-xs lg:text-sm font-medium transition-all duration-200 group ${
+                      active
+                        ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-sm border border-slate-200/50 dark:border-slate-800 font-semibold'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/60 dark:hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 transition-colors ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
+                    {item.label}
+                    {active && (
+                      <span className="absolute -bottom-1 left-3 right-3 h-0.5 bg-emerald-500 dark:bg-emerald-400 rounded-full shadow-sm shadow-emerald-500/50" />
+                    )}
+                  </button>
+                );
+              })}
+
+              <div ref={financeRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => { setFinanceOpen((open) => !open); setProfileOpen(false); setThemeOpen(false); }}
+                  aria-expanded={financeOpen}
+                  aria-haspopup="menu"
+                  className={`relative flex items-center gap-1.5 px-2.5 lg:px-3.5 py-1.5 rounded-lg text-xs lg:text-sm font-medium transition-all duration-200 group ${
+                    financeActive || financeOpen
+                      ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-sm border border-slate-200/50 dark:border-slate-800 font-semibold'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/60 dark:hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Landmark className={`w-4 h-4 transition-colors ${financeActive || financeOpen ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
+                  Finance
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${financeOpen ? 'rotate-180' : ''}`} />
+                  {financeActive && (
+                    <span className="absolute -bottom-1 left-3 right-3 h-0.5 bg-emerald-500 dark:bg-emerald-400 rounded-full shadow-sm shadow-emerald-500/50" />
+                  )}
+                </button>
+                <div
+                  role="menu"
+                  className={`absolute left-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50 transition-all duration-200 origin-top ${
+                    financeOpen
+                      ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
+                      : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
+                  }`}
+                >
+                  {financeItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = currentPage === item.page;
+                    return (
+                      <button
+                        key={item.page}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => handleNav(item.page)}
+                        className={`w-full flex items-start gap-3 px-3.5 py-3 text-left transition-colors ${
+                          active
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300'
+                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/80'
+                        }`}
+                      >
+                        <span className={`mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                          active ? 'bg-emerald-100 dark:bg-emerald-900/50' : 'bg-slate-100 dark:bg-slate-700'
+                        }`}>
+                          <Icon className={`w-4 h-4 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-300'}`} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold">{item.label}</span>
+                          <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">{item.hint}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {navItems.slice(3).map((item) => {
                 const Icon = item.icon;
                 const active = currentPage === item.page;
                 return (
@@ -262,7 +358,7 @@ export function TopNav({ currentPage, onNavigate, devAdmin, onToggleDevAdmin }: 
           }`}
         >
           <nav className="p-4 space-y-1">
-            {navItems.map((item, i) => {
+            {mobileNavItems.map((item, i) => {
               const Icon = item.icon;
               const active = currentPage === item.page;
               return (
