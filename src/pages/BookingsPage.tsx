@@ -16,6 +16,8 @@ import { UnifiedCalendar } from '../components/UnifiedCalendar';
 import { BookingTrackingPage } from '../components/BookingTrackingPage';
 import { CancelDeleteBookingModal } from '../components/CancelDeleteBookingModal';
 import { BookingPayNowModal } from '../components/BookingPayNowModal';
+import { FailedPaymentNote } from '../components/FailedPaymentNote';
+import { loadLatestFailedMonime, failureCopy, type FailedPaymentAttempt } from '../lib/paymentAttempts';
 import { bookingDepositAmount, bookingDueAmount, bookingNeedsPayment } from '../lib/bookingPay';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useServiceBrandingImages, fallbackServiceImage } from '../lib/media';
@@ -103,6 +105,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   const [trackingBookingId, setTrackingBookingId] = useState<string | null>(null);
   const [cancelDeleteModal, setCancelDeleteModal] = useState<{ bookingId: string; status: string; serviceName: string } | null>(null);
   const [payBooking, setPayBooking] = useState<Booking | null>(null);
+  const [paymentFailures, setPaymentFailures] = useState<Map<string, FailedPaymentAttempt>>(new Map());
   const [animateIn, setAnimateIn] = useState(false);
   const [fetchError, setFetchError] = useState('');
 
@@ -117,6 +120,8 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
     setLoadProgress(p => Math.max(p, 40));
     if (error) { setFetchError('Failed to load bookings. Please try again.'); setLoading(false); return; }
     setBookings((data as unknown as Booking[]) || []);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) setPaymentFailures(await loadLatestFailedMonime(user.id, 'booking'));
     setLoadProgress(p => Math.max(p, 70));
     setFetchError('');
     setTimeout(() => setAnimateIn(true), 50);
@@ -495,6 +500,9 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
                                 </span>
                               )}
                             </div>
+                            {paymentFailures.get(booking.id) && (
+                              <p className="mt-1 text-[10px] text-red-600 truncate">{failureCopy(paymentFailures.get(booking.id)!).title}</p>
+                            )}
                             {hasReview && (
                               <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-emerald-600">
                                 <Star className="w-2.5 h-2.5 fill-emerald-500" /> Reviewed
@@ -523,6 +531,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
                   hasReview={reviewedBookings.has(selectedBooking.id)}
                   detailTab={detailTab}
                   setDetailTab={setDetailTab}
+                  lastFailure={paymentFailures.get(selectedBooking.id)}
                 />
               </div>
             )}
@@ -567,7 +576,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
 
 // ── Booking Detail Panel (right side of split layout) ──
 function BookingDetailPanel({
-  booking, onBack, onRebook, onCancelDelete, onReview, onTrack, onPayNow, hasReview, detailTab, setDetailTab,
+  booking, onBack, onRebook, onCancelDelete, onReview, onTrack, onPayNow, hasReview, detailTab, setDetailTab, lastFailure,
 }: {
   booking: Booking;
   onBack: () => void;
@@ -579,6 +588,7 @@ function BookingDetailPanel({
   hasReview: boolean;
   detailTab: 'overview' | 'tracker' | 'messages' | 'documents';
   setDetailTab: (t: 'overview' | 'tracker' | 'messages' | 'documents') => void;
+  lastFailure?: FailedPaymentAttempt;
 }) {
   const sc = statusConfig[booking.status] || statusConfig.pending;
   const isCompleted = booking.status === 'completed';
@@ -674,6 +684,9 @@ function BookingDetailPanel({
             )}
 
             {/* Action buttons */}
+            {lastFailure && bookingNeedsPayment(booking) && (
+              <FailedPaymentNote attempt={lastFailure} />
+            )}
             <div className="flex flex-wrap gap-2 pt-2">
               {bookingNeedsPayment(booking) && (
                 <button onClick={() => onPayNow(booking)} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors">

@@ -4,7 +4,7 @@ import {
   Plus, TrendingUp, Filter, CheckCircle2, CreditCard,
   RefreshCw, Smartphone, Landmark, Receipt as ReceiptIcon,
   Mail, Clock, Download, Send, Banknote,
-  BarChart3, FileText, Shield, LayoutDashboard, AlertTriangle,
+  BarChart3, FileText, Shield, LayoutDashboard, AlertTriangle, Scale,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard } from '../components/ui';
@@ -18,10 +18,13 @@ import { ReportsTab } from './finance/ReportsTab';
 import { ApprovalsTab } from './finance/ApprovalsTab';
 import { CashPaymentsTab } from './finance/CashPaymentsTab';
 import { MonimeUnmatchedInbox } from './finance/MonimeUnmatchedInbox';
+import { FinanceReconTab } from './finance/FinanceReconTab';
+import { FinanceOpsPlaybook } from './finance/FinanceOpsPlaybook';
 import { downloadCsv } from './finance/financeCsv';
+import { issueWalletCredit } from '../../lib/financeCredit';
 import { buildReceiptHtmlFromRow, openPrintableHtml } from '../../lib/companyDocs';
 
-type Tab = 'overview' | 'wallet' | 'mobile-money' | 'debit-card' | 'bank-receipt' | 'analytics' | 'invoices' | 'fx-rates' | 'payouts' | 'approvals' | 'cash-payments' | 'permissions' | 'reports';
+type Tab = 'overview' | 'wallet' | 'mobile-money' | 'debit-card' | 'bank-receipt' | 'analytics' | 'invoices' | 'fx-rates' | 'payouts' | 'approvals' | 'cash-payments' | 'permissions' | 'reports' | 'recon';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null };
@@ -53,6 +56,7 @@ export function FinancePage({ onNavigate }: { onNavigate?: (page: string) => voi
     { id: 'cash-payments', label: 'Cash Payments', icon: Banknote },
     { id: 'permissions', label: 'Permissions', icon: Shield },
     { id: 'reports', label: 'Reports', icon: FileText },
+    { id: 'recon', label: 'Recon', icon: Scale },
   ];
 
   return (
@@ -95,6 +99,7 @@ export function FinancePage({ onNavigate }: { onNavigate?: (page: string) => voi
         {tab === 'cash-payments' && <CashPaymentsTab />}
         {tab === 'permissions' && <PermissionsTab />}
         {tab === 'reports' && <ReportsTab />}
+        {tab === 'recon' && <FinanceReconTab />}
       </div>
     </div>
   );
@@ -212,9 +217,28 @@ function WalletTab() {
     const amt = parseFloat(addAmount);
     if (!addUserId) { setAddError('Select a user'); return; }
     if (!amt || amt <= 0) { setAddError('Enter a valid amount'); return; }
+    if ((addType === 'refund' || addType === 'adjustment') && addDescription.trim().length < 12) {
+      setAddError('Refunds and adjustments need a written reason (at least 12 characters). This is the audited credit path — Monime has no refunds API.');
+      return;
+    }
     setAddSubmitting(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setAddError('You must be signed in'); setAddSubmitting(false); return; }
+    if (addType === 'refund' || addType === 'adjustment') {
+      const result = await issueWalletCredit({
+        userId: addUserId,
+        amount: amt,
+        kind: addType,
+        reason: addDescription.trim(),
+        idempotencyKey: addReference.trim() || null,
+      });
+      setAddSubmitting(false);
+      if (!result.success) { setAddError(result.error); return; }
+      setShowAddModal(false);
+      setAddUserId(''); setAddAmount(''); setAddReference(''); setAddDescription(''); setUserSearch(''); setUserResults([]);
+      loadTransactions();
+      return;
+    }
     const { data: canApprove } = await supabase.rpc('has_finance_permission', { perm: 'can_approve_withdrawals' });
     const { data: isSuper } = await supabase.rpc('is_super_admin');
     const sign = (addType === 'payment') ? -Math.abs(amt) : amt;
@@ -549,6 +573,7 @@ function MobileMoneyTab() {
 
   return (
     <>
+      <FinanceOpsPlaybook variant="unmatched" />
       {loadError && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
           Failed to load Monime payments: {loadError}

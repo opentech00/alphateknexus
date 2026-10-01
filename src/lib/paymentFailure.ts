@@ -17,32 +17,32 @@ export interface PaymentFailureCopy {
 const COPY: Record<PaymentFailureCode, Omit<PaymentFailureCopy, 'code' | 'body'>> = {
   insufficient_funds: {
     title: 'Insufficient funds',
-    hint: 'Add money to Orange Money, AfriMoney, or your card, then retry. Nothing was credited.',
+    hint: 'Pay again starts a new checkout. The failed attempt stays failed and is not credited.',
     tone: 'red',
   },
   declined: {
     title: 'Payment declined',
-    hint: 'Try another mobile money account or card, or pay with wallet or cash.',
+    hint: 'Pay again with another mobile money account or card, or use wallet or cash. Nothing was credited.',
     tone: 'red',
   },
   expired: {
     title: 'Checkout expired',
-    hint: 'Start a new checkout. The previous session can no longer be used.',
+    hint: 'Pay again to start a new checkout. The previous session can no longer be used.',
     tone: 'amber',
   },
   cancelled: {
     title: 'Payment cancelled',
-    hint: 'Nothing was charged. You can start a new checkout whenever you are ready.',
+    hint: 'Nothing was charged. Pay again whenever you are ready — that creates a new checkout, not a second charge on this one.',
     tone: 'amber',
   },
   timeout: {
     title: 'Still waiting on the bank',
-    hint: 'If you already paid, tap Check again. If the PIN failed or you stopped, retry a new payment.',
+    hint: 'If you already paid, tap Check again. Pay again starts a new checkout and does not credit this attempt.',
     tone: 'amber',
   },
   unknown: {
     title: 'Payment not completed',
-    hint: 'You can retry now or cancel and choose another method. Nothing was credited until the bank confirms.',
+    hint: 'Pay again or choose another method. Nothing is credited until the bank confirms.',
     tone: 'red',
   },
 };

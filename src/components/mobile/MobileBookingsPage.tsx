@@ -13,6 +13,8 @@ import { CrewTrackMap } from '../map/CrewTrackMap';
 import { SubscriptionLifecycle } from '../SubscriptionLifecycle';
 import { CancelDeleteBookingModal } from '../CancelDeleteBookingModal';
 import { BookingPayNowModal } from '../BookingPayNowModal';
+import { FailedPaymentNote } from '../FailedPaymentNote';
+import { loadLatestFailedMonime, type FailedPaymentAttempt } from '../../lib/paymentAttempts';
 import { bookingDepositAmount, bookingDueAmount, bookingNeedsPayment } from '../../lib/bookingPay';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { useHaptics } from '../../hooks/useHaptics';
@@ -93,6 +95,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
   const [fetchError, setFetchError] = useState('');
   const [cancelDeleteModal, setCancelDeleteModal] = useState<{ bookingId: string; status: string; serviceName: string } | null>(null);
   const [payBooking, setPayBooking] = useState<Booking | null>(null);
+  const [paymentFailures, setPaymentFailures] = useState<Map<string, FailedPaymentAttempt>>(new Map());
 
   const fetchBookings = useCallback(async () => {
     const { data, error } = await supabase
@@ -107,6 +110,8 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
       return;
     }
     setBookings((data as unknown as Booking[]) || []);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) setPaymentFailures(await loadLatestFailedMonime(user.id, 'booking'));
     setLoading(false);
   }, []);
 
@@ -514,6 +519,11 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                         </div>
 
                         <div className="px-4 pb-3 flex flex-wrap justify-end gap-2">
+                          {bookingNeedsPayment(booking) && paymentFailures.get(booking.id) && (
+                            <div className="w-full mb-1">
+                              <FailedPaymentNote attempt={paymentFailures.get(booking.id)} />
+                            </div>
+                          )}
                           {bookingNeedsPayment(booking) && (
                             <button
                               onClick={() => setPayBooking(booking)}

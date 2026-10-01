@@ -1,12 +1,15 @@
 import { useState, FormEvent } from 'react';
 import { LogIn, Eye, EyeOff, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAppLogo } from '../../lib/media';
 
 export function AdminLoginPage() {
   const { signIn } = useAuth();
+  const { url: logoUrl } = useAppLogo();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -18,7 +21,7 @@ export function AdminLoginPage() {
       return;
     }
     setLoading(true);
-    const { error: signInError } = await signIn(email.trim(), password);
+    const { error: signInError } = await signIn(email.trim(), password, rememberMe);
     setLoading(false);
     if (signInError) {
       setError(
@@ -37,8 +40,12 @@ export function AdminLoginPage() {
 
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-emerald-500 rounded-2xl mb-4 shadow-lg shadow-emerald-500/30">
-            <ShieldCheck className="w-7 h-7 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 bg-white shadow-lg shadow-emerald-500/20 overflow-hidden">
+            <img src={logoUrl} alt="Alphatek Nexus" className="w-full h-full object-contain p-1" />
+          </div>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] font-semibold uppercase tracking-wider mb-3">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            Admin portal
           </div>
           <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
           <p className="text-slate-400 text-sm mt-1">Sign in to access the control panel</p>
@@ -88,6 +95,25 @@ export function AdminLoginPage() {
                 </button>
               </div>
             </div>
+
+            <label className="flex items-center gap-2 cursor-pointer select-none group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-4 h-4 border-2 border-slate-300 rounded transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500 group-hover:border-slate-400" />
+                <svg
+                  className="absolute inset-0 w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none"
+                  viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                >
+                  <path d="M4 8l3 3 5-5" />
+                </svg>
+              </div>
+              <span className="text-sm text-slate-600 group-hover:text-slate-800 transition-colors">Stay signed in on this device</span>
+            </label>
 
             <button
               type="submit"

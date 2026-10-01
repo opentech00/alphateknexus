@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { downloadCsv } from './financeCsv';
+import { FinanceOpsPlaybook } from './FinanceOpsPlaybook';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null };
@@ -301,6 +302,7 @@ export function PayoutsTab() {
           You can view payouts but cannot approve or send them.
         </div>
       )}
+      <FinanceOpsPlaybook variant="payouts" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatBox label="PENDING" value={String(stats.pending)} icon={Clock} color="text-amber-500" accent="bg-amber-50" />

@@ -1,16 +1,19 @@
-import { useState, FormEvent, useEffect, useRef } from 'react';
-import { Shield, Loader2, AlertCircle, KeyRound, ArrowLeft } from 'lucide-react';
+import { useState, FormEvent, useEffect, useRef, type ReactNode } from 'react';
+import { Shield, Loader2, AlertCircle, KeyRound, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { AuthLayout } from '../components/auth/AuthLayout';
+import { useAppLogo } from '../lib/media';
 
 interface TwoFactorPageProps {
   email: string;
   password: string;
   onBack: () => void;
   onSuccess: () => void;
+  variant?: 'client' | 'admin';
 }
 
-export function TwoFactorPage({ email, password, onBack, onSuccess }: TwoFactorPageProps) {
+export function TwoFactorPage({ email, password, onBack, onSuccess, variant = 'client' }: TwoFactorPageProps) {
+  const { url: logoUrl } = useAppLogo();
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -77,18 +80,22 @@ export function TwoFactorPage({ email, password, onBack, onSuccess }: TwoFactorP
         return;
       }
 
+      try {
+        await supabase.functions.invoke('manage-auth-events', {
+          body: { action: 'record-success' },
+        });
+      } catch { /* non-critical */ }
+
       onSuccess();
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Something went wrong';
+      setError(message);
       setLoading(false);
     }
   };
 
-  return (
-    <AuthLayout
-      heroTitle="Two-Factor Authentication"
-      heroDesc="An extra layer of security for your account. Enter the 6-digit code from your authenticator app to continue."
-    >
+  const form = (
+    <>
       <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors mb-5">
         <ArrowLeft className="w-4 h-4" />
         Back to login
@@ -134,6 +141,47 @@ export function TwoFactorPage({ email, password, onBack, onSuccess }: TwoFactorP
       <p className="text-center text-xs text-slate-400 mt-5">
         Lost your device? Use one of your backup codes instead.
       </p>
+    </>
+  );
+
+  if (variant === 'admin') {
+    return (
+      <AdminAuthShell logoUrl={logoUrl}>
+        {form}
+      </AdminAuthShell>
+    );
+  }
+
+  return (
+    <AuthLayout
+      heroTitle="Two-Factor Authentication"
+      heroDesc="An extra layer of security for your account. Enter the 6-digit code from your authenticator app to continue."
+    >
+      {form}
     </AuthLayout>
+  );
+}
+
+function AdminAuthShell({ logoUrl, children }: { logoUrl: string; children: ReactNode }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4">
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900/30" />
+      </div>
+      <div className="relative z-10 w-full max-w-md">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 bg-white shadow-lg shadow-emerald-500/20 overflow-hidden">
+            <img src={logoUrl} alt="Alphatek Nexus" className="w-full h-full object-contain p-1" />
+          </div>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] font-semibold uppercase tracking-wider">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            Admin portal
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8">
+          {children}
+        </div>
+      </div>
+    </div>
   );
 }

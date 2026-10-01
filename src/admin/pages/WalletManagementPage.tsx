@@ -9,6 +9,7 @@ import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard } from '../components/ui';
 import { ReceiptModal } from '../../components/ReceiptModal';
 import { DisputesTab } from '../components/DisputesTab';
+import { issueWalletCredit } from '../../lib/financeCredit';
 
 interface Transaction {
   id: string;
@@ -141,7 +142,26 @@ interface MonimePayment {
     const amt = parseFloat(addAmount);
     if (!addUserId) { setAddError('Select a user'); return; }
     if (!amt || amt <= 0) { setAddError('Enter a valid amount'); return; }
+    if ((addType === 'refund' || addType === 'adjustment') && addDescription.trim().length < 12) {
+      setAddError('Refunds and adjustments need a written reason (at least 12 characters). This is the audited credit path — Monime has no refunds API.');
+      return;
+    }
     setAddSubmitting(true);
+    if (addType === 'refund' || addType === 'adjustment') {
+      const result = await issueWalletCredit({
+        userId: addUserId,
+        amount: amt,
+        kind: addType,
+        reason: addDescription.trim(),
+        idempotencyKey: addReference.trim() || null,
+      });
+      setAddSubmitting(false);
+      if (!result.success) { setAddError(result.error); return; }
+      setShowAddModal(false);
+      setAddUserId(''); setAddAmount(''); setAddReference(''); setAddDescription(''); setUserSearch(''); setUserResults([]);
+      loadTransactions();
+      return;
+    }
     const sign = (addType === 'payment') ? -Math.abs(amt) : amt;
     const { error: err } = await supabase.from('wallet_transactions').insert({
       user_id: addUserId,

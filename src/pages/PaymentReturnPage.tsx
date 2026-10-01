@@ -191,7 +191,7 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
               }}
               onCheckAgain={reference ? () => void retry() : undefined}
               onCancel={() => leave()}
-              retryLabel={canPayAgain ? 'Retry payment' : 'Check again'}
+              retryLabel={canPayAgain ? 'Pay again' : 'Check again'}
               cancelLabel="Cancel"
             />
           </div>
@@ -213,7 +213,7 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
                   className="min-h-[48px] px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.98] transition-transform"
                 >
                   {restarting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
-                  Retry payment
+                  Pay again
                 </button>
               )}
               <button type="button" onClick={() => void retry()} className="min-h-[48px] px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform">

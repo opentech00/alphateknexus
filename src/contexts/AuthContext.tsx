@@ -217,7 +217,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     lastActivityRef.current = Date.now();
 
-    // Store remember-me preference
     if (rememberMe) {
       localStorage.setItem(REMEMBER_ME_KEY, 'true');
     } else {
@@ -235,35 +234,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      await supabase.functions.invoke('manage-auth-events', {
-        body: { action: 'record-success' },
-      });
-    } catch { /* non-critical */ }
-
-    // Check for failed login attempts since last success
-    checkFailedLoginAlert(data.user.id);
-
-    try {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .maybeSingle();
-
-      if (profileData?.role === 'admin') {
-        const token = data.session?.access_token || '';
-        const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
-        const tokenHash = Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
-
-        await supabase.from('admin_sessions').insert({
-          user_id: data.user.id,
-          user_agent: navigator.userAgent,
-          session_token_hash: tokenHash,
-        });
-      }
-    } catch { /* non-critical */ }
-
-    try {
       const { data: checkData } = await supabase.functions.invoke('manage-2fa', {
         body: { action: 'check' },
       });
@@ -277,6 +247,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // 2FA not configured — proceed normally
     }
+
+    try {
+      await supabase.functions.invoke('manage-auth-events', {
+        body: { action: 'record-success' },
+      });
+    } catch { /* non-critical */ }
+
+    checkFailedLoginAlert(data.user.id);
+
     return { error: null };
   };
 
@@ -367,16 +346,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    if (user) {
-      try {
-        await supabase.from('admin_sessions')
-          .update({ logout_at: new Date().toISOString() })
-          .is('logout_at', null)
-          .eq('user_id', user.id)
-          .order('login_at', { ascending: false })
-          .limit(1);
-      } catch { /* non-critical */ }
-    }
+    try {
+      await supabase.rpc('close_latest_admin_session');
+    } catch { /* non-critical */ }
     localStorage.removeItem(REMEMBER_ME_KEY);
     await supabase.auth.signOut();
     setProfile(null);
@@ -394,6 +366,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: { action: 'revoke-all-sessions' },
       });
       if (fnError) return { error: fnError.message || 'Failed to sign out of all devices' };
+      try {
+        await supabase.rpc('close_all_admin_sessions');
+      } catch { /* non-critical */ }
       localStorage.removeItem(REMEMBER_ME_KEY);
       await supabase.auth.signOut();
       setProfile(null);

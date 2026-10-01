@@ -3,7 +3,7 @@ import { LogIn, Eye, EyeOff, AlertCircle, Loader2, User } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { useAppLogo } from '../../lib/media';
 
-export function LoginPage() {
+export function LoginPage({ portal = 'employee' }: { portal?: 'employee' | 'field' }) {
   const { signIn } = useAuth();
   const { url: logoUrl } = useAppLogo();
   const [employeeId, setEmployeeId] = useState('');
@@ -50,7 +50,11 @@ export function LoginPage() {
             />
           </div>
           <h1 className="text-2xl font-bold text-white">Alphatek Nexus</h1>
-          <p className="text-sm text-slate-400 mt-1">Employee Portal — Sign in to access your dashboard</p>
+          <p className="text-sm text-slate-400 mt-1">
+            {portal === 'field'
+              ? 'Field Staff — Sign in to access jobs and attendance'
+              : 'Employee Portal — Sign in to access your dashboard'}
+          </p>
         </div>
 
         {/* Card */}
@@ -115,7 +119,9 @@ export function LoginPage() {
           </form>
 
           <p className="text-center text-xs text-slate-400 mt-6">
-            Use the Employee ID and password provided by your administrator.
+            {portal === 'field'
+              ? 'Use the Employee ID and password issued for field operations.'
+              : 'Use the Employee ID and password provided by your administrator.'}
           </p>
         </div>
 

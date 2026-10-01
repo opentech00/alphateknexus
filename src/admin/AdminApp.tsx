@@ -98,6 +98,7 @@ function AdminContent() {
   if (needs2FA) {
     return (
       <TwoFactorPage
+        variant="admin"
         email={pending2FAEmail}
         password={pending2FAPassword}
         onBack={() => clear2FA()}

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { startMonimePayment, pollPaymentStatus } from '../lib/monime';
-import { copyForPollResult } from '../lib/paymentFailure';
+import { copyForPollResult, describePaymentFailure } from '../lib/paymentFailure';
 import { PaymentFailedPanel } from './checkout/PaymentOutcome';
 import { ReceiptModal } from './ReceiptModal';
 import { WalletSettings } from './WalletSettings';
@@ -29,6 +29,7 @@ interface Transaction {
   status: string;
   recorded_by: string;
   created_at: string;
+  failure_code?: string | null;
 }
 
 type PaymentState = 'idle' | 'form' | 'opening' | 'waiting' | 'success' | 'failed' | 'cash_pending';
@@ -80,7 +81,9 @@ function TransactionRow({ t, onReceipt, onDispute }: { t: Transaction; onReceipt
           )}
         </div>
         <p className="text-xs text-slate-400 truncate mt-0.5">
-          {t.description || meta.label}
+          {(t.status === 'failed' || t.status === 'cancelled')
+            ? describePaymentFailure(t.failure_code, t.description, t.status).body
+            : (t.description || meta.label)}
         </p>
         <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1.5">
           <span>{formatDate(t.created_at)}</span>
@@ -208,6 +211,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
           status: p.status,
           recorded_by: 'monime',
           created_at: p.created_at,
+          failure_code: p.failure_code,
         }));
       setTransactions(
         [...walletRows, ...failedRows].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)),
@@ -1089,7 +1093,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
                   onRetry={() => { void handleRetryPayment(); }}
                   onCheckAgain={payReference ? () => { void handleCheckAgain(); } : undefined}
                   onCancel={handleClosePayment}
-                  retryLabel="Retry payment"
+                  retryLabel="Pay again"
                   cancelLabel="Cancel"
                 />
                 <div className="px-6 pb-6 -mt-2">

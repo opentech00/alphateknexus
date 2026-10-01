@@ -14,7 +14,7 @@ export function PaymentFailedPanel({
   onRetry,
   onCancel,
   onCheckAgain,
-  retryLabel = 'Retry payment',
+  retryLabel = 'Pay again',
   cancelLabel = 'Cancel',
 }: {
   code?: string | null;
@@ -100,7 +100,7 @@ export function PaymentFailedScreen({
           reference={reference}
           onRetry={onRetry}
           onCancel={onViewBookings}
-          retryLabel="Retry payment"
+          retryLabel="Pay again"
           cancelLabel="View my bookings"
         />
       </div>

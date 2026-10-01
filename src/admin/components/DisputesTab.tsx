@@ -4,6 +4,7 @@ import {
   Clock, Eye, X, AlertTriangle, RefreshCw, Filter,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { issueWalletCredit } from '../../lib/financeCredit';
 
 interface Dispute {
   id: string;
@@ -51,6 +52,7 @@ export function DisputesTab() {
   const [refundAmount, setRefundAmount] = useState('');
   const [resolveAction, setResolveAction] = useState<'resolved' | 'rejected'>('resolved');
   const [resolving, setResolving] = useState(false);
+  const [resolveError, setResolveError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,9 +80,27 @@ export function DisputesTab() {
   const handleResolve = async () => {
     if (!selected) return;
     setResolving(true);
+    setResolveError('');
 
     const { data: { user } } = await supabase.auth.getUser();
     const refund = parseFloat(refundAmount) || 0;
+
+    if (resolveAction === 'resolved' && refund > 0) {
+      const result = await issueWalletCredit({
+        userId: selected.user_id,
+        amount: refund,
+        kind: 'refund',
+        reason: adminNotes.trim() || `Dispute refund: ${REASON_LABELS[selected.reason] || selected.reason}`,
+        relatedType: 'dispute',
+        relatedId: selected.id,
+        idempotencyKey: `dispute:${selected.id}`,
+      });
+      if (!result.success) {
+        setResolveError(result.error);
+        setResolving(false);
+        return;
+      }
+    }
 
     await supabase.from('wallet_disputes').update({
       status: resolveAction,
@@ -90,19 +110,6 @@ export function DisputesTab() {
       resolved_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq('id', selected.id);
-
-    if (resolveAction === 'resolved' && refund > 0) {
-      await supabase.from('wallet_transactions').insert({
-        user_id: selected.user_id,
-        type: 'refund',
-        amount_sle: refund,
-        description: `Dispute refund: ${REASON_LABELS[selected.reason] || selected.reason}`,
-        method: 'wallet',
-        reference: `dispute-${selected.id.slice(0, 8)}`,
-        status: 'completed',
-        recorded_by: 'admin',
-      });
-    }
 
     setResolving(false);
     setSelected(null);
@@ -256,6 +263,7 @@ export function DisputesTab() {
                 <>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">Admin Notes</label>
+                    {resolveError && <p className="text-xs text-red-600 mb-2">{resolveError}</p>}
                     <textarea
                       value={adminNotes}
                       onChange={e => setAdminNotes(e.target.value)}

@@ -6,6 +6,8 @@ import { toast } from '../components/toast/toast';
 import { buildOfficialInvoiceHtml } from '../lib/companyDocs';
 import { downloadHtmlAsPdf } from '../lib/invoicePdf';
 import { startMonimePayment } from '../lib/monime';
+import { FailedPaymentNote } from '../components/FailedPaymentNote';
+import { loadLatestFailedMonime, type FailedPaymentAttempt } from '../lib/paymentAttempts';
 import { PortalPage } from '../components/portal/PortalPage';
 import { moneySLE } from '../lib/money';
 
@@ -37,6 +39,7 @@ export function BillingPage({ onBack }: { onBack?: () => void }) {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<'open' | 'paid' | 'all'>('open');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [failures, setFailures] = useState<Map<string, FailedPaymentAttempt>>(new Map());
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -78,6 +81,7 @@ export function BillingPage({ onBack }: { onBack?: () => void }) {
       })),
     ];
     setRows(mapped);
+    setFailures(await loadLatestFailedMonime(user.id, 'invoice'));
     setLoading(false);
   }, [user]);
 
@@ -206,6 +210,9 @@ export function BillingPage({ onBack }: { onBack?: () => void }) {
                       {inv.due ? ` · Due ${new Date(inv.due).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}
                     </p>
                     <p className="mt-2 text-lg font-bold text-slate-900">{payable ? moneySLE(due) : moneySLE(inv.total)} <span className="text-xs font-medium text-slate-400">{payable ? 'due' : 'total'}</span></p>
+                    {payable && failures.get(inv.id) && (
+                      <div className="mt-3"><FailedPaymentNote attempt={failures.get(inv.id)} /></div>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {inv.source === 'finance' && (

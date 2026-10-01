@@ -202,9 +202,11 @@ Deno.serve(async (req: Request) => {
       await supabase.from("auth_lockout").delete().eq("user_id", user.id);
 
       let sessionId = "unknown";
+      let jwtRole = "";
       try {
         const payload = JSON.parse(atob(token.split(".")[1]));
         sessionId = payload.jti || payload.session_id || "unknown";
+        jwtRole = typeof payload.app_role === "string" ? payload.app_role : "";
       } catch { /* ignore */ }
 
       await supabase.from("login_activity").insert({
@@ -271,6 +273,23 @@ Deno.serve(async (req: Request) => {
           category: "system",
           channels: ["email", "push"],
           status: "pending",
+        });
+      }
+
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (jwtRole === "admin" || profileRow?.role === "admin") {
+        const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+        const tokenHash = Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+        await supabase.from("admin_sessions").insert({
+          user_id: user.id,
+          ip_address: ip === "unknown" ? null : ip,
+          user_agent: userAgent,
+          session_token_hash: tokenHash,
         });
       }
 
@@ -378,6 +397,11 @@ Deno.serve(async (req: Request) => {
         .delete()
         .eq("user_id", user.id)
         .eq("is_current", false);
+
+      await supabase.from("admin_sessions")
+        .update({ logout_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .is("logout_at", null);
 
       // Log the event
       await supabase.from("login_activity").insert({

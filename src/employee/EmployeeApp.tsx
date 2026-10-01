@@ -43,12 +43,7 @@ function EmployeeContent() {
     appAccess?.app_type === 'field' &&
     !!appAccess.is_active;
 
-  if (isFieldStaff) return (
-    <>
-      <FieldStaffApp />
-      <IdleWarningWrapper />
-    </>
-  );
+  if (isFieldStaff) return <FieldStaffApp />;
 
   if (appAccess && !appAccess.is_active) {
     return (

@@ -1,6 +1,9 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { Home, ClipboardList, Clock, Bell, BarChart3, WifiOff, RefreshCw, Zap } from 'lucide-react';
+import { Home, ClipboardList, Clock, Bell, BarChart3, WifiOff, RefreshCw, Zap, ShieldAlert, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
+import { LoginPage } from '../pages/LoginPage';
+import { ChangePasswordPage } from '../pages/ChangePasswordPage';
+import { IdleWarningModal } from '../../components/IdleWarningModal';
 import { FieldStaffProvider, useFieldStaff } from './FieldStaffContext';
 import { ToastContainer } from '../../components/toast/ToastContainer';
 import { registerToastNotificationOpener } from '../../components/toast/toast';
@@ -188,10 +191,76 @@ function FieldStaffContent() {
   );
 }
 
+function FieldIdleWarning() {
+  const { idleWarningVisible, idleWarningSecondsLeft, dismissIdleWarning, signOut } = useAuth();
+  return (
+    <IdleWarningModal
+      visible={idleWarningVisible}
+      secondsLeft={idleWarningSecondsLeft}
+      onStaySignedIn={dismissIdleWarning}
+      onSignOut={signOut}
+    />
+  );
+}
+
+function FieldAccessDenied({ message }: { message: string }) {
+  const { signOut } = useAuth();
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+      <div className="text-center max-w-sm">
+        <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <ShieldAlert className="w-7 h-7 text-red-500" />
+        </div>
+        <h1 className="text-xl font-bold text-slate-900 mb-2">Access Denied</h1>
+        <p className="text-sm text-slate-500 mb-6">{message}</p>
+        <button
+          onClick={() => { void signOut(); }}
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-800 text-white font-medium rounded-xl hover:bg-slate-900 transition-colors text-sm"
+        >
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FieldStaffAuthGate({ children }: { children: ReactNode }) {
+  const { user, employee, appAccess, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-7 h-7 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  if (!user) return <LoginPage portal="field" />;
+
+  if (employee?.must_change_password) return <ChangePasswordPage />;
+
+  if (!employee) {
+    return <FieldAccessDenied message="This account is not registered as staff. Sign out and use a field staff Employee ID." />;
+  }
+
+  if (appAccess?.app_type !== 'field' || !appAccess.is_active) {
+    return <FieldAccessDenied message="Your account does not have access to the field staff app." />;
+  }
+
+  return (
+    <>
+      {children}
+      <FieldIdleWarning />
+    </>
+  );
+}
+
 export function FieldStaffApp() {
   return (
-    <FieldStaffProvider>
-      <FieldStaffContent />
-    </FieldStaffProvider>
+    <FieldStaffAuthGate>
+      <FieldStaffProvider>
+        <FieldStaffContent />
+      </FieldStaffProvider>
+    </FieldStaffAuthGate>
   );
 }

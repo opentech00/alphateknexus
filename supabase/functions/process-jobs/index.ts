@@ -82,6 +82,11 @@ Deno.serve(async (req: Request) => {
         if (payment.status === "pending") {
           await refreshMonimeSession(supabase, payment, "job_retry");
         }
+      } else if (job.kind === "finance_recon") {
+        const day = String(job.payload.day || "").trim();
+        const args = day ? { p_day: day } : {};
+        const { error: reconErr } = await supabase.rpc("run_finance_recon", args);
+        if (reconErr) throw new Error(reconErr.message);
       } else {
         throw new Error(`unknown kind: ${job.kind}`);
       }

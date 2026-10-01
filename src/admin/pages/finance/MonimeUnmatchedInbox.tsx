@@ -97,7 +97,13 @@ export function MonimeUnmatchedInbox({ onChanged }: { onChanged?: () => void }) 
     setBusyId(null);
   };
 
-  if (!loading && !error && rows.length === 0) return null;
+  if (!loading && !error && rows.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 text-sm text-slate-500">
+        No open unmatched Monime events. Revisit this inbox each morning.
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
@@ -110,6 +116,8 @@ export function MonimeUnmatchedInbox({ onChanged }: { onChanged?: () => void }) 
       {message && <p className="px-5 py-3 text-sm text-slate-700 bg-slate-50 border-b border-slate-100">{message}</p>}
       {loading ? (
         <div className="py-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-amber-500" /></div>
+      ) : rows.length === 0 ? (
+        <p className="px-5 py-4 text-sm text-slate-500">No open unmatched events. Check this inbox at the start of each day.</p>
       ) : (
         <ul className="divide-y divide-slate-100">
           {rows.map((row) => (

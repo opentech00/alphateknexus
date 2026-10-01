@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, ShieldCheck, Clock, Monitor } from 'lucide-react';
+import { Loader2, Clock, Monitor, Globe } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface AdminSession {
@@ -8,7 +8,7 @@ interface AdminSession {
   login_at: string;
   logout_at: string | null;
   ip_address: string | null;
-  user_agent: string;
+  user_agent: string | null;
   profiles: { full_name: string; email: string } | null;
 }
 
@@ -43,13 +43,14 @@ export function AdminSessionsPage() {
         <p className="text-sm text-slate-400 mt-1">Recent admin login activity</p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left px-4 py-3 font-semibold text-slate-600">Admin</th>
               <th className="text-left px-4 py-3 font-semibold text-slate-600">Login Time</th>
               <th className="text-left px-4 py-3 font-semibold text-slate-600">Logout Time</th>
+              <th className="text-left px-4 py-3 font-semibold text-slate-600">IP</th>
               <th className="text-left px-4 py-3 font-semibold text-slate-600">Device</th>
               <th className="text-left px-4 py-3 font-semibold text-slate-600">Status</th>
             </tr>
@@ -57,7 +58,7 @@ export function AdminSessionsPage() {
           <tbody className="divide-y divide-slate-100">
             {sessions.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-12 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
                   No admin sessions recorded yet.
                 </td>
               </tr>
@@ -76,6 +77,12 @@ export function AdminSessionsPage() {
                   </td>
                   <td className="px-4 py-3 text-slate-600">
                     {s.logout_at ? new Date(s.logout_at).toLocaleString() : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 text-xs font-mono">
+                    <span className="flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                      {s.ip_address || '—'}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-slate-500 text-xs max-w-xs truncate">
                     <span className="flex items-center gap-1.5">
