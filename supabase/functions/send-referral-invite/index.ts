@@ -118,7 +118,7 @@ Deno.serve(async (req: Request) => {
 
     const referrerName = profile?.full_name || "Someone";
     const signupUrl = `${Deno.env.get("SUPABASE_URL")?.replace(".supabase.co", "") || ""}?ref=${referralCode}`;
-    const appUrl = `https://alphateknexus.com/?ref=${referralCode}`;
+    const appUrl = `https://atnapp.vercel.app/?ref=${referralCode}`;
 
     // Create the referral record
     const { data: referral, error: referralErr } = await supabase

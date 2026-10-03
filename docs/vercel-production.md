@@ -11,7 +11,7 @@ Vercel should use:
 - Output directory: `dist`
 - Node.js: 24.x
 
-Pretty URLs are defined in `vercel.json`: `/admin`, `/employee`, and `/field` serve the matching HTML entry points. `/payment-return` and `/field-paid` serve the client app so Monime can return on HTTPS.
+Production URL: **https://atnapp.vercel.app**. Pretty URLs are defined in `vercel.json`: `/admin`, `/employee`, and `/field` serve the matching HTML entry points. `/payment-return` and `/field-paid` serve the client app so Monime can return on HTTPS.
 
 The iOS PWA (Add to Home Screen) only works on this production HTTPS origin in Safari on a real iPhone. It does not work in Chrome, in-app browsers, or localhost.
 

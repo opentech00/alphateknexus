@@ -30,7 +30,7 @@ function buildEmailHtml(opts: {
   details: { label: string; value: string }[];
   footerText: string;
 }): string {
-  const appUrl = (Deno.env.get("APP_URL") || "https://alphateknexus.com").replace(/\/$/, "");
+  const appUrl = (Deno.env.get("APP_URL") || "https://atnapp.vercel.app").replace(/\/$/, "");
   const detailRows = opts.details
     .map(
       (d) => `<tr><td style="padding:12px 20px;border-bottom:1px solid #e2e8f0;"><span style="color:#64748b;font-size:13px;">${d.label}</span><span style="float:right;color:#0f172a;font-size:13px;font-weight:600;">${d.value}</span></td></tr>`

@@ -14,7 +14,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const PRODUCTION_ORIGIN = 'https://alphateknexus.app';
+const PRODUCTION_ORIGIN = 'https://atnapp.vercel.app';
 const HOOK_URI = 'pg-functions://postgres/public/custom_access_token_hook';
 const NPX = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 

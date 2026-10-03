@@ -22,7 +22,8 @@ import { QuotesPage } from './pages/QuotesPage';
 import { SupportPage } from './pages/SupportPage';
 import { PaymentReturnPage } from './pages/PaymentReturnPage';
 import { TopNav } from './components/TopNav';
-import { parsePaymentReturnLocation } from './lib/paymentReturn';
+import { parsePaymentReturnHref, parsePaymentReturnLocation, paymentReturnHref } from './lib/paymentReturn';
+import { PAYMENT_RETURN_EVENT, emitCheckoutClose } from './lib/checkoutBridge';
 import { isClientPwaPage } from './lib/pwa';
 import { MobileShell } from './components/mobile/MobileShell';
 import { SplashScreen } from './components/mobile/SplashScreen';
@@ -31,9 +32,12 @@ import { registerToastNotificationOpener } from './components/toast/toast';
 import { destinationForClientNotification } from './lib/notificationDestinations';
 import { IdleWarningModal } from './components/IdleWarningModal';
 import { PwaProvider } from './components/pwa/PwaProvider';
+import { MonimeCheckoutHost } from './components/checkout/MonimeCheckoutHost';
 import { PortalMaintenanceScreen } from './components/PortalMaintenanceScreen';
 import { PortalCautionStack } from './components/CautionBanner';
 import { usePortalSettings } from './hooks/usePortalSettings';
+import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 
 function FailedLoginBanner() {
@@ -158,6 +162,34 @@ function PortalContent() {
     return registerToastNotificationOpener((n) => {
       setPage(destinationForClientNotification(n));
     });
+  }, []);
+
+  useEffect(() => {
+    const onReturn = () => {
+      emitCheckoutClose();
+      setPage('payment-return');
+    };
+    window.addEventListener(PAYMENT_RETURN_EVENT, onReturn);
+    return () => window.removeEventListener(PAYMENT_RETURN_EVENT, onReturn);
+  }, []);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let removed = false;
+    const pending = CapApp.addListener('appUrlOpen', ({ url }) => {
+      const link = parsePaymentReturnHref(url);
+      if (!link || link.kind !== 'payment-return') return;
+      emitCheckoutClose();
+      window.history.replaceState({}, '', paymentReturnHref(link.ref, link.status));
+      setPage('payment-return');
+    });
+    return () => {
+      removed = true;
+      void pending.then((handle) => {
+        if (!removed) return;
+        void handle.remove();
+      });
+    };
   }, []);
 
   const [isMobile, setIsMobile] = useState(() =>
@@ -387,6 +419,7 @@ export default function App() {
     <AuthProvider>
       <ThemeProvider>
         <PortalContent />
+        <MonimeCheckoutHost />
         <ToastContainer />
         <PwaProvider />
       </ThemeProvider>

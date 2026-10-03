@@ -32,6 +32,17 @@ export function isInAppBrowser(): boolean {
   return /FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat|LinkedInApp|WhatsApp|Messenger/i.test(navigator.userAgent);
 }
 
+export function isAndroidWebView(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  return /Android/i.test(ua) && /; wv\)/.test(ua);
+}
+
+/** Keep the React app mounted while Monime runs, so cancel cannot strand the user on a DNS error page. */
+export function shouldKeepCheckoutShell(): boolean {
+  return isStandalone() || isInAppBrowser() || isAndroidWebView();
+}
+
 export function isIosPwa(): boolean {
   return isIosDevice() && isStandalone();
 }

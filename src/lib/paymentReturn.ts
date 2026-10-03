@@ -31,6 +31,15 @@ export function parsePaymentReturnLocation(loc: Pick<Location, 'pathname' | 'sea
   };
 }
 
+export function parsePaymentReturnHref(href: string): PaymentReturnLink | null {
+  try {
+    const url = new URL(href);
+    return parsePaymentReturnLocation({ pathname: url.pathname, search: url.search, hash: url.hash });
+  } catch {
+    return null;
+  }
+}
+
 export function paymentReturnHref(ref: string, status?: string) {
   const q = new URLSearchParams({ ref });
   if (status) q.set('status', status);

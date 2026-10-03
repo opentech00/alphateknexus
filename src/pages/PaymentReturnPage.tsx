@@ -15,6 +15,7 @@ import {
 } from '../lib/monime';
 import { toast } from '../components/toast/toast';
 import { parsePaymentReturnLocation, paymentReturnHref } from '../lib/paymentReturn';
+import { emitCheckoutClose, notifyOpenerOfCheckoutReturn } from '../lib/checkoutBridge';
 
 export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) => void }) {
   const link = useMemo(() => parsePaymentReturnLocation(), []);
@@ -33,6 +34,7 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
     nextPageForMonime(purpose || stored?.purpose || 'wallet_topup', stored?.nextPage);
 
   const leave = (purpose?: PaymentPurpose) => {
+    emitCheckoutClose();
     clearMonimeReturn();
     window.history.replaceState({}, '', '/');
     onNavigate(destination(purpose));
@@ -111,6 +113,14 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reference, statusParam]);
+
+  useEffect(() => {
+    if (phase === 'loading') return;
+    const status = phase === 'cancel' ? 'cancel' : phase === 'success' ? 'success' : phase;
+    if (notifyOpenerOfCheckoutReturn(reference, status) && (phase === 'cancel' || phase === 'success' || phase === 'failed')) {
+      window.setTimeout(() => window.close(), 350);
+    }
+  }, [phase, reference]);
 
   const retry = async () => {
     if (!reference) return;
@@ -192,7 +202,7 @@ export function PaymentReturnPage({ onNavigate }: { onNavigate: (page: string) =
               onCheckAgain={reference ? () => void retry() : undefined}
               onCancel={() => leave()}
               retryLabel={canPayAgain ? 'Pay again' : 'Check again'}
-              cancelLabel="Cancel"
+              cancelLabel="Back to AlphaTek Nexus"
             />
           </div>
         )}

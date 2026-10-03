@@ -1,5 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { emitCheckoutOpen } from './checkoutBridge';
+import { shouldKeepCheckoutShell } from './pwa';
 import { supabase } from './supabase';
 
 export type PaymentPurpose = 'invoice' | 'wallet_topup' | 'subscription' | 'booking';
@@ -134,9 +136,11 @@ export async function createMonimeCheckout(
   };
 }
 
-function openMonimeCheckout(url: string): boolean {
-  if (Capacitor.isNativePlatform()) {
-    const popup = window.open(url, '_blank');
+function openMonimeCheckout(url: string, reference: string): boolean {
+  const keepShell = Capacitor.isNativePlatform() || shouldKeepCheckoutShell();
+  if (keepShell) {
+    const popup = window.open(url, 'atn-monime-checkout');
+    emitCheckoutOpen({ reference, checkoutUrl: url, popup });
     if (!popup) {
       window.location.assign(url);
       return true;
@@ -168,7 +172,7 @@ export async function startMonimePayment(
     amount: result.amount,
     mode,
   });
-  const redirected = openMonimeCheckout(result.checkoutUrl);
+  const redirected = openMonimeCheckout(result.checkoutUrl, result.reference);
   return { ...result, redirected };
 }
 

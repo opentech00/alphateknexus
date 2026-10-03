@@ -85,7 +85,7 @@ Set these as **Supabase Edge Function secrets** (Dashboard â†’ Edge Functions â†
 
 Pin requests to API version `caph.2025-08-23` (`Monime-Version` header). Checkout sessions enable cards, Sierra Leone banks, and mobile money (`disable: false` so Monime shows every MoMo it supports, currently Orange Money `m17` and AfriMoney `m18`). Do not send `m13` in `enabledProviders`; the Caph create-session schema rejects it with HTTP 400.
 
-Set Edge Function secret `MONIME_RETURN_ORIGIN=https://alphateknexus.app` so Monime cancel/success use `/payment-return` on production HTTPS. Loopback Origins (`localhost`) are ignored so iPhone/Safari does not bounce through a local Vite URL. Keep those URLs under 255 characters.
+Set Edge Function secret `MONIME_RETURN_ORIGIN=https://atnapp.vercel.app` so Monime cancel/success use `/payment-return` on production HTTPS. Loopback Origins (`localhost`) are ignored so iPhone/Safari does not bounce through a local Vite URL. Keep those URLs under 255 characters.
 
 In the Monime dashboard, register:
 
@@ -127,7 +127,7 @@ After changing checkout, verify, webhook, fulfillment, jobs, or knowledge search
 npm run platform:live
 ```
 
-That enables the custom access token hook, sets `MONIME_RETURN_ORIGIN=https://alphateknexus.app`, deploys `create-monime-checkout` and `create-field-collection`, and stores `OPENAI_API_KEY` only if it is already in `.env`. Individual deploys:
+That enables the custom access token hook, sets `MONIME_RETURN_ORIGIN=https://atnapp.vercel.app`, deploys `create-monime-checkout` and `create-field-collection`, and stores `OPENAI_API_KEY` only if it is already in `.env`. Individual deploys:
 
 ```bash
 supabase db push --project-ref "$SUPABASE_PROJECT_REF"
