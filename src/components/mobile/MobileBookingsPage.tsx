@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Calendar, MapPin, Clock, AlertCircle, Plus,
-  MessageSquare, Paperclip, ChevronDown, Star, RotateCcw,
-  Truck, Wallet, Search, Recycle, Trash2, RefreshCw, ChevronRight,
+  Calendar, MapPin, AlertCircle, Plus,
+  MessageSquare, Paperclip, Star, RotateCcw,
+  Truck, Wallet, Search, Recycle, Trash2, RefreshCw,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { MessageThread } from '../MessageThread';
@@ -15,7 +15,8 @@ import { CancelDeleteBookingModal } from '../CancelDeleteBookingModal';
 import { BookingPayNowModal } from '../BookingPayNowModal';
 import { FailedPaymentNote } from '../FailedPaymentNote';
 import { loadLatestFailedMonime, type FailedPaymentAttempt } from '../../lib/paymentAttempts';
-import { bookingDepositAmount, bookingDueAmount, bookingNeedsPayment } from '../../lib/bookingPay';
+import { bookingDepositAmount, bookingDueAmount, bookingNeedsPayment, bookingTotalSle } from '../../lib/bookingPay';
+import { moneySLE } from '../../lib/money';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { useHaptics } from '../../hooks/useHaptics';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
@@ -77,6 +78,30 @@ const statusConfig: Record<string, { label: string; badge: string; dot: string }
 
 type Tab = 'all' | 'active' | 'subscriptions' | 'completed';
 const ACTIVE_STATUSES = ['pending', 'pending_review', 'approved', 'confirmed', 'in_progress'];
+
+function mobileBookingPrice(booking: Booking) {
+  const total = bookingTotalSle(booking.details);
+  const paid = ['paid', 'verified'].includes(booking.payment_status || '');
+  if (total == null) {
+    return { amount: 'Quote pending', caption: 'Price to confirm', pending: true };
+  }
+  if (paid || booking.status === 'completed') {
+    return { amount: moneySLE(total), caption: 'Paid', pending: false };
+  }
+  if (booking.payment_status === 'deposit_paid') {
+    const due = bookingDueAmount(booking, 0);
+    return {
+      amount: moneySLE(due > 0 ? due : total),
+      caption: due > 0 ? 'Balance due' : 'Deposit paid',
+      pending: false,
+    };
+  }
+  if (bookingNeedsPayment(booking)) {
+    const due = bookingDueAmount(booking, 0);
+    return { amount: moneySLE(due > 0 ? due : total), caption: 'Amount due', pending: false };
+  }
+  return { amount: moneySLE(total), caption: 'Total', pending: false };
+}
 
 export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Props) {
   const { wallet_enabled } = useFeatureFlags();
@@ -259,8 +284,8 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
       </div>
 
       <div className="px-4 pt-4 pb-2">
-        <div className="flex items-center justify-between gap-2">
-          <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">My Bookings</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               View and manage your service bookings
@@ -268,11 +293,10 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
           </div>
           <button
             onClick={() => onNavigate('services')}
-            className="inline-flex items-center gap-1 px-3 py-2 rounded-full bg-white border border-slate-200 text-xs font-semibold text-slate-700 shadow-sm active:scale-95 transition-transform"
+            className="inline-flex items-center gap-1 px-3 py-2 rounded-full bg-white border border-slate-200 text-xs font-semibold text-slate-700 shadow-sm active:scale-95 transition-transform flex-shrink-0"
           >
             <Calendar className="w-3.5 h-3.5 text-blue-600" />
-            All Services
-            <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+            Services
           </button>
         </div>
       </div>
@@ -395,9 +419,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
               const canRebook = isCompleted || booking.status === 'cancelled';
               const canCancel = !isCompleted && booking.status !== 'cancelled';
               const primaryActionLabel = canRebook ? 'Book Again' : booking.status === 'pending' || booking.status === 'pending_review' ? 'Cancel Booking' : 'Manage';
-              const serviceCategory = booking.services?.slug
-                ? booking.services.slug.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
-                : 'Service Request';
+              const price = mobileBookingPrice(booking);
 
               return (
                 <SwipeableBookingCard
@@ -408,32 +430,38 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                   showCancel={canCancel}
                 >
                   <div
-                    className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-2.5 transition-all"
+                    className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-3 transition-all"
                     style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.06}s both` }}
                   >
-                    <div className="flex gap-2.5">
+                    <div className="flex gap-3">
                       <img
                         src={serviceImage}
                         alt={booking.services.name}
-                        className="w-24 h-20 rounded-xl object-cover flex-shrink-0"
+                        className="w-[72px] h-[72px] rounded-xl object-cover flex-shrink-0"
                         loading="lazy"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />
 
                       <div className="flex-1 min-w-0">
-                        <div className="min-w-0">
-                          <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100 truncate">{booking.services.name}</h3>
-                          <p className="text-[11px] text-slate-500 truncate">{serviceCategory}</p>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2">
+                              {booking.services.name}
+                            </h3>
+                          </div>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full border flex-shrink-0 whitespace-nowrap ${sc.badge}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                            {sc.label}
+                          </span>
                         </div>
 
-                        <div className="mt-1 grid gap-0.5">
+                        <div className="mt-1.5 grid gap-0.5">
                           <span className="flex items-center gap-1 text-[11px] text-slate-500">
-                            <Calendar className="w-3 h-3" />
-                            {new Date(booking.scheduled_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                          </span>
-                          <span className="flex items-center gap-1 text-[11px] text-slate-500">
-                            <Clock className="w-3 h-3" />
-                            {booking.scheduled_time || 'Time not set'}
+                            <Calendar className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">
+                              {new Date(booking.scheduled_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                              {booking.scheduled_time ? ` · ${booking.scheduled_time}` : ''}
+                            </span>
                           </span>
                           <span className="flex items-center gap-1 text-[11px] text-slate-500">
                             <MapPin className="w-3 h-3 flex-shrink-0" />
@@ -441,18 +469,26 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                           </span>
                         </div>
                       </div>
+                    </div>
 
-                      <div className="text-right flex-shrink-0 min-w-[102px]">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full border ${sc.badge}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
-                          {sc.label}
-                        </span>
-                        <ChevronRight className="w-4 h-4 text-slate-300 ml-auto mt-1" />
-                        <p className="mt-2 text-base font-bold text-slate-900 dark:text-slate-100">
-                          SLE {booking.details?.price_sle?.toLocaleString() || '—'}
+                    <div className="mt-2.5 flex items-center justify-between gap-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 px-3 py-2 overflow-hidden">
+                      <div className="min-w-0">
+                        <p className={`text-[15px] font-bold leading-tight tabular-nums truncate ${
+                          price.pending ? 'text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-slate-100'
+                        }`}>
+                          {price.amount}
                         </p>
-                        <p className="text-[11px] text-slate-500">{isCompleted ? '(One-time)' : '(Service)'}</p>
+                        <p className="text-[11px] text-slate-500 truncate">{price.caption}</p>
                       </div>
+                      {bookingNeedsPayment(booking) && !price.pending && (
+                        <button
+                          type="button"
+                          onClick={() => setPayBooking(booking)}
+                          className="flex-shrink-0 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg active:scale-95 transition-transform"
+                        >
+                          Pay
+                        </button>
+                      )}
                     </div>
 
                     <div className="mt-2 grid grid-cols-2 gap-2">

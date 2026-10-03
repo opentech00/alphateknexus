@@ -343,7 +343,7 @@ async function sendPushToToken(
 // ── Email helpers ───────────────────────────────────────────────
 
 function buildEmailHtml(title: string, body: string, subtitle: string, mediaUrl?: string): string {
-  const appUrl = (Deno.env.get("APP_URL") || "https://atnapp.vercel.app").replace(/\/$/, "");
+  const appUrl = (Deno.env.get("APP_URL") || "https://alphateknexus.vercel.app").replace(/\/$/, "");
   const hero = mediaUrl
     ? `<tr><td style="padding:0;"><img src="${mediaUrl}" alt="" width="560" style="display:block;width:100%;max-height:280px;object-fit:cover;"></td></tr>`
     : "";

@@ -23,21 +23,22 @@ export function ServiceCardSkeleton() {
 /** Skeleton placeholder for a booking card with image banner */
 export function BookingCardSkeleton() {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
-      <Skeleton className="rounded-none h-16 w-full" />
-      <div className="p-3.5 space-y-2">
-        <div className="flex gap-2">
-          <Skeleton className="h-3 w-20" />
-          <Skeleton className="h-3 w-16" />
-        </div>
-        <Skeleton className="h-3 w-2/3" />
-        <div className="flex justify-between items-center pt-1">
-          <Skeleton className="h-4 w-16" />
-          <div className="flex gap-1.5">
-            <Skeleton className="h-7 w-16 rounded-lg" />
-            <Skeleton className="h-7 w-16 rounded-lg" />
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-3">
+      <div className="flex gap-3">
+        <Skeleton className="w-[72px] h-[72px] rounded-xl flex-shrink-0" />
+        <div className="flex-1 min-w-0 space-y-2 pt-0.5">
+          <div className="flex justify-between gap-2">
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-4 w-16 rounded-full" />
           </div>
+          <Skeleton className="h-3 w-1/2" />
+          <Skeleton className="h-3 w-3/4" />
         </div>
+      </div>
+      <Skeleton className="mt-2.5 h-12 w-full rounded-xl" />
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <Skeleton className="h-8 rounded-lg" />
+        <Skeleton className="h-8 rounded-lg" />
       </div>
     </div>
   );

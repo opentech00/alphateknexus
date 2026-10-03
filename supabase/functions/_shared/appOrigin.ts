@@ -1,5 +1,5 @@
 /** Canonical production origin. Keep in sync with src/lib/site.ts. */
-export const PRODUCTION_HTTPS_ORIGIN = "https://atnapp.vercel.app";
+export const PRODUCTION_HTTPS_ORIGIN = "https://alphateknexus.vercel.app";
 
 function isLoopbackHost(hostname: string): boolean {
   const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
