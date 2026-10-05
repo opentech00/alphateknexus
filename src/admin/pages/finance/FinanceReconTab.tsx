@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader2, RefreshCw, Scale, Download } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { downloadCsv } from './financeCsv';
+import { useFinancePrivacy } from '../../../contexts/FinancePrivacyContext';
 
 interface ReconDay {
   day: string;
@@ -24,7 +25,7 @@ interface ReconDay {
   generated_at: string;
 }
 
-function money(n: number) {
+function fmtSle(n: number) {
   const sign = n < 0 ? '-' : '';
   return `${sign}SLE ${Math.abs(Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -34,6 +35,7 @@ function dayLabel(d: string) {
 }
 
 export function FinanceReconTab() {
+  const { money } = useFinancePrivacy();
   const [rows, setRows] = useState<ReconDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

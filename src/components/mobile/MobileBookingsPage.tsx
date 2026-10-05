@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Calendar, MapPin, AlertCircle, Plus,
   MessageSquare, Paperclip, Star, RotateCcw,
-  Truck, Wallet, Search, Recycle, Trash2, RefreshCw,
+  Truck, Wallet, Search, Recycle, Trash2, RefreshCw, ChevronDown, ExternalLink,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { MessageThread } from '../MessageThread';
@@ -78,6 +78,40 @@ const statusConfig: Record<string, { label: string; badge: string; dot: string }
 
 type Tab = 'all' | 'active' | 'subscriptions' | 'completed';
 const ACTIVE_STATUSES = ['pending', 'pending_review', 'approved', 'confirmed', 'in_progress'];
+
+function bookingDisplayLocation(booking: Booking): string {
+  const d = booking.details || {};
+  const raw = [
+    booking.location,
+    typeof d.site_address === 'string' ? d.site_address : '',
+    typeof d.delivery_address === 'string' ? d.delivery_address : '',
+    typeof d.address === 'string' ? d.address : '',
+    typeof d.destination === 'string' ? d.destination : '',
+    [d.city, d.country].filter((x) => typeof x === 'string' && x.trim()).join(', '),
+    typeof d.landmark === 'string' ? d.landmark : '',
+    typeof d.port_of_entry === 'string' ? d.port_of_entry : '',
+  ]
+    .map((v) => (v || '').trim())
+    .filter(Boolean);
+
+  const unique: string[] = [];
+  for (const part of raw) {
+    const key = part.toLowerCase();
+    if (unique.some((u) => u.toLowerCase() === key)) continue;
+    const containedIdx = unique.findIndex((u) => key.includes(u.toLowerCase()) && key !== u.toLowerCase());
+    if (containedIdx >= 0) {
+      unique[containedIdx] = part;
+      continue;
+    }
+    if (unique.some((u) => u.toLowerCase().includes(key))) continue;
+    unique.push(part);
+  }
+  return unique.join(' · ');
+}
+
+function mapsSearchHref(location: string) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+}
 
 function mobileBookingPrice(booking: Booking) {
   const total = bookingTotalSle(booking.details);
@@ -283,22 +317,22 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
         />
       </div>
 
-      <div className="px-4 pt-4 pb-2">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">My Bookings</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              View and manage your service bookings
-            </p>
-          </div>
+      <div className="px-4 pt-3 pb-2 motion-safe:animate-[fadeInUp_0.35s_ease]">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight min-w-0 truncate">
+            My Bookings
+          </h1>
           <button
             onClick={() => onNavigate('services')}
-            className="inline-flex items-center gap-1 px-3 py-2 rounded-full bg-white border border-slate-200 text-xs font-semibold text-slate-700 shadow-sm active:scale-95 transition-transform flex-shrink-0"
+            className="inline-flex items-center gap-1 px-3 py-2 rounded-full bg-slate-900 dark:bg-blue-600 text-white text-xs font-semibold shadow-sm active:scale-95 transition-transform flex-shrink-0"
           >
-            <Calendar className="w-3.5 h-3.5 text-blue-600" />
-            Services
+            <Plus className="w-3.5 h-3.5" />
+            Book
           </button>
         </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          Track, pay, and manage your services
+        </p>
       </div>
 
       <div className="px-4 pb-2">
@@ -361,14 +395,14 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
       </div>
 
       {tab === 'subscriptions' && (
-        <div className="flex items-center justify-between px-4 pb-2">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Recurring services you've subscribed to</p>
+        <div className="flex items-center justify-between gap-2 px-4 pb-2">
+          <p className="text-xs text-slate-500 dark:text-slate-400 min-w-0">Recurring pickups</p>
           <button
             onClick={() => onNavigate('subscriptions')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg active:scale-95 transition-transform"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg active:scale-95 transition-transform flex-shrink-0"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            Manage all
+            Manage
           </button>
         </div>
       )}
@@ -418,8 +452,8 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
               const serviceImage = serviceImages[booking.services?.slug] || fallbackServiceImage(booking.services?.slug || 'smart-sort');
               const canRebook = isCompleted || booking.status === 'cancelled';
               const canCancel = !isCompleted && booking.status !== 'cancelled';
-              const primaryActionLabel = canRebook ? 'Book Again' : booking.status === 'pending' || booking.status === 'pending_review' ? 'Cancel Booking' : 'Manage';
               const price = mobileBookingPrice(booking);
+              const loc = bookingDisplayLocation(booking);
 
               return (
                 <SwipeableBookingCard
@@ -430,46 +464,59 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                   showCancel={canCancel}
                 >
                   <div
-                    className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-3 transition-all"
-                    style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.06}s both` }}
+                    className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-3 overflow-hidden motion-safe:animate-[fadeInUp_0.4s_ease-out_both] active:scale-[0.99] transition-transform"
+                    style={{ animationDelay: `${Math.min(i, 8) * 0.05}s` }}
                   >
                     <div className="flex gap-3">
                       <img
                         src={serviceImage}
                         alt={booking.services.name}
-                        className="w-[72px] h-[72px] rounded-xl object-cover flex-shrink-0"
+                        className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
                         loading="lazy"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2">
-                              {booking.services.name}
-                            </h3>
-                          </div>
+                          <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100 leading-snug break-words">
+                            {booking.services.name}
+                          </h3>
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full border flex-shrink-0 whitespace-nowrap ${sc.badge}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
                             {sc.label}
                           </span>
                         </div>
 
-                        <div className="mt-1.5 grid gap-0.5">
-                          <span className="flex items-center gap-1 text-[11px] text-slate-500">
-                            <Calendar className="w-3 h-3 flex-shrink-0" />
-                            <span className="truncate">
-                              {new Date(booking.scheduled_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                              {booking.scheduled_time ? ` · ${booking.scheduled_time}` : ''}
-                            </span>
+                        <span className="mt-1 flex items-center gap-1 text-[11px] text-slate-500">
+                          <Calendar className="w-3 h-3 flex-shrink-0" />
+                          <span className="min-w-0 break-words">
+                            {new Date(booking.scheduled_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            {booking.scheduled_time ? ` · ${booking.scheduled_time}` : ''}
                           </span>
-                          <span className="flex items-center gap-1 text-[11px] text-slate-500">
-                            <MapPin className="w-3 h-3 flex-shrink-0" />
-                            <span className="truncate">{booking.location || 'Location not set'}</span>
-                          </span>
-                        </div>
+                        </span>
                       </div>
                     </div>
+
+                    {loc ? (
+                      <a
+                        href={mapsSearchHref(loc)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-2.5 flex items-start gap-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 px-3 py-2 active:scale-[0.99] transition-transform"
+                      >
+                        <MapPin className="w-3.5 h-3.5 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <span className="flex-1 min-w-0 text-[12px] leading-snug text-slate-700 dark:text-slate-200 break-words">
+                          {loc}
+                        </span>
+                        <ExternalLink className="w-3 h-3 text-slate-400 mt-0.5 flex-shrink-0" />
+                      </a>
+                    ) : (
+                      <div className="mt-2.5 flex items-start gap-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 px-3 py-2">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+                        <span className="text-[12px] text-slate-400">Location not set</span>
+                      </div>
+                    )}
 
                     <div className="mt-2.5 flex items-center justify-between gap-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 px-3 py-2 overflow-hidden">
                       <div className="min-w-0">
@@ -484,7 +531,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                         <button
                           type="button"
                           onClick={() => setPayBooking(booking)}
-                          className="flex-shrink-0 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg active:scale-95 transition-transform"
+                          className="flex-shrink-0 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg active:scale-95 transition-transform"
                         >
                           Pay
                         </button>
@@ -494,9 +541,10 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <button
                         onClick={() => toggleExpand(booking.id)}
-                        className="h-8 rounded-lg text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 active:scale-95 transition-transform"
+                        className="h-9 rounded-lg text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 active:scale-95 transition-transform inline-flex items-center justify-center gap-1 px-2"
                       >
-                        View Details
+                        <span className="truncate">{isExpanded ? 'Hide details' : 'Details'}</span>
+                        <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                       </button>
                       <button
                         onClick={() => {
@@ -507,7 +555,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                             toggleExpand(booking.id);
                           }
                         }}
-                        className={`h-8 rounded-lg text-[11px] font-semibold active:scale-95 transition-transform ${
+                        className={`h-9 rounded-lg text-[11px] font-semibold active:scale-95 transition-transform px-2 truncate ${
                           canRebook
                             ? 'text-blue-700 bg-white border border-blue-200'
                             : booking.status === 'pending' || booking.status === 'pending_review'
@@ -515,18 +563,18 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                               : 'text-blue-700 bg-white border border-blue-200'
                         }`}
                       >
-                        {primaryActionLabel}
+                        {canRebook ? 'Book again' : booking.status === 'pending' || booking.status === 'pending_review' ? 'Cancel' : 'Manage'}
                       </button>
                     </div>
 
                     {isExpanded && (
-                      <div className="mt-2 border-t border-slate-100 dark:border-slate-700">
+                      <div className="mt-2 border-t border-slate-100 dark:border-slate-700 booking-expand">
                         <div className="flex">
                           {(['tracker', 'messages', 'documents'] as const).map((t) => (
                             <button
                               key={t}
                               onClick={() => { vibrate('light'); setActiveSubTab(t); }}
-                              className={`flex-1 py-2.5 text-[11px] font-medium capitalize transition-colors ${
+                              className={`flex-1 min-w-0 py-2.5 text-[11px] font-medium capitalize transition-colors ${
                                 activeSubTab === t
                                   ? 'text-blue-700 border-b-2 border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 dark:text-blue-400'
                                   : 'text-slate-500 dark:text-slate-400'
@@ -535,7 +583,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                               {t === 'tracker' && <Truck className="w-3 h-3 inline mr-1" />}
                               {t === 'messages' && <MessageSquare className="w-3 h-3 inline mr-1" />}
                               {t === 'documents' && <Paperclip className="w-3 h-3 inline mr-1" />}
-                              {t}
+                              <span className="truncate">{t}</span>
                             </button>
                           ))}
                         </div>

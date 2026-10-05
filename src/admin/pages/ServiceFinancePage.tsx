@@ -7,7 +7,8 @@ import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard } from '../components/ui';
 import { downloadCsv } from './finance/financeCsv';
 import { PrivacyToggle, SensitiveValue } from '../../components/SensitiveValue';
-import { getFinancePrivacy, maskReference, redactCsvValue, setFinancePrivacy } from '../../lib/sensitive';
+import { maskReference, redactCsvValue } from '../../lib/sensitive';
+import { useFinancePrivacy } from '../../contexts/FinancePrivacyContext';
 import {
   ENTRY_CATEGORIES,
   ENTRY_KINDS,
@@ -42,11 +43,6 @@ interface LedgerEntry {
   payment_method: string | null;
   invoice_id: string | null;
   created_at: string;
-}
-
-function fmtMoney(n: number) {
-  const sign = n < 0 ? '-' : '';
-  return `${sign}SLE ${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatDate(d: string) {
@@ -104,7 +100,7 @@ export function ServiceFinancePage({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [totalsByService, setTotalsByService] = useState<Record<string, { collected: number; pending: number }>>({});
   const [isSuper, setIsSuper] = useState(false);
-  const [privacy, setPrivacy] = useState(getFinancePrivacy);
+  const { privacy, setPrivacy, money } = useFinancePrivacy();
   const [notice, setNotice] = useState('');
   const [bankSlips, setBankSlips] = useState<{
     id: string; booking_id: string; document_type: string; document_name: string;
@@ -353,11 +349,6 @@ export function ServiceFinancePage({
     if (selected) await loadLedger(selected);
   };
 
-  const togglePrivacy = (next: boolean) => {
-    setFinancePrivacy(next);
-    setPrivacy(next);
-  };
-
   if (!selectedSlug) {
     return (
       <div className="space-y-6">
@@ -387,11 +378,11 @@ export function ServiceFinancePage({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Collected</p>
-                      <p className="text-sm font-bold text-emerald-700 mt-0.5">{fmtMoney(totals?.collected || 0)}</p>
+                      <p className="text-sm font-bold text-emerald-700 mt-0.5">{money(totals?.collected || 0)}</p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Pending</p>
-                      <p className="text-sm font-bold text-amber-600 mt-0.5">{fmtMoney(totals?.pending || 0)}</p>
+                      <p className="text-sm font-bold text-amber-600 mt-0.5">{money(totals?.pending || 0)}</p>
                     </div>
                   </div>
                   <div className="mt-4 flex items-center text-xs font-semibold text-emerald-600">
@@ -414,7 +405,7 @@ export function ServiceFinancePage({
         icon={Banknote}
         actions={
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            <PrivacyToggle on={privacy} onChange={togglePrivacy} />
+            <PrivacyToggle on={privacy} onChange={setPrivacy} />
             <button
               type="button"
               onClick={() => onNavigate('finance-services')}
@@ -448,14 +439,14 @@ export function ServiceFinancePage({
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="animate-[fadeInUp_0.35s_ease_both]"><StatCard label="Collected" value={fmtMoney(stats.collected)} icon={TrendingUp} color="text-emerald-600" accent="bg-emerald-50" /></div>
-        <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '60ms' }}><StatCard label="Online collected" value={fmtMoney(stats.online)} icon={Smartphone} color="text-blue-600" accent="bg-blue-50" /></div>
-        <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '120ms' }}><StatCard label="Offline collected" value={fmtMoney(stats.offline)} icon={WifiOff} color="text-amber-600" accent="bg-amber-50" /></div>
-        <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '180ms' }}><StatCard label="Pending requests" value={fmtMoney(stats.pending)} icon={Banknote} color="text-slate-700" accent="bg-slate-50" /></div>
+        <div className="animate-[fadeInUp_0.35s_ease_both]"><StatCard label="Collected" value={money(stats.collected)} icon={TrendingUp} color="text-emerald-600" accent="bg-emerald-50" /></div>
+        <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '60ms' }}><StatCard label="Online collected" value={money(stats.online)} icon={Smartphone} color="text-blue-600" accent="bg-blue-50" /></div>
+        <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '120ms' }}><StatCard label="Offline collected" value={money(stats.offline)} icon={WifiOff} color="text-amber-600" accent="bg-amber-50" /></div>
+        <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '180ms' }}><StatCard label="Pending requests" value={money(stats.pending)} icon={Banknote} color="text-slate-700" accent="bg-slate-50" /></div>
       </div>
       <p className="text-xs text-slate-400 -mt-2 flex items-center gap-1.5">
         <Lock className="w-3 h-3" />
-        Net collected {fmtMoney(stats.net)} after expenses {fmtMoney(stats.expense)}. Payment references stay masked until you reveal them.
+        Net collected {money(stats.net)} after expenses {money(stats.expense)}. Payment references stay masked until you reveal them.
       </p>
 
       {bankSlips.length > 0 && (
@@ -471,7 +462,7 @@ export function ServiceFinancePage({
                   <p className="text-sm font-semibold text-slate-800 truncate">{slip.contact_name}</p>
                   <p className="text-xs text-slate-500 capitalize">{slip.document_type.replace('_', ' ')} · {slip.document_name}</p>
                 </div>
-                <p className="text-sm font-bold text-slate-800">{fmtMoney(Number(slip.amount_sle) || 0)}</p>
+                <p className="text-sm font-bold text-slate-800">{money(Number(slip.amount_sle) || 0)}</p>
                 <a href={slip.document_url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-blue-700 hover:underline">Open slip</a>
                 {canWrite && (
                   <div className="flex gap-1">
@@ -582,7 +573,7 @@ export function ServiceFinancePage({
                         {e.invoice_id && <p className="text-[11px] text-blue-600 font-medium mt-0.5">Invoiced</p>}
                       </td>
                       <td className={`px-4 py-3 text-right font-bold whitespace-nowrap ${Number(e.amount_sle) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
-                        {fmtMoney(Number(e.amount_sle))}
+                        {money(Number(e.amount_sle))}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1">
@@ -912,6 +903,7 @@ function InvoiceModal({
   onSave: (note: string) => void;
 }) {
   const [note, setNote] = useState('');
+  const { money } = useFinancePrivacy();
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn">
       <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md animate-scaleIn">
@@ -921,7 +913,7 @@ function InvoiceModal({
         </div>
         <form className="px-5 py-5 space-y-4" onSubmit={(e) => { e.preventDefault(); onSave(note); }}>
           <p className="text-sm text-slate-500">{entry.description}</p>
-          <p className="text-sm font-bold text-slate-800">{fmtMoney(Number(entry.amount_sle))}</p>
+          <p className="text-sm font-bold text-slate-800">{money(Number(entry.amount_sle))}</p>
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5">Note to client</label>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}

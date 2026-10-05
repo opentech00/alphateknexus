@@ -7,6 +7,9 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard } from '../components/ui';
+import { PrivacyToggle, SensitiveValue } from '../../components/SensitiveValue';
+import { maskEmail, maskReference, redactCsvValue } from '../../lib/sensitive';
+import { useFinancePrivacy } from '../../contexts/FinancePrivacyContext';
 import { ReceiptModal } from '../../components/ReceiptModal';
 import { DisputesTab } from '../components/DisputesTab';
 import { issueWalletCredit } from '../../lib/financeCredit';
@@ -53,6 +56,7 @@ function formatDate(d: string) {
 }
 
 export function WalletManagementPage() {
+  const { privacy, setPrivacy, money } = useFinancePrivacy();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -203,11 +207,11 @@ interface MonimePayment {
     const headers = ['Client', 'Email', 'Type', 'Amount (SLE)', 'Method', 'Reference', 'Status', 'Date'];
     const rows = filtered.map(t => [
       (t.profiles?.full_name || 'Unknown').replace(/,/g, ';'),
-      (t.profiles?.email || '').replace(/,/g, ';'),
+      redactCsvValue(privacy, 'email', t.profiles?.email || '').replace(/,/g, ';'),
       t.type || '',
-      Number(t.amount_sle).toFixed(2),
+      redactCsvValue(privacy, 'amount', Number(t.amount_sle).toFixed(2)),
       (t.method || '').replace(/_/g, ' '),
-      t.reference || '',
+      redactCsvValue(privacy, 'reference', t.reference || ''),
       t.status || '',
       new Date(t.created_at).toISOString(),
     ]);
@@ -229,12 +233,15 @@ interface MonimePayment {
         description="Manage client wallet balances and transactions"
         icon={Wallet}
         actions={
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors text-sm"
-          >
-            <Plus className="w-4 h-4" /> Add Transaction
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <PrivacyToggle on={privacy} onChange={setPrivacy} />
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors text-sm"
+            >
+              <Plus className="w-4 h-4" /> Add Transaction
+            </button>
+          </div>
         }
       />
 
@@ -268,9 +275,9 @@ interface MonimePayment {
       <>
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="TOTAL WALLET BALANCE" value={fmtMoney(stats.totalBalance)} icon={Wallet} color="text-emerald-500" accent="bg-emerald-50" />
-        <StatCard label="TOTAL TOP-UPS" value={fmtMoney(stats.totalTopUps)} icon={ArrowDownCircle} color="text-blue-500" accent="bg-blue-50" />
-        <StatCard label="TOTAL PAYMENTS" value={fmtMoney(stats.totalPayments)} icon={ArrowUpCircle} color="text-teal-500" accent="bg-teal-50" />
+        <StatCard label="TOTAL WALLET BALANCE" value={money(stats.totalBalance)} icon={Wallet} color="text-emerald-500" accent="bg-emerald-50" />
+        <StatCard label="TOTAL TOP-UPS" value={money(stats.totalTopUps)} icon={ArrowDownCircle} color="text-blue-500" accent="bg-blue-50" />
+        <StatCard label="TOTAL PAYMENTS" value={money(stats.totalPayments)} icon={ArrowUpCircle} color="text-teal-500" accent="bg-teal-50" />
         <StatCard label="ACTIVE WALLETS" value={String(stats.activeWallets)} icon={Users} color="text-amber-500" accent="bg-amber-50" />
       </div>
 
@@ -381,7 +388,9 @@ interface MonimePayment {
                     <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-5 py-3">
                         <p className="font-medium text-slate-800">{t.profiles?.full_name || 'Unknown'}</p>
-                        <p className="text-xs text-slate-400">{t.profiles?.email || ''}</p>
+                        <p className="text-xs text-slate-400">
+                          <SensitiveValue privacy={privacy} masked={maskEmail(t.profiles?.email)} full={t.profiles?.email || ''} />
+                        </p>
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2">
@@ -393,13 +402,13 @@ interface MonimePayment {
                         </div>
                       </td>
                       <td className={`px-5 py-3 text-right font-bold ${isCredit ? 'text-emerald-600' : 'text-slate-700'}`}>
-                        {isCredit ? '+' : ''}{fmtMoney(Number(t.amount_sle))}
+                        {isCredit ? '+' : ''}{money(Number(t.amount_sle))}
                       </td>
                       <td className="px-5 py-3 hidden sm:table-cell text-slate-500 capitalize">
                         {(t.method || '-').replace(/_/g, ' ')}
                       </td>
                       <td className="px-5 py-3 hidden md:table-cell text-slate-500 font-mono text-xs">
-                        {t.reference || '-'}
+                        <SensitiveValue privacy={privacy} masked={maskReference(t.reference)} full={t.reference || '-'} mono />
                       </td>
                       <td className="px-5 py-3 hidden lg:table-cell text-slate-400 text-xs">
                         {formatDate(t.created_at)}

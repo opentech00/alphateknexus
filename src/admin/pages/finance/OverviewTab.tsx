@@ -6,8 +6,9 @@ import {
 import { supabase } from '../../../lib/supabase';
 import { StatCard } from '../../components/ui';
 import { downloadCsv, sanitizeSearch, startOfTodayIso } from './financeCsv';
-import { PrivacyToggle, SensitiveValue } from '../../../components/SensitiveValue';
-import { getFinancePrivacy, maskEmail, maskReference, redactCsvValue, setFinancePrivacy } from '../../../lib/sensitive';
+import { SensitiveValue } from '../../../components/SensitiveValue';
+import { maskEmail, maskReference, redactCsvValue } from '../../../lib/sensitive';
+import { useFinancePrivacy } from '../../../contexts/FinancePrivacyContext';
 
 export type FinanceJumpTab =
   | 'wallet'
@@ -92,7 +93,7 @@ export function OverviewTab({ onOpenTab, onOpenLedgers }: { onOpenTab: (tab: Fin
   const [search, setSearch] = useState('');
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
-  const [privacy, setPrivacy] = useState(getFinancePrivacy);
+  const { privacy, money } = useFinancePrivacy();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -328,7 +329,7 @@ export function OverviewTab({ onOpenTab, onOpenLedgers }: { onOpenTab: (tab: Fin
     downloadCsv(`finance-exceptions-${new Date().toISOString().slice(0, 10)}.csv`, unmatched.map((i) => ({
       rail: i.rail, client: i.client, email: redactCsvValue(privacy, 'email', i.email),
       reference: redactCsvValue(privacy, 'reference', i.reference),
-      amount_sle: i.amount, status: i.status, date: i.date,
+      amount_sle: redactCsvValue(privacy, 'amount', i.amount), status: i.status, date: i.date,
     })));
   };
 
@@ -336,7 +337,7 @@ export function OverviewTab({ onOpenTab, onOpenLedgers }: { onOpenTab: (tab: Fin
     downloadCsv(`finance-search-${new Date().toISOString().slice(0, 10)}.csv`, hits.map((i) => ({
       rail: i.rail, client: i.client, email: redactCsvValue(privacy, 'email', i.email),
       reference: redactCsvValue(privacy, 'reference', i.reference),
-      method: i.method, amount_sle: i.amount, status: i.status, date: i.date,
+      method: i.method, amount_sle: redactCsvValue(privacy, 'amount', i.amount), status: i.status, date: i.date,
     })));
   };
 
@@ -354,7 +355,6 @@ export function OverviewTab({ onOpenTab, onOpenLedgers }: { onOpenTab: (tab: Fin
           <p className="text-xs text-slate-500">Wallet vs Monime vs cash vs payouts, plus service ledgers that still need a second look.</p>
         </div>
         <div className="flex items-center gap-2">
-          <PrivacyToggle on={privacy} onChange={(next) => { setFinancePrivacy(next); setPrivacy(next); }} />
           <button onClick={load}
             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
@@ -369,22 +369,22 @@ export function OverviewTab({ onOpenTab, onOpenLedgers }: { onOpenTab: (tab: Fin
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="WALLET LIABILITY" value={fmtMoney(walletBalance)} icon={Wallet} color="text-emerald-500" accent="bg-emerald-50" />
-            <StatCard label="MONIME IN TODAY" value={fmtMoney(monimeToday)} icon={Smartphone} color="text-blue-500" accent="bg-blue-50" />
-            <StatCard label="CASH CONFIRMED TODAY" value={fmtMoney(cashConfirmedToday)} icon={CheckCircle2} color="text-teal-500" accent="bg-teal-50" />
-            <StatCard label="PAYOUTS SENT TODAY" value={fmtMoney(payoutsPaidToday)} icon={Banknote} color="text-amber-500" accent="bg-amber-50" />
+            <StatCard label="WALLET LIABILITY" value={money(walletBalance)} icon={Wallet} color="text-emerald-500" accent="bg-emerald-50" />
+            <StatCard label="MONIME IN TODAY" value={money(monimeToday)} icon={Smartphone} color="text-blue-500" accent="bg-blue-50" />
+            <StatCard label="CASH CONFIRMED TODAY" value={money(cashConfirmedToday)} icon={CheckCircle2} color="text-teal-500" accent="bg-teal-50" />
+            <StatCard label="PAYOUTS SENT TODAY" value={money(payoutsPaidToday)} icon={Banknote} color="text-amber-500" accent="bg-amber-50" />
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="NET TODAY" value={fmtMoney(netToday)} icon={LayoutDashboard} color="text-emerald-500" accent="bg-emerald-50" />
-            <StatCard label="CASH UNCONFIRMED" value={fmtMoney(cashCollected)} icon={Clock} color="text-amber-500" accent="bg-amber-50" />
-            <StatCard label="PAYOUTS QUEUED" value={fmtMoney(payoutsQueued)} icon={Banknote} color="text-red-500" accent="bg-red-50" />
-            <StatCard label="INVOICES OUTSTANDING" value={fmtMoney(invoiceOutstanding)} icon={FileText} color="text-blue-500" accent="bg-blue-50" />
+            <StatCard label="NET TODAY" value={money(netToday)} icon={LayoutDashboard} color="text-emerald-500" accent="bg-emerald-50" />
+            <StatCard label="CASH UNCONFIRMED" value={money(cashCollected)} icon={Clock} color="text-amber-500" accent="bg-amber-50" />
+            <StatCard label="PAYOUTS QUEUED" value={money(payoutsQueued)} icon={Banknote} color="text-red-500" accent="bg-red-50" />
+            <StatCard label="INVOICES OUTSTANDING" value={money(invoiceOutstanding)} icon={FileText} color="text-blue-500" accent="bg-blue-50" />
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="animate-[fadeInUp_0.35s_ease_both]"><StatCard label="LEDGER COLLECTED" value={fmtMoney(ledgerCollected)} icon={Banknote} color="text-emerald-500" accent="bg-emerald-50" /></div>
-            <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '50ms' }}><StatCard label="LEDGER PENDING" value={fmtMoney(ledgerPending)} icon={Clock} color="text-amber-500" accent="bg-amber-50" /></div>
-            <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '100ms' }}><StatCard label="LEDGER ONLINE" value={fmtMoney(ledgerOnline)} icon={Smartphone} color="text-blue-500" accent="bg-blue-50" /></div>
-            <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '150ms' }}><StatCard label="LEDGER OFFLINE" value={fmtMoney(ledgerOffline)} icon={Banknote} color="text-slate-600" accent="bg-slate-50" /></div>
+            <div className="animate-[fadeInUp_0.35s_ease_both]"><StatCard label="LEDGER COLLECTED" value={money(ledgerCollected)} icon={Banknote} color="text-emerald-500" accent="bg-emerald-50" /></div>
+            <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '50ms' }}><StatCard label="LEDGER PENDING" value={money(ledgerPending)} icon={Clock} color="text-amber-500" accent="bg-amber-50" /></div>
+            <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '100ms' }}><StatCard label="LEDGER ONLINE" value={money(ledgerOnline)} icon={Smartphone} color="text-blue-500" accent="bg-blue-50" /></div>
+            <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '150ms' }}><StatCard label="LEDGER OFFLINE" value={money(ledgerOffline)} icon={Banknote} color="text-slate-600" accent="bg-slate-50" /></div>
           </div>
           {onOpenLedgers && (
             <button type="button" onClick={onOpenLedgers}
@@ -394,7 +394,7 @@ export function OverviewTab({ onOpenTab, onOpenLedgers }: { onOpenTab: (tab: Fin
           )}
           {walletPending !== 0 && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-              Wallet adjustments awaiting a second admin: {fmtMoney(walletPending)}.
+              Wallet adjustments awaiting a second admin: {money(walletPending)}.
             </div>
           )}
         </>
@@ -449,7 +449,7 @@ export function OverviewTab({ onOpenTab, onOpenLedgers }: { onOpenTab: (tab: Fin
                       <SensitiveValue privacy={privacy} masked={maskReference(h.reference)} full={h.reference || '—'} mono />
                     </td>
                     <td className="px-5 py-3 hidden sm:table-cell text-xs text-slate-500 capitalize">{(h.method || '').replace(/_/g, ' ')}</td>
-                    <td className="px-5 py-3 text-right font-bold text-slate-800">{fmtMoney(h.amount)}</td>
+                    <td className="px-5 py-3 text-right font-bold text-slate-800">{money(h.amount)}</td>
                     <td className="px-5 py-3 text-center text-xs capitalize">{h.status}</td>
                     <td className="px-5 py-3 hidden md:table-cell text-xs text-slate-400">{formatDate(h.date)}</td>
                   </tr>
@@ -504,7 +504,7 @@ export function OverviewTab({ onOpenTab, onOpenLedgers }: { onOpenTab: (tab: Fin
                     <td className="px-5 py-3">
                       <SensitiveValue privacy={privacy} masked={maskReference(i.reference)} full={i.reference} mono />
                     </td>
-                    <td className="px-5 py-3 text-right font-bold text-slate-800">{fmtMoney(i.amount)}</td>
+                    <td className="px-5 py-3 text-right font-bold text-slate-800">{money(i.amount)}</td>
                     <td className="px-5 py-3 text-xs text-amber-700">{i.status}</td>
                     <td className="px-5 py-3 text-center">
                       <button onClick={() => onOpenTab(i.tab)}

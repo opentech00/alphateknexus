@@ -8,6 +8,9 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard } from '../components/ui';
+import { PrivacyToggle, SensitiveValue } from '../../components/SensitiveValue';
+import { maskEmail, maskReference, redactCsvValue } from '../../lib/sensitive';
+import { useFinancePrivacy } from '../../contexts/FinancePrivacyContext';
 import { OverviewTab } from './finance/OverviewTab';
 import { InvoicesTab } from './finance/InvoicesTab';
 import { AnalyticsTab } from './finance/AnalyticsTab';
@@ -41,6 +44,7 @@ function formatDate(d: string) {
 
 export function FinancePage({ onNavigate }: { onNavigate?: (page: string) => void }) {
   const [tab, setTab] = useState<Tab>('overview');
+  const { privacy, setPrivacy } = useFinancePrivacy();
 
   const tabs: { id: Tab; label: string; icon: typeof Wallet }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -65,6 +69,7 @@ export function FinancePage({ onNavigate }: { onNavigate?: (page: string) => voi
         title="Finance Module"
         description="Manage all payments, wallets, and transactions in one place"
         icon={Wallet}
+        actions={<PrivacyToggle on={privacy} onChange={setPrivacy} />}
       />
 
       {/* Tab bar */}
@@ -145,6 +150,7 @@ const METHODS = [
 ];
 
 function WalletTab() {
+  const { privacy, money } = useFinancePrivacy();
   const [transactions, setTransactions] = useState<WalletTxn[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -314,9 +320,9 @@ function WalletTab() {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="TOTAL WALLET BALANCE" value={fmtMoney(stats.totalBalance)} icon={Wallet} color="text-emerald-500" accent="bg-emerald-50" />
-        <StatCard label="TOTAL TOP-UPS" value={fmtMoney(stats.totalTopUps)} icon={ArrowDownCircle} color="text-blue-500" accent="bg-blue-50" />
-        <StatCard label="TOTAL PAYMENTS" value={fmtMoney(stats.totalPayments)} icon={ArrowUpCircle} color="text-teal-500" accent="bg-teal-50" />
+        <StatCard label="TOTAL WALLET BALANCE" value={money(stats.totalBalance)} icon={Wallet} color="text-emerald-500" accent="bg-emerald-50" />
+        <StatCard label="TOTAL TOP-UPS" value={money(stats.totalTopUps)} icon={ArrowDownCircle} color="text-blue-500" accent="bg-blue-50" />
+        <StatCard label="TOTAL PAYMENTS" value={money(stats.totalPayments)} icon={ArrowUpCircle} color="text-teal-500" accent="bg-teal-50" />
         <StatCard label="PENDING APPROVAL" value={String(stats.pendingCount)} icon={Clock} color="text-amber-500" accent="bg-amber-50" />
       </div>
 
@@ -346,8 +352,8 @@ function WalletTab() {
           </select>
         </div>
         <button onClick={() => downloadCsv('wallet-transactions.csv', filtered.map(t => ({
-          client: t.profiles?.full_name || '', email: t.profiles?.email || '', type: t.type,
-          amount_sle: t.amount_sle, method: t.method, reference: t.reference, status: t.status, date: t.created_at,
+          client: t.profiles?.full_name || '', email: redactCsvValue(privacy, 'email', t.profiles?.email || ''), type: t.type,
+          amount_sle: redactCsvValue(privacy, 'amount', t.amount_sle), method: t.method, reference: redactCsvValue(privacy, 'reference', t.reference), status: t.status, date: t.created_at,
         })))}
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm whitespace-nowrap">
           <Download className="w-4 h-4" /> Export CSV
@@ -381,7 +387,9 @@ function WalletTab() {
             <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
               <td className="px-5 py-3">
                 <p className="font-medium text-slate-800">{t.profiles?.full_name || 'Unknown'}</p>
-                <p className="text-xs text-slate-400">{t.profiles?.email || ''}</p>
+                <p className="text-xs text-slate-400">
+                  <SensitiveValue privacy={privacy} masked={maskEmail(t.profiles?.email)} full={t.profiles?.email || ''} />
+                </p>
               </td>
               <td className="px-5 py-3">
                 <div className="flex items-center gap-2">
@@ -395,10 +403,12 @@ function WalletTab() {
                 </div>
               </td>
               <td className={`px-5 py-3 text-right font-bold ${isCredit ? 'text-emerald-600' : 'text-slate-700'}`}>
-                {isCredit ? '+' : ''}{fmtMoney(Number(t.amount_sle))}
+                {isCredit ? '+' : ''}{money(Number(t.amount_sle))}
               </td>
               <td className="px-5 py-3 hidden sm:table-cell text-slate-500 capitalize">{(t.method || '-').replace(/_/g, ' ')}</td>
-              <td className="px-5 py-3 hidden md:table-cell text-slate-500 font-mono text-xs">{t.reference || '-'}</td>
+              <td className="px-5 py-3 hidden md:table-cell text-slate-500 font-mono text-xs">
+                <SensitiveValue privacy={privacy} masked={maskReference(t.reference)} full={t.reference || '-'} mono />
+              </td>
               <td className="px-5 py-3 hidden lg:table-cell text-slate-400 text-xs">{formatDate(t.created_at)}</td>
               <td className="px-5 py-3 text-center">
                 <StatusBadge status={t.status} />
@@ -504,6 +514,7 @@ const PURPOSE_LABELS: Record<string, string> = {
 };
 
 function MobileMoneyTab() {
+  const { privacy, money } = useFinancePrivacy();
   const [payments, setPayments] = useState<MonimePayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -582,7 +593,7 @@ function MobileMoneyTab() {
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard label="TOTAL PAYMENTS" value={String(stats.total)} icon={Smartphone} color="text-emerald-500" accent="bg-emerald-50" />
-        <StatCard label="COMPLETED AMOUNT" value={fmtMoney(stats.totalAmount)} icon={CheckCircle2} color="text-blue-500" accent="bg-blue-50" />
+        <StatCard label="COMPLETED AMOUNT" value={money(stats.totalAmount)} icon={CheckCircle2} color="text-blue-500" accent="bg-blue-50" />
         <StatCard label="PENDING" value={String(stats.pending)} icon={Clock} color="text-amber-500" accent="bg-amber-50" />
         <StatCard label="UNMATCHED >15M" value={String(stats.unmatched)} icon={AlertTriangle} color="text-orange-500" accent="bg-orange-50" />
         <StatCard label="FAILED / CANCELLED" value={String(stats.failed)} icon={X} color="text-red-500" accent="bg-red-50" />
@@ -645,10 +656,12 @@ function MobileMoneyTab() {
           <tr key={p.id} className={`hover:bg-slate-50/50 transition-colors ${stalePending ? 'bg-amber-50/60' : ''}`}>
             <td className="px-5 py-3">
               <p className="font-medium text-slate-800">{p.profile?.full_name || 'Unknown'}</p>
-              <p className="text-xs text-slate-400">{p.profile?.email || ''}</p>
+              <p className="text-xs text-slate-400">
+                <SensitiveValue privacy={privacy} masked={maskEmail(p.profile?.email)} full={p.profile?.email || ''} />
+              </p>
             </td>
             <td className="px-5 py-3 font-mono text-xs text-slate-600">
-              {p.reference}
+              <SensitiveValue privacy={privacy} masked={maskReference(p.reference)} full={p.reference} mono />
               {(p.provider_id || p.channel) && (
                 <p className="text-[10px] text-slate-400 mt-0.5">{[p.channel, p.provider_id].filter(Boolean).join(' · ')}</p>
               )}
@@ -660,7 +673,7 @@ function MobileMoneyTab() {
               {(p.purpose || '').replace(/_/g, ' ')}
               {p.kind && p.kind !== 'full' && <span className="ml-1 text-[10px] font-semibold uppercase text-slate-400">{p.kind}</span>}
             </td>
-            <td className="px-5 py-3 text-right font-bold text-slate-800">SLE {Number(p.amount_sle).toLocaleString()}</td>
+            <td className="px-5 py-3 text-right font-bold text-slate-800">{money(Number(p.amount_sle))}</td>
             <td className="px-5 py-3 text-center"><StatusBadge status={p.status} /></td>
             <td className="px-5 py-3 hidden lg:table-cell text-xs text-slate-500 max-w-[220px]">
               {(p.status === 'failed' || p.status === 'cancelled') ? (
@@ -711,6 +724,7 @@ interface CardPayment {
 }
 
 function DebitCardTab() {
+  const { privacy, money } = useFinancePrivacy();
   const [payments, setPayments] = useState<CardPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -760,7 +774,7 @@ function DebitCardTab() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="CARD PAYMENTS" value={String(stats.total)} icon={CreditCard} color="text-emerald-500" accent="bg-emerald-50" />
-        <StatCard label="TOTAL AMOUNT" value={fmtMoney(stats.totalAmount)} icon={Banknote} color="text-blue-500" accent="bg-blue-50" />
+        <StatCard label="TOTAL AMOUNT" value={money(stats.totalAmount)} icon={Banknote} color="text-blue-500" accent="bg-blue-50" />
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -797,16 +811,20 @@ function DebitCardTab() {
           <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
             <td className="px-5 py-3">
               <p className="font-mono text-xs font-semibold text-slate-800">{p.receipt_number}</p>
-              <p className="font-mono text-[10px] text-slate-400">{p.reference}</p>
+              <p className="font-mono text-[10px] text-slate-400">
+                <SensitiveValue privacy={privacy} masked={maskReference(p.reference)} full={p.reference} mono />
+              </p>
             </td>
             <td className="px-5 py-3">
               <p className="font-medium text-slate-800">{p.profile?.full_name || 'Unknown'}</p>
-              <p className="text-xs text-slate-400">{p.profile?.email || p.recipient_email || ''}</p>
+              <p className="text-xs text-slate-400">
+                <SensitiveValue privacy={privacy} masked={maskEmail(p.profile?.email || p.recipient_email)} full={p.profile?.email || p.recipient_email || ''} />
+              </p>
             </td>
             <td className="px-5 py-3 hidden sm:table-cell">
               <span className="text-xs font-medium text-slate-600">{PURPOSE_LABELS[p.purpose] || p.purpose}</span>
             </td>
-            <td className="px-5 py-3 text-right font-bold text-slate-800">{fmtMoney(Number(p.amount_sle))}</td>
+            <td className="px-5 py-3 text-right font-bold text-slate-800">{money(Number(p.amount_sle))}</td>
             <td className="px-5 py-3 hidden md:table-cell text-slate-400 text-xs">{formatDate(p.paid_at)}</td>
           </tr>
         ))}
@@ -829,6 +847,7 @@ interface Receipt {
 }
 
 function BankReceiptTab() {
+  const { privacy, money } = useFinancePrivacy();
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -907,7 +926,7 @@ function BankReceiptTab() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="TOTAL RECEIPTS" value={String(stats.total)} icon={ReceiptIcon} color="text-emerald-500" accent="bg-emerald-50" />
-        <StatCard label="TOTAL AMOUNT" value={fmtMoney(stats.totalAmount)} icon={Banknote} color="text-blue-500" accent="bg-blue-50" />
+        <StatCard label="TOTAL AMOUNT" value={money(stats.totalAmount)} icon={Banknote} color="text-blue-500" accent="bg-blue-50" />
         <StatCard label="EMAILS SENT" value={String(stats.emailsSent)} icon={Mail} color="text-teal-500" accent="bg-teal-50" />
         <StatCard label="EMAILS PENDING" value={String(stats.pending)} icon={Clock} color="text-amber-500" accent="bg-amber-50" />
       </div>
@@ -959,16 +978,20 @@ function BankReceiptTab() {
           <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
             <td className="px-5 py-3">
               <p className="font-mono text-xs font-semibold text-slate-800">{r.receipt_number}</p>
-              <p className="font-mono text-[10px] text-slate-400">{r.reference}</p>
+              <p className="font-mono text-[10px] text-slate-400">
+                <SensitiveValue privacy={privacy} masked={maskReference(r.reference)} full={r.reference} mono />
+              </p>
             </td>
             <td className="px-5 py-3">
               <p className="font-medium text-slate-800">{r.profile?.full_name || 'Unknown'}</p>
-              <p className="text-xs text-slate-400">{r.profile?.email || r.recipient_email || ''}</p>
+              <p className="text-xs text-slate-400">
+                <SensitiveValue privacy={privacy} masked={maskEmail(r.profile?.email || r.recipient_email)} full={r.profile?.email || r.recipient_email || ''} />
+              </p>
             </td>
             <td className="px-5 py-3 hidden sm:table-cell">
               <span className="text-xs font-medium text-slate-600">{PURPOSE_LABELS[r.purpose] || r.purpose}</span>
             </td>
-            <td className="px-5 py-3 text-right font-bold text-slate-800">{fmtMoney(Number(r.amount_sle))}</td>
+            <td className="px-5 py-3 text-right font-bold text-slate-800">{money(Number(r.amount_sle))}</td>
             <td className="px-5 py-3 text-center">
               {r.email_sent ? (
                 <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium"><CheckCircle2 className="w-3.5 h-3.5" /> Sent</span>

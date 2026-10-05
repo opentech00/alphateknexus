@@ -5,6 +5,9 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { daysPastDue, downloadCsv } from './financeCsv';
+import { SensitiveValue } from '../../../components/SensitiveValue';
+import { maskEmail, redactCsvValue } from '../../../lib/sensitive';
+import { useFinancePrivacy } from '../../../contexts/FinancePrivacyContext';
 import { CreateInvoiceModal, ViewInvoiceModal } from './InvoicePaper';
 import {
   buildOfficialInvoiceHtml, openPrintableHtml, parseInvoiceNotes, type OfficialLineItem,
@@ -78,6 +81,7 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 };
 
 export function InvoicesTab() {
+  const { privacy, money } = useFinancePrivacy();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -241,17 +245,17 @@ export function InvoicesTab() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatBox label="TOTAL INVOICES" value={String(stats.total)} icon={FileText} color="text-emerald-500" accent="bg-emerald-50" />
-        <StatBox label="INVOICED AMOUNT" value={fmtMoney(stats.totalAmount)} icon={DollarSign} color="text-blue-500" accent="bg-blue-50" />
-        <StatBox label="OUTSTANDING" value={fmtMoney(stats.outstanding)} icon={Clock} color="text-amber-500" accent="bg-amber-50" />
+        <StatBox label="INVOICED AMOUNT" value={money(stats.totalAmount)} icon={DollarSign} color="text-blue-500" accent="bg-blue-50" />
+        <StatBox label="OUTSTANDING" value={money(stats.outstanding)} icon={Clock} color="text-amber-500" accent="bg-amber-50" />
         <StatBox label="OVERDUE" value={String(stats.overdue)} icon={AlertCircle} color="text-red-500" accent="bg-red-50" />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <AgingChip label="Current" value={fmtMoney(aging.current)} />
-        <AgingChip label="1â€“30 days" value={fmtMoney(aging.d30)} />
-        <AgingChip label="31â€“60 days" value={fmtMoney(aging.d60)} />
-        <AgingChip label="61â€“90 days" value={fmtMoney(aging.d90)} />
-        <AgingChip label="90+ days" value={fmtMoney(aging.older)} warn />
+        <AgingChip label="Current" value={money(aging.current)} />
+        <AgingChip label="1–30 days" value={money(aging.d30)} />
+        <AgingChip label="31–60 days" value={money(aging.d60)} />
+        <AgingChip label="61–90 days" value={money(aging.d90)} />
+        <AgingChip label="90+ days" value={money(aging.older)} warn />
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -274,9 +278,9 @@ export function InvoicesTab() {
           </select>
         </div>
         <button onClick={() => downloadCsv('invoices.csv', filtered.map(inv => ({
-          invoice_number: inv.invoice_number, client: inv.profile?.full_name || '', email: inv.profile?.email || '',
-          status: inv.status, total: inv.total, amount_paid: inv.amount_paid,
-          balance: Number(inv.total) - Number(inv.amount_paid), due_date: inv.due_date, issue_date: inv.issue_date,
+          invoice_number: inv.invoice_number, client: inv.profile?.full_name || '', email: redactCsvValue(privacy, 'email', inv.profile?.email || ''),
+          status: inv.status, total: redactCsvValue(privacy, 'amount', inv.total), amount_paid: redactCsvValue(privacy, 'amount', inv.amount_paid),
+          balance: redactCsvValue(privacy, 'amount', Number(inv.total) - Number(inv.amount_paid)), due_date: inv.due_date, issue_date: inv.issue_date,
         })))}
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm whitespace-nowrap">
           <Download className="w-4 h-4" /> Export CSV
@@ -333,7 +337,9 @@ export function InvoicesTab() {
                       </td>
                       <td className="px-5 py-3">
                         <p className="font-medium text-slate-800">{inv.profile?.full_name || 'Unknown'}</p>
-                        <p className="text-xs text-slate-400">{inv.profile?.email || ''}</p>
+                        <p className="text-xs text-slate-400">
+                          <SensitiveValue privacy={privacy} masked={maskEmail(inv.profile?.email)} full={inv.profile?.email || ''} />
+                        </p>
                       </td>
                       <td className="px-5 py-3 hidden sm:table-cell text-slate-500 text-xs">{formatDate(inv.issue_date)}</td>
                       <td className="px-5 py-3 hidden md:table-cell text-slate-500 text-xs">
@@ -344,7 +350,7 @@ export function InvoicesTab() {
                           )}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-right font-bold text-slate-800">{fmtMoney(Number(inv.total), inv.currency)}</td>
+                      <td className="px-5 py-3 text-right font-bold text-slate-800">{money(Number(inv.total), fmtMoney(Number(inv.total), inv.currency))}</td>
                       <td className="px-5 py-3 text-center">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${meta.cls}`}>{meta.label}</span>
                       </td>

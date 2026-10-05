@@ -6,6 +6,9 @@ import {
 import { supabase } from '../../../lib/supabase';
 import { downloadCsv } from './financeCsv';
 import { FinanceOpsPlaybook } from './FinanceOpsPlaybook';
+import { SensitiveValue } from '../../../components/SensitiveValue';
+import { maskEmail, redactCsvValue } from '../../../lib/sensitive';
+import { useFinancePrivacy } from '../../../contexts/FinancePrivacyContext';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null };
@@ -88,6 +91,7 @@ const METHOD_META: Record<string, { label: string; icon: typeof Smartphone }> = 
 };
 
 export function PayoutsTab() {
+  const { privacy, money } = useFinancePrivacy();
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -331,8 +335,8 @@ export function PayoutsTab() {
             <option value="failed_payout">Failed payouts</option>
           </select>
           <button onClick={() => downloadCsv('payouts.csv', filtered.map(w => ({
-            client: w.profile?.full_name || '', email: w.profile?.email || '', amount_sle: w.amount_sle,
-            method: w.payout_method, status: w.status, payout_status: w.payout_status, reference: w.reference,
+            client: w.profile?.full_name || '', email: redactCsvValue(privacy, 'email', w.profile?.email || ''), amount_sle: redactCsvValue(privacy, 'amount', w.amount_sle),
+            method: w.payout_method, status: w.status, payout_status: w.payout_status, reference: redactCsvValue(privacy, 'reference', w.reference),
             monime_payout_id: w.monime_payout_id, date: w.created_at,
           })))}
             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm">
@@ -381,7 +385,9 @@ export function PayoutsTab() {
                     <tr key={w.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-5 py-3">
                         <p className="font-medium text-slate-800">{w.profile?.full_name || 'Unknown'}</p>
-                        <p className="text-xs text-slate-400">{w.profile?.email || ''}</p>
+                        <p className="text-xs text-slate-400">
+                          <SensitiveValue privacy={privacy} masked={maskEmail(w.profile?.email)} full={w.profile?.email || ''} />
+                        </p>
                         {w.payout_details && Object.keys(w.payout_details).length > 0 && (
                           <p className="text-[10px] text-slate-400 mt-0.5">
                             {Object.entries(w.payout_details).map(([k, v]) => `${k}: ${v}`).join(' · ')}
@@ -391,11 +397,11 @@ export function PayoutsTab() {
                           <p className="text-[10px] text-slate-400 mt-0.5">Payout ID: {w.monime_payout_id}</p>
                         )}
                       </td>
-                      <td className="px-5 py-3 text-right font-bold text-slate-800">{fmtMoney(Number(w.amount_sle))}</td>
+                      <td className="px-5 py-3 text-right font-bold text-slate-800">{money(Number(w.amount_sle))}</td>
                       <td className="px-5 py-3 text-right hidden lg:table-cell">
                         {w.wallet_balance != null ? (
                           <span className={`font-medium ${hasSufficientBalance ? 'text-slate-600' : 'text-red-600'}`}>
-                            {fmtMoney(w.wallet_balance)}
+                            {money(w.wallet_balance ?? 0)}
                             {!hasSufficientBalance && <span className="block text-[10px] text-red-500">Insufficient</span>}
                           </span>
                         ) : (
@@ -488,13 +494,13 @@ export function PayoutsTab() {
             <div className="overflow-y-auto flex-1 px-5 py-5">
               <div className="bg-slate-50 rounded-xl p-4 space-y-2 mb-4">
                 <div className="flex justify-between text-sm"><span className="text-slate-500">Client</span><span className="font-semibold text-slate-800">{reviewModal.profile?.full_name || 'Unknown'}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-slate-500">Amount</span><span className="font-semibold text-slate-800">{fmtMoney(Number(reviewModal.amount_sle))}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-slate-500">Amount</span><span className="font-semibold text-slate-800">{money(Number(reviewModal.amount_sle))}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-slate-500">Method</span><span className="font-semibold text-slate-800 capitalize">{reviewModal.payout_method.replace('_', ' ')}</span></div>
                 {reviewModal.wallet_balance != null && (
                   <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
                     <span className="text-slate-500 flex items-center gap-1"><Wallet className="w-3.5 h-3.5" /> Wallet Balance</span>
                     <span className={`font-semibold ${reviewModal.wallet_balance >= Number(reviewModal.amount_sle) ? 'text-slate-800' : 'text-red-600'}`}>
-                      {fmtMoney(reviewModal.wallet_balance)}
+                      {money(reviewModal.wallet_balance ?? 0)}
                     </span>
                   </div>
                 )}
@@ -523,7 +529,7 @@ export function PayoutsTab() {
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3.5 mb-4 flex items-start gap-3">
                   <Send className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-blue-600 leading-relaxed">
-                    Clicking "Send Payout" will transfer {fmtMoney(Number(reviewModal.amount_sle))} to the client's mobile money account via Monime. The wallet will be debited automatically. This action cannot be undone.
+                    Clicking "Send Payout" will transfer {money(Number(reviewModal.amount_sle))} to the client's mobile money account via Monime. The wallet will be debited automatically. This action cannot be undone.
                   </p>
                 </div>
               )}
@@ -562,7 +568,7 @@ export function PayoutsTab() {
             </p>
             <div className="bg-slate-50 rounded-xl p-3 text-sm mb-4">
               <div className="flex justify-between"><span className="text-slate-500">Client</span><span className="font-semibold">{reconcileModal.profile?.full_name || 'Unknown'}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Amount</span><span className="font-semibold">{fmtMoney(Number(reconcileModal.amount_sle))}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Amount</span><span className="font-semibold">{money(Number(reconcileModal.amount_sle))}</span></div>
             </div>
             <textarea value={adminNote} onChange={e => setAdminNote(e.target.value)} rows={2}
               placeholder="Reconciliation note…"

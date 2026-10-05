@@ -4,6 +4,7 @@ import {
   TrendingUp, TrendingDown, Wallet, FileText, Banknote, RefreshCw,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import { useFinancePrivacy } from '../../../contexts/FinancePrivacyContext';
 
 interface FinanceReport {
   id: string;
@@ -277,6 +278,7 @@ function GenerateModal({ generating, onGenerate, onClose }: {
 }
 
 function ReportViewer({ report, onClose }: { report: FinanceReport; onClose: () => void }) {
+  const { money } = useFinancePrivacy();
   const s = report.summary;
   const isClient = report.report_type === 'client_statement';
   const isPnl = report.report_type === 'service_pnl';
@@ -305,30 +307,30 @@ function ReportViewer({ report, onClose }: { report: FinanceReport; onClose: () 
           <div className="grid grid-cols-2 gap-3">
             {isClient ? (
               <>
-                <StatBox label="Wallet Balance" value={fmtMoney(s.wallet_balance || 0)} icon={Wallet} color="text-emerald-600" />
-                <StatBox label="Total Topped Up" value={fmtMoney(s.total_topped_up || 0)} icon={TrendingUp} color="text-blue-600" />
-                <StatBox label="Total Spent" value={fmtMoney(s.total_spent || 0)} icon={TrendingDown} color="text-red-600" />
+                <StatBox label="Wallet Balance" value={money(s.wallet_balance || 0)} icon={Wallet} color="text-emerald-600" />
+                <StatBox label="Total Topped Up" value={money(s.total_topped_up || 0)} icon={TrendingUp} color="text-blue-600" />
+                <StatBox label="Total Spent" value={money(s.total_spent || 0)} icon={TrendingDown} color="text-red-600" />
                 <StatBox label="Transactions" value={String(s.transaction_count || 0)} icon={FileBarChart} color="text-slate-600" />
                 <StatBox label="Invoices Paid" value={String(s.invoices_paid || 0)} icon={FileText} color="text-emerald-600" />
                 <StatBox label="Outstanding" value={String(s.invoices_outstanding || 0)} icon={FileText} color="text-amber-600" />
               </>
             ) : isPnl ? (
               <>
-                <StatBox label="Collected" value={fmtMoney(s.collected_amount || 0)} icon={TrendingUp} color="text-emerald-600" />
-                <StatBox label="Pending" value={fmtMoney(s.pending_amount || 0)} icon={Banknote} color="text-amber-600" />
-                <StatBox label="Online" value={fmtMoney(s.online_amount || 0)} icon={TrendingUp} color="text-blue-600" />
-                <StatBox label="Offline" value={fmtMoney(s.offline_amount || 0)} icon={Banknote} color="text-slate-700" />
+                <StatBox label="Collected" value={money(s.collected_amount || 0)} icon={TrendingUp} color="text-emerald-600" />
+                <StatBox label="Pending" value={money(s.pending_amount || 0)} icon={Banknote} color="text-amber-600" />
+                <StatBox label="Online" value={money(s.online_amount || 0)} icon={TrendingUp} color="text-blue-600" />
+                <StatBox label="Offline" value={money(s.offline_amount || 0)} icon={Banknote} color="text-slate-700" />
               </>
             ) : (
               <>
-                <StatBox label="Total Inflow" value={fmtMoney(s.total_inflow || 0)} icon={TrendingUp} color="text-emerald-600" />
-                <StatBox label="Total Outflow" value={fmtMoney(s.total_outflow || 0)} icon={TrendingDown} color="text-red-600" />
-                <StatBox label="Net Flow" value={fmtMoney(s.net_flow || 0)} icon={Wallet} color="text-slate-700" />
-                <StatBox label="Invoiced" value={fmtMoney(s.total_invoiced || 0)} icon={FileText} color="text-blue-600" />
-                <StatBox label="Collected" value={fmtMoney(s.total_collected || 0)} icon={TrendingUp} color="text-emerald-600" />
-                <StatBox label="Outstanding" value={fmtMoney(s.outstanding_invoices || 0)} icon={FileText} color="text-amber-600" />
-                <StatBox label="Pending Withdrawals" value={fmtMoney(s.pending_withdrawals || 0)} icon={Banknote} color="text-amber-600" />
-                <StatBox label="Completed Withdrawals" value={fmtMoney(s.completed_withdrawals || 0)} icon={Banknote} color="text-emerald-600" />
+                <StatBox label="Total Inflow" value={money(s.total_inflow || 0)} icon={TrendingUp} color="text-emerald-600" />
+                <StatBox label="Total Outflow" value={money(s.total_outflow || 0)} icon={TrendingDown} color="text-red-600" />
+                <StatBox label="Net Flow" value={money(s.net_flow || 0)} icon={Wallet} color="text-slate-700" />
+                <StatBox label="Invoiced" value={money(s.total_invoiced || 0)} icon={FileText} color="text-blue-600" />
+                <StatBox label="Collected" value={money(s.total_collected || 0)} icon={TrendingUp} color="text-emerald-600" />
+                <StatBox label="Outstanding" value={money(s.outstanding_invoices || 0)} icon={FileText} color="text-amber-600" />
+                <StatBox label="Pending Withdrawals" value={money(s.pending_withdrawals || 0)} icon={Banknote} color="text-amber-600" />
+                <StatBox label="Completed Withdrawals" value={money(s.completed_withdrawals || 0)} icon={Banknote} color="text-emerald-600" />
               </>
             )}
           </div>
@@ -341,9 +343,9 @@ function ReportViewer({ report, onClose }: { report: FinanceReport; onClose: () 
                   <div key={row.slug} className="flex items-center justify-between px-4 py-2.5 border-b border-slate-50 last:border-0">
                     <p className="text-xs font-medium text-slate-700">{row.name}</p>
                     <p className="text-xs text-slate-500">
-                      <span className="text-emerald-700 font-semibold">{fmtMoney(row.collected)}</span>
+                      <span className="text-emerald-700 font-semibold">{money(row.collected)}</span>
                       <span className="mx-1">·</span>
-                      pending {fmtMoney(row.pending)}
+                      pending {money(row.pending)}
                     </p>
                   </div>
                 ))}
@@ -362,7 +364,7 @@ function ReportViewer({ report, onClose }: { report: FinanceReport; onClose: () 
                       <p className="text-[10px] text-slate-400">{formatDate(t.created_at)}</p>
                     </div>
                     <span className={`text-xs font-bold ${Number(t.amount_sle) > 0 ? 'text-emerald-600' : 'text-slate-600'}`}>
-                      {Number(t.amount_sle) > 0 ? '+' : ''}{fmtMoney(Number(t.amount_sle))}
+                      {Number(t.amount_sle) > 0 ? '+' : ''}{money(Number(t.amount_sle))}
                     </span>
                   </div>
                 ))}

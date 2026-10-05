@@ -4,6 +4,7 @@ import {
   ArrowDownCircle, ArrowUpCircle, Smartphone, CreditCard, Wallet,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import { useFinancePrivacy } from '../../../contexts/FinancePrivacyContext';
 
 interface RevenueDay {
   date: string;
@@ -32,6 +33,7 @@ function formatDate(d: string) {
 type Range = '7d' | '30d' | '90d';
 
 export function AnalyticsTab() {
+  const { money } = useFinancePrivacy();
   const [data, setData] = useState<RevenueDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -127,10 +129,10 @@ export function AnalyticsTab() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatBox label="TOTAL INFLOW" value={fmtMoney(stats.totalInflow)} icon={ArrowDownCircle} color="text-emerald-500" accent="bg-emerald-50" />
-        <StatBox label="TOTAL OUTFLOW" value={fmtMoney(stats.totalOutflow)} icon={ArrowUpCircle} color="text-red-500" accent="bg-red-50" />
-        <StatBox label="NET FLOW" value={fmtMoney(stats.netFlow)} icon={TrendingUp} color={stats.netFlow >= 0 ? 'text-emerald-500' : 'text-red-500'} accent="bg-emerald-50" />
-        <StatBox label="AVG DAILY" value={fmtMoney(stats.avgDaily)} icon={BarChart3} color="text-blue-500" accent="bg-blue-50" />
+        <StatBox label="TOTAL INFLOW" value={money(stats.totalInflow)} icon={ArrowDownCircle} color="text-emerald-500" accent="bg-emerald-50" />
+        <StatBox label="TOTAL OUTFLOW" value={money(stats.totalOutflow)} icon={ArrowUpCircle} color="text-red-500" accent="bg-red-50" />
+        <StatBox label="NET FLOW" value={money(stats.netFlow)} icon={TrendingUp} color={stats.netFlow >= 0 ? 'text-emerald-500' : 'text-red-500'} accent="bg-emerald-50" />
+        <StatBox label="AVG DAILY" value={money(stats.avgDaily)} icon={BarChart3} color="text-blue-500" accent="bg-blue-50" />
       </div>
 
       {/* Revenue chart */}
@@ -142,7 +144,7 @@ export function AnalyticsTab() {
           </div>
           {stats.topDay.date && (
             <div className="text-xs text-slate-400">
-              Peak: <span className="font-semibold text-slate-600">{formatDate(stats.topDay.date)}</span> ({fmtMoney(stats.topDay.total_inflow)})
+              Peak: <span className="font-semibold text-slate-600">{formatDate(stats.topDay.date)}</span> ({money(stats.topDay.total_inflow)})
             </div>
           )}
         </div>
@@ -168,7 +170,7 @@ export function AnalyticsTab() {
                       }}
                     />
                     <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-xs rounded-lg px-2 py-1 whitespace-nowrap pointer-events-none z-10">
-                      {fmtMoney(day.total_inflow)}
+                      {money(day.total_inflow)}
                     </div>
                   </div>
                   {data.length <= 30 && (
@@ -205,7 +207,7 @@ export function AnalyticsTab() {
                   <div key={m.method}>
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-slate-600 font-medium">{METHOD_LABELS[m.method] || m.method}</span>
-                      <span className="text-slate-400">{m.count} txns · {fmtMoney(m.amount)}</span>
+                      <span className="text-slate-400">{m.count} txns · {money(m.amount)}</span>
                     </div>
                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
@@ -224,6 +226,7 @@ export function AnalyticsTab() {
 function SourceBar({ icon: Icon, label, amount, total, color }: {
   icon: typeof Wallet; label: string; amount: number; total: number; color: string;
 }) {
+  const { money } = useFinancePrivacy();
   const pct = total > 0 ? (amount / total) * 100 : 0;
   return (
     <div className="mb-4 last:mb-0">
@@ -232,7 +235,7 @@ function SourceBar({ icon: Icon, label, amount, total, color }: {
           <Icon className="w-4 h-4 text-slate-400" />
           <span className="text-slate-600 font-medium">{label}</span>
         </div>
-        <span className="text-slate-400">{fmtMoney(amount)} ({pct.toFixed(1)}%)</span>
+        <span className="text-slate-400">{money(amount)} ({pct.toFixed(1)}%)</span>
       </div>
       <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
         <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />

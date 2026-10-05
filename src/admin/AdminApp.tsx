@@ -55,6 +55,7 @@ import { AdminSessionsPage } from './pages/AdminSessionsPage';
 import { TaskDelegationPage } from './pages/TaskDelegationPage';
 import { MediaLibraryPage } from './pages/MediaLibraryPage';
 import { AdminOperationsProvider } from './contexts/AdminOperationsContext';
+import { FinancePrivacyProvider } from '../contexts/FinancePrivacyContext';
 import { PortalCautionStack } from '../components/CautionBanner';
 import { usePortalSettings } from '../hooks/usePortalSettings';
 
@@ -274,7 +275,9 @@ export function AdminApp() {
   return (
     <AdminNotificationsProvider>
       <AdminOperationsProvider>
-        <AdminContent />
+        <FinancePrivacyProvider>
+          <AdminContent />
+        </FinancePrivacyProvider>
       </AdminOperationsProvider>
     </AdminNotificationsProvider>
   );

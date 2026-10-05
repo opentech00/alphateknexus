@@ -37,6 +37,14 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes bookingExpand {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.booking-expand {
+  animation: bookingExpand 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @keyframes authKenBurns {
   from { transform: scale(1.04); }
   to { transform: scale(1.12); }
@@ -126,7 +134,8 @@ body {
   .animate-float,
   .animate-banner-shine,
   .animate-word-rise,
-  .animate-word-swap {
+  .animate-word-swap,
+  .booking-expand {
     animation: none !important;
     transition: none !important;
   }

@@ -8,7 +8,8 @@ import { PageHeader, StatCard, Card } from '../components/ui';
 import { STATUS_META } from '../hr/types';
 import { INTERNAL_DEPARTMENT_SLUG } from '../../lib/capabilities';
 import { PrivacyToggle, SensitiveValue } from '../../components/SensitiveValue';
-import { getFinancePrivacy, maskEmail, setFinancePrivacy } from '../../lib/sensitive';
+import { maskEmail } from '../../lib/sensitive';
+import { useFinancePrivacy } from '../../contexts/FinancePrivacyContext';
 
 interface StaffRow {
   id: string;
@@ -28,7 +29,7 @@ export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const [error, setError] = useState('');
-  const [privacy, setPrivacy] = useState(getFinancePrivacy);
+  const { privacy, setPrivacy, money } = useFinancePrivacy();
   const [ledger, setLedger] = useState({ pending: 0, collected: 0, online: 0, offline: 0, slips: 0 });
 
   useEffect(() => {
@@ -126,7 +127,7 @@ export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
         title="Admin & Finance"
         description="Ops board — quotes, collections, approvals, and department staff"
         icon={Landmark}
-        actions={<PrivacyToggle on={privacy} onChange={(next) => { setFinancePrivacy(next); setPrivacy(next); }} />}
+        actions={<PrivacyToggle on={privacy} onChange={setPrivacy} />}
       />
 
       {error && (
@@ -135,12 +136,12 @@ export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-[fadeInUp_0.3s_ease]">
         <button type="button" onClick={() => onNavigate('finance-services')} className="text-left hover:-translate-y-0.5 transition-transform">
-          <StatCard label="Ledger pending" value={`SLE ${ledger.pending.toLocaleString()}`} icon={Clock} color="text-amber-600" accent="bg-amber-50" />
+          <StatCard label="Ledger pending" value={money(ledger.pending)} icon={Clock} color="text-amber-600" accent="bg-amber-50" />
         </button>
         <button type="button" onClick={() => onNavigate('finance-services')} className="text-left hover:-translate-y-0.5 transition-transform">
-          <StatCard label="Collected" value={`SLE ${ledger.collected.toLocaleString()}`} icon={Banknote} color="text-emerald-600" accent="bg-emerald-50" />
+          <StatCard label="Collected" value={money(ledger.collected)} icon={Banknote} color="text-emerald-600" accent="bg-emerald-50" />
         </button>
-        <StatCard label="Online / offline" value={`${ledger.online.toLocaleString()} / ${ledger.offline.toLocaleString()}`} icon={Smartphone} color="text-blue-600" accent="bg-blue-50" />
+        <StatCard label="Online / offline" value={`${money(ledger.online)} / ${money(ledger.offline)}`} icon={Smartphone} color="text-blue-600" accent="bg-blue-50" />
         <button type="button" onClick={() => onNavigate('finance')} className="text-left hover:-translate-y-0.5 transition-transform">
           <StatCard label="Approvals / slips" value={`${pendingApprovals} / ${ledger.slips}`} icon={Inbox} color="text-amber-600" accent="bg-amber-50" />
         </button>

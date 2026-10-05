@@ -34,10 +34,19 @@ export function maskReference(value: string | null | undefined): string {
   return `${'•'.repeat(Math.min(raw.length - 4, 8))}${raw.slice(-4)}`;
 }
 
-export function redactCsvValue(privacy: boolean, kind: 'email' | 'reference' | 'plain', value: string | number | null | undefined) {
+export function hiddenMoneyLabel(currency = 'SLE'): string {
+  return `${currency} ••••`;
+}
+
+export function redactCsvValue(
+  privacy: boolean,
+  kind: 'email' | 'reference' | 'plain' | 'amount',
+  value: string | number | null | undefined,
+) {
   const text = value == null ? '' : String(value);
   if (!privacy) return text;
   if (kind === 'email') return maskEmail(text);
   if (kind === 'reference') return maskReference(text);
+  if (kind === 'amount') return '••••';
   return text;
 }

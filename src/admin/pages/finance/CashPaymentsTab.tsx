@@ -5,6 +5,9 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { downloadCsv } from './financeCsv';
+import { SensitiveValue } from '../../../components/SensitiveValue';
+import { maskEmail, maskReference, redactCsvValue } from '../../../lib/sensitive';
+import { useFinancePrivacy } from '../../../contexts/FinancePrivacyContext';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null };
@@ -66,6 +69,7 @@ const PAYABLE_LABELS: Record<string, string> = {
 };
 
 export function CashPaymentsTab() {
+  const { privacy, money } = useFinancePrivacy();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -193,9 +197,9 @@ export function CashPaymentsTab() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatBox label="PENDING" value={String(stats.pendingCount)} icon={Clock} color="text-amber-500" accent="bg-amber-50" />
-        <StatBox label="PENDING AMOUNT" value={fmtMoney(stats.pendingAmount)} icon={ArrowUpCircle} color="text-red-500" accent="bg-red-50" />
-        <StatBox label="COLLECTED" value={fmtMoney(stats.collectedAmount)} icon={Banknote} color="text-blue-500" accent="bg-blue-50" />
-        <StatBox label="CONFIRMED" value={fmtMoney(stats.confirmedAmount)} icon={CheckCircle2} color="text-emerald-500" accent="bg-emerald-50" />
+        <StatBox label="PENDING AMOUNT" value={money(stats.pendingAmount)} icon={ArrowUpCircle} color="text-red-500" accent="bg-red-50" />
+        <StatBox label="COLLECTED" value={money(stats.collectedAmount)} icon={Banknote} color="text-blue-500" accent="bg-blue-50" />
+        <StatBox label="CONFIRMED" value={money(stats.confirmedAmount)} icon={CheckCircle2} color="text-emerald-500" accent="bg-emerald-50" />
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -217,8 +221,8 @@ export function CashPaymentsTab() {
             <option value="failed">Failed</option>
           </select>
           <button onClick={() => downloadCsv('cash-payments.csv', filtered.map(p => ({
-            client: p.profile?.full_name || '', email: p.profile?.email || '', payable_type: p.payable_type,
-            amount_sle: p.amount_sle, reference: p.reference, status: p.status,
+            client: p.profile?.full_name || '', email: redactCsvValue(privacy, 'email', p.profile?.email || ''), payable_type: p.payable_type,
+            amount_sle: redactCsvValue(privacy, 'amount', p.amount_sle), reference: redactCsvValue(privacy, 'reference', p.reference), status: p.status,
             collector: p.collector?.full_name || '', date: p.created_at,
           })))}
             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm">
@@ -264,11 +268,15 @@ export function CashPaymentsTab() {
                     <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-5 py-3">
                         <p className="font-medium text-slate-800">{p.profile?.full_name || 'Unknown'}</p>
-                        <p className="text-xs text-slate-400">{p.profile?.email || ''}</p>
+                        <p className="text-xs text-slate-400">
+                          <SensitiveValue privacy={privacy} masked={maskEmail(p.profile?.email)} full={p.profile?.email || ''} />
+                        </p>
                       </td>
                       <td className="px-5 py-3 text-slate-600 text-xs">{PAYABLE_LABELS[p.payable_type] || p.payable_type}</td>
-                      <td className="px-5 py-3 text-right font-bold text-slate-800">{fmtMoney(Number(p.amount_sle))}</td>
-                      <td className="px-5 py-3 hidden md:table-cell font-mono text-xs text-slate-500">{p.reference}</td>
+                      <td className="px-5 py-3 text-right font-bold text-slate-800">{money(Number(p.amount_sle))}</td>
+                      <td className="px-5 py-3 hidden md:table-cell font-mono text-xs text-slate-500">
+                        <SensitiveValue privacy={privacy} masked={maskReference(p.reference)} full={p.reference} mono />
+                      </td>
                       <td className="px-5 py-3 hidden lg:table-cell text-xs text-slate-500">{p.collector?.full_name || '—'}</td>
                       <td className="px-5 py-3 text-center">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${meta.cls}`}>{meta.label}</span>
@@ -320,7 +328,7 @@ export function CashPaymentsTab() {
             <div className="overflow-y-auto flex-1 px-5 py-5">
               <div className="bg-slate-50 rounded-xl p-4 space-y-2 mb-4">
                 <div className="flex justify-between text-sm"><span className="text-slate-500">Client</span><span className="font-semibold text-slate-800">{confirmModal.profile?.full_name || 'Unknown'}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-slate-500">Amount</span><span className="font-semibold text-slate-800">{fmtMoney(Number(confirmModal.amount_sle))}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-slate-500">Amount</span><span className="font-semibold text-slate-800">{money(Number(confirmModal.amount_sle))}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-slate-500">Reference</span><span className="font-mono text-xs text-slate-600">{confirmModal.reference}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-slate-500">For</span><span className="text-slate-600">{PAYABLE_LABELS[confirmModal.payable_type] || confirmModal.payable_type}</span></div>
               </div>
