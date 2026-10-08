@@ -45,7 +45,7 @@ export function IdleWarningModal({ visible, secondsLeft, onStaySignedIn, onSignO
 
   return (
     <Portal>
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onTouchMove={(e) => e.stopPropagation()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in fade-in zoom-in-95 duration-200">
         <button

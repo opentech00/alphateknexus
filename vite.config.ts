@@ -119,6 +119,8 @@ export default defineConfig({
   ],
   appType: 'mpa',
   build: {
+    target: ['es2020', 'safari14'],
+    cssTarget: 'safari14',
     rollupOptions: {
       input: {
         main: 'index.html',

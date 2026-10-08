@@ -200,7 +200,7 @@ export function SplashScreen({ onGetStarted, onLogin }: SplashScreenProps) {
 
   return (
     <div
-      className="flex flex-col h-[100dvh] overflow-hidden bg-white select-none"
+      className="app-viewport overflow-hidden bg-white select-none"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
@@ -236,8 +236,9 @@ export function SplashScreen({ onGetStarted, onLogin }: SplashScreenProps) {
               key={slide.id}
               src={slideImage}
               alt={slide.badge}
-              className={`w-full max-h-[52vh] object-cover object-top transition-opacity duration-300 ${imageLoaded[slide.id] ? 'opacity-100' : 'opacity-0'}`}
+              className={`w-full max-h-[52vh] object-cover object-top transition-opacity duration-300 ${imageLoaded[slide.id] === false ? 'opacity-0' : 'opacity-100'}`}
               onLoad={() => setImageLoaded(prev => ({ ...prev, [slide.id]: true }))}
+              onError={() => setImageLoaded(prev => ({ ...prev, [slide.id]: true }))}
             />
 
             {/* Text overlay at bottom of image */}

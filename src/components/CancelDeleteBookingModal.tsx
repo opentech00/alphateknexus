@@ -116,7 +116,6 @@ export function CancelDeleteBookingModal({
   const modal = (
     <div
       className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center"
-      style={{ height: '100dvh' }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="booking-action-title"
@@ -131,7 +130,7 @@ export function CancelDeleteBookingModal({
 
       <div
         className="relative w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-        style={{ maxHeight: 'min(88dvh, calc(100dvh - 1.5rem))' }}
+        style={{ maxHeight: 'min(88svh, calc(100% - 1.5rem))' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex-shrink-0 px-5 pt-3 pb-3 border-b border-slate-100 dark:border-slate-800">

@@ -276,7 +276,7 @@ export function AddressPage() {
       {/* Add/Edit Modal */}
       {modalOpen && (
         <Portal>
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()} onClick={() => setModalOpen(false)}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" onTouchMove={(e) => e.stopPropagation()} onClick={() => setModalOpen(false)}>
           <div
             className="bg-white dark:bg-slate-900 black:bg-[#0a0a0a] rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}

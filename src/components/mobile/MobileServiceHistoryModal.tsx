@@ -321,7 +321,7 @@ function BookingDetailModal({
 
   return (
     <Portal>
-    <div className="fixed inset-0 z-[200] flex flex-col justify-end" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[200] flex flex-col justify-end" onTouchMove={(e) => e.stopPropagation()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fadeIn" onClick={onClose} />
       <div className="relative bg-white rounded-t-3xl shadow-2xl max-h-[88vh] flex flex-col animate-slideUp">
         {/* Drag handle */}

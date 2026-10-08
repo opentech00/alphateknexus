@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { AuthContext } from './AuthContext';
 import { supabase } from '../lib/supabase';
+import { subscribeMediaQuery } from '../lib/viewport';
 
 export type ThemeMode = 'light' | 'dark' | 'black' | 'system';
 export type AccentColor = 'emerald' | 'blue' | 'rose' | 'amber' | 'cyan' | 'violet';
@@ -88,8 +89,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (prefs.theme !== 'system') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = () => applyThemeToDOM(prefs.theme, prefs.accent_color, prefs.reduced_motion, prefs.compact_mode);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
+    return subscribeMediaQuery(mq, handler);
   }, [prefs]);
 
   // Load from user_preferences table when user logs in

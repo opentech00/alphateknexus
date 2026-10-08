@@ -47,6 +47,21 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter android:autoVerify="true" >
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="alphateknexus.vercel.app"
+                    android:pathPrefix="/payment-return"
+                    android:scheme="https" />
+                <data
+                    android:host="alphateknexus.vercel.app"
+                    android:pathPrefix="/field-paid"
+                    android:scheme="https" />
+            </intent-filter>
         </activity>
 
         <provider

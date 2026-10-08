@@ -1,14 +1,25 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Component, type CSSProperties, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 type ErrorBoundaryProps = {
   children: ReactNode;
   homeHref?: string;
   homeLabel?: string;
+  fallback?: ReactNode;
 };
 
 type ErrorBoundaryState = {
   error: Error | null;
+};
+
+const screenStyle: CSSProperties = {
+  minHeight: '100vh',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 24,
+  background: '#f5f8ff',
+  color: '#0f172a',
 };
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -29,12 +40,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render() {
     const { error } = this.state;
     if (!error) return this.props.children;
+    if (this.props.fallback !== undefined) return this.props.fallback;
 
     const homeHref = this.props.homeHref ?? '/';
     const homeLabel = this.props.homeLabel ?? 'Go to home';
 
     return (
-      <div className="min-h-dvh bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex items-center justify-center p-6">
+      <div className="app-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex items-center justify-center p-6" style={screenStyle}>
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
             <AlertTriangle className="h-6 w-6" aria-hidden="true" />

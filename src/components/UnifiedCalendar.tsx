@@ -370,7 +370,7 @@ export function UnifiedCalendar({ onNavigate }: UnifiedCalendarProps) {
       {/* Event Detail Modal */}
       {detailEvent && (
         <Portal>
-        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-[fadeIn_0.2s_ease]" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()} onClick={() => setDetailEvent(null)}>
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-[fadeIn_0.2s_ease]" onTouchMove={(e) => e.stopPropagation()} onClick={() => setDetailEvent(null)}>
           <div
             className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md animate-[slideUp_0.3s_ease]"
             onClick={(e) => e.stopPropagation()}

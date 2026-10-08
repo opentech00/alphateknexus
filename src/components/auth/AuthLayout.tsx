@@ -118,8 +118,8 @@ export function AuthLayout({ children, slides = DEFAULT_SLIDES, heroTitle, heroD
   const showCarousel = !heroTitle;
 
   return (
-    <div className="h-dvh flex flex-col lg:flex-row overflow-hidden">
-      <div className="relative lg:flex-[1.45] h-[26vh] lg:h-dvh flex-shrink-0 overflow-hidden bg-[#07111f]">
+    <div className="app-screen flex flex-col lg:flex-row lg:h-full lg:overflow-hidden bg-white">
+      <div className="relative lg:flex-[1.45] h-[26vh] min-h-[9.5rem] lg:h-auto lg:min-h-0 lg:self-stretch flex-shrink-0 overflow-hidden bg-[#07111f]">
         {showCarousel ? (
           resolvedSlides.map((slide, i) => (
             <img

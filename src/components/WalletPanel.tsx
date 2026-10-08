@@ -770,7 +770,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <Portal>
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fadeIn" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fadeIn" onTouchMove={(e) => e.stopPropagation()}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 animate-scaleIn">
             <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-7 h-7 text-red-500" />
@@ -805,7 +805,7 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
       {/* Payment Flow Modal */}
       {payState !== 'idle' && (
         <Portal>
-        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onTouchMove={(e) => e.stopPropagation()}>
           <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md animate-slideUp max-h-[90vh] overflow-y-auto">
 
             {/* Form State */}
@@ -1321,7 +1321,7 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
   if (success) {
     return (
       <Portal>
-      <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onTouchMove={(e) => e.stopPropagation()}>
         <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md p-10 text-center animate-slideUp">
           <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-5">
             <CheckCircle2 className="w-8 h-8 text-emerald-500" />
@@ -1343,7 +1343,7 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
   if (step === 'enable2fa') {
     return (
       <Portal>
-      <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onTouchMove={(e) => e.stopPropagation()}>
         <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] flex flex-col animate-slideUp">
           <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 flex-shrink-0">
             <div className="flex items-center gap-2">
@@ -1391,7 +1391,7 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
   if (step === 'verify') {
     return (
       <Portal>
-      <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onTouchMove={(e) => e.stopPropagation()}>
         <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] flex flex-col animate-slideUp">
           <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 flex-shrink-0">
             <div className="flex items-center gap-2">
@@ -1445,7 +1445,7 @@ function WithdrawModal({ balance, actualBalance, pendingAmount, onClose, onSubmi
 
   return (
     <Portal>
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onTouchMove={(e) => e.stopPropagation()}>
       <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] flex flex-col animate-slideUp">
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 flex-shrink-0">
           <div className="flex items-center gap-2">

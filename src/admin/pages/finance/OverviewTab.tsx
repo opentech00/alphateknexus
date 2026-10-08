@@ -16,7 +16,8 @@ export type FinanceJumpTab =
   | 'payouts'
   | 'cash-payments'
   | 'invoices'
-  | 'bank-receipt';
+  | 'bank-receipt'
+  | 'receipts';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null };

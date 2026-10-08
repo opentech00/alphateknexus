@@ -92,7 +92,7 @@ function FieldStaffContent() {
     ];
 
     body = (
-    <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden">
+    <div className="app-viewport bg-slate-50 overflow-hidden">
 
       {/* Top bar */}
       <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-20">

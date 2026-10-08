@@ -3,7 +3,7 @@ import {
   Wallet, ArrowDownCircle, ArrowUpCircle, Search, Loader2, X,
   Plus, TrendingUp, Filter, CheckCircle2, CreditCard,
   RefreshCw, Smartphone, Landmark, Receipt as ReceiptIcon,
-  Mail, Clock, Download, Send, Banknote,
+  Clock, Download, Banknote,
   BarChart3, FileText, Shield, LayoutDashboard, AlertTriangle, Scale,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -25,17 +25,19 @@ import { FinanceReconTab } from './finance/FinanceReconTab';
 import { FinanceOpsPlaybook } from './finance/FinanceOpsPlaybook';
 import { downloadCsv } from './finance/financeCsv';
 import { issueWalletCredit } from '../../lib/financeCredit';
-import { buildReceiptHtmlFromRow, openPrintableHtml } from '../../lib/companyDocs';
+import { ReceiptsTab } from './finance/ReceiptsTab';
+import { BankDepositsTab } from './finance/BankDepositsTab';
+import {
+  downloadReceiptPdf, receiptHtml, shareReceipt, type OfficialReceipt,
+} from './finance/receiptActions';
+import { ReceiptRowActions, ViewReceiptModal } from './finance/ViewReceiptModal';
+import { openPrintableHtml } from '../../lib/companyDocs';
+import { toast } from '../../components/toast/toast';
 
-type Tab = 'overview' | 'wallet' | 'mobile-money' | 'debit-card' | 'bank-receipt' | 'analytics' | 'invoices' | 'fx-rates' | 'payouts' | 'approvals' | 'cash-payments' | 'permissions' | 'reports' | 'recon';
+type Tab = 'overview' | 'wallet' | 'mobile-money' | 'debit-card' | 'bank-receipt' | 'receipts' | 'analytics' | 'invoices' | 'fx-rates' | 'payouts' | 'approvals' | 'cash-payments' | 'permissions' | 'reports' | 'recon';
 
 interface ProfileMap {
   [userId: string]: { full_name: string | null; email: string | null };
-}
-
-function fmtMoney(n: number) {
-  const sign = n < 0 ? '-' : '';
-  return `${sign}SLE ${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatDate(d: string) {
@@ -51,7 +53,8 @@ export function FinancePage({ onNavigate }: { onNavigate?: (page: string) => voi
     { id: 'wallet', label: 'Wallet', icon: Wallet },
     { id: 'mobile-money', label: 'Mobile Money', icon: Smartphone },
     { id: 'debit-card', label: 'Debit Card', icon: CreditCard },
-    { id: 'bank-receipt', label: 'Bank Receipt', icon: Landmark },
+    { id: 'bank-receipt', label: 'Bank Deposits', icon: Landmark },
+    { id: 'receipts', label: 'Receipts', icon: ReceiptIcon },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'invoices', label: 'Invoices', icon: FileText },
     { id: 'fx-rates', label: 'FX Rates', icon: TrendingUp },
@@ -95,7 +98,8 @@ export function FinancePage({ onNavigate }: { onNavigate?: (page: string) => voi
         {tab === 'wallet' && <WalletTab />}
         {tab === 'mobile-money' && <MobileMoneyTab />}
         {tab === 'debit-card' && <DebitCardTab />}
-        {tab === 'bank-receipt' && <BankReceiptTab />}
+        {tab === 'bank-receipt' && <BankDepositsTab />}
+        {tab === 'receipts' && <ReceiptsTab />}
         {tab === 'analytics' && <AnalyticsTab />}
         {tab === 'invoices' && <InvoicesTab />}
         {tab === 'fx-rates' && <FxRatesTab />}
@@ -729,6 +733,8 @@ function DebitCardTab() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
+  const [viewReceipt, setViewReceipt] = useState<OfficialReceipt | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   const loadPayments = useCallback(async () => {
     setLoading(true);
@@ -804,13 +810,16 @@ function DebitCardTab() {
             <Th className="hidden sm:table-cell">Type</Th>
             <Th align="right">Amount</Th>
             <Th className="hidden md:table-cell">Date</Th>
+            <Th align="center">Actions</Th>
           </>
         }
       >
         {filtered.map(p => (
           <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
             <td className="px-5 py-3">
-              <p className="font-mono text-xs font-semibold text-slate-800">{p.receipt_number}</p>
+              <button type="button" onClick={() => setViewReceipt(p)} className="font-mono text-xs font-semibold text-slate-800 hover:text-emerald-700 hover:underline">
+                {p.receipt_number}
+              </button>
               <p className="font-mono text-[10px] text-slate-400">
                 <SensitiveValue privacy={privacy} masked={maskReference(p.reference)} full={p.reference} mono />
               </p>
@@ -826,202 +835,42 @@ function DebitCardTab() {
             </td>
             <td className="px-5 py-3 text-right font-bold text-slate-800">{money(Number(p.amount_sle))}</td>
             <td className="px-5 py-3 hidden md:table-cell text-slate-400 text-xs">{formatDate(p.paid_at)}</td>
+            <td className="px-5 py-3">
+              <ReceiptRowActions
+                receipt={p}
+                busy={busy}
+                onView={() => setViewReceipt(p)}
+                onDownload={() => { setBusy(`pdf-${p.id}`); void downloadReceiptPdf(p).finally(() => setBusy(null)); }}
+                onPrint={() => openPrintableHtml(receiptHtml(p), `receipt-${p.receipt_number}.html`)}
+                onShare={() => { setBusy(`share-${p.id}`); void shareReceipt(p).finally(() => setBusy(null)); }}
+                onEmail={async () => {
+                  setBusy(p.id);
+                  const { error } = await supabase.functions.invoke('send-payment-receipt', { body: { receiptId: p.id } });
+                  if (error) toast.error(error.message);
+                  else toast.success(`Sent ${p.receipt_number}`);
+                  setBusy(null);
+                }}
+              />
+            </td>
           </tr>
         ))}
       </DataTable>
-    </>
-  );
-}
-
-/* ════════════════════════════════════════
-   BANK RECEIPT TAB (all receipts + manual bank/cheque)
-   ════════════════════════════════════════ */
-
-interface Receipt {
-  id: string; user_id: string; receipt_number: string; reference: string;
-  amount_sle: number; currency: string; purpose: string; description: string | null;
-  payment_method: string; payment_id: string | null; paid_at: string;
-  email_sent: boolean; email_sent_at: string | null; recipient_email: string | null;
-  created_at: string;
-  profile?: { full_name: string | null; email: string | null };
-}
-
-function BankReceiptTab() {
-  const { privacy, money } = useFinancePrivacy();
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [search, setSearch] = useState('');
-  const [purposeFilter, setPurposeFilter] = useState('all');
-  const [emailFilter, setEmailFilter] = useState('all');
-  const [resendingId, setResendingId] = useState<string | null>(null);
-
-  const loadReceipts = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-    const { data, error } = await supabase
-      .from('payment_receipts')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(200);
-    if (error) { setLoadError(error.message); setReceipts([]); setLoading(false); return; }
-    const rows = (data || []) as any[];
-    const profileMap = await loadProfiles(rows.map(r => r.user_id).filter(Boolean));
-    const enriched: Receipt[] = rows.map(r => ({
-      ...r, profile: profileMap[r.user_id] || { full_name: null, email: null },
-    }));
-    setReceipts(enriched);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { loadReceipts(); }, [loadReceipts]);
-
-  const stats = useMemo(() => ({
-    total: receipts.length,
-    totalAmount: receipts.reduce((s, r) => s + Number(r.amount_sle), 0),
-    emailsSent: receipts.filter(r => r.email_sent).length,
-    pending: receipts.filter(r => !r.email_sent).length,
-  }), [receipts]);
-
-  const handleResendEmail = async (receiptId: string) => {
-    setResendingId(receiptId);
-    try {
-      const { error } = await supabase.functions.invoke('send-payment-receipt', { body: { receiptId } });
-      if (!error) {
-        setReceipts(prev => prev.map(r => r.id === receiptId ? { ...r, email_sent: true, email_sent_at: new Date().toISOString() } : r));
-      }
-    } catch { /* ignore */ }
-    setResendingId(null);
-  };
-
-  const handleDownload = (r: Receipt) => {
-    const html = buildReceiptHtmlFromRow(r, {
-      full_name: r.profile?.full_name,
-      email: r.profile?.email,
-      recipient_email: r.recipient_email,
-    });
-    openPrintableHtml(html, `receipt-${r.receipt_number}.html`);
-  };
-
-  const filtered = receipts.filter(r => {
-    if (purposeFilter !== 'all' && r.purpose !== purposeFilter) return false;
-    if (emailFilter === 'sent' && !r.email_sent) return false;
-    if (emailFilter === 'pending' && r.email_sent) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const name = r.profile?.full_name || '';
-      const email = r.profile?.email || '';
-      return name.toLowerCase().includes(q) || email.toLowerCase().includes(q) || r.receipt_number.toLowerCase().includes(q) || r.reference.toLowerCase().includes(q);
-    }
-    return true;
-  });
-
-  return (
-    <>
-      {loadError && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-          Failed to load receipts: {loadError}
-        </div>
+      {viewReceipt && (
+        <ViewReceiptModal
+          receipt={viewReceipt}
+          onClose={() => setViewReceipt(null)}
+          emailing={busy === viewReceipt.id}
+          onEmail={() => {
+            setBusy(viewReceipt.id);
+            void supabase.functions.invoke('send-payment-receipt', { body: { receiptId: viewReceipt.id } })
+              .then(({ error }) => { if (error) toast.error(error.message); else toast.success(`Sent ${viewReceipt.receipt_number}`); })
+              .finally(() => setBusy(null));
+          }}
+        />
       )}
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="TOTAL RECEIPTS" value={String(stats.total)} icon={ReceiptIcon} color="text-emerald-500" accent="bg-emerald-50" />
-        <StatCard label="TOTAL AMOUNT" value={money(stats.totalAmount)} icon={Banknote} color="text-blue-500" accent="bg-blue-50" />
-        <StatCard label="EMAILS SENT" value={String(stats.emailsSent)} icon={Mail} color="text-teal-500" accent="bg-teal-50" />
-        <StatCard label="EMAILS PENDING" value={String(stats.pending)} icon={Clock} color="text-amber-500" accent="bg-amber-50" />
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search by client, receipt no, or reference…"
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none" />
-        </div>
-        <select value={purposeFilter} onChange={e => setPurposeFilter(e.target.value)}
-          className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
-          <option value="all">All Types</option>
-          <option value="wallet_topup">Wallet Top-Up</option>
-          <option value="invoice">Invoice Payment</option>
-          <option value="subscription">Subscription</option>
-        </select>
-        <select value={emailFilter} onChange={e => setEmailFilter(e.target.value)}
-          className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
-          <option value="all">All Emails</option>
-          <option value="sent">Email Sent</option>
-          <option value="pending">Email Pending</option>
-        </select>
-        <button onClick={() => downloadCsv('bank-receipts.csv', filtered.map(r => ({
-          receipt_number: r.receipt_number, client: r.profile?.full_name || '', email: r.profile?.email || '',
-          purpose: r.purpose, amount_sle: r.amount_sle, reference: r.reference, email_sent: r.email_sent ? 'yes' : 'no', date: r.paid_at,
-        })))}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm whitespace-nowrap">
-          <Download className="w-4 h-4" /> Export CSV
-        </button>
-        <button onClick={loadReceipts}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm whitespace-nowrap">
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
-        </button>
-      </div>
-
-      <DataTable loading={loading} empty={filtered.length === 0} emptyIcon={ReceiptIcon} emptyText="No receipts found"
-        headers={
-          <>
-            <Th>Receipt No.</Th><Th>Client</Th>
-            <Th className="hidden sm:table-cell">Type</Th>
-            <Th align="right">Amount</Th><Th align="center">Email</Th>
-            <Th className="hidden md:table-cell">Date</Th><Th align="center">Actions</Th>
-          </>
-        }
-      >
-        {filtered.map(r => (
-          <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
-            <td className="px-5 py-3">
-              <p className="font-mono text-xs font-semibold text-slate-800">{r.receipt_number}</p>
-              <p className="font-mono text-[10px] text-slate-400">
-                <SensitiveValue privacy={privacy} masked={maskReference(r.reference)} full={r.reference} mono />
-              </p>
-            </td>
-            <td className="px-5 py-3">
-              <p className="font-medium text-slate-800">{r.profile?.full_name || 'Unknown'}</p>
-              <p className="text-xs text-slate-400">
-                <SensitiveValue privacy={privacy} masked={maskEmail(r.profile?.email || r.recipient_email)} full={r.profile?.email || r.recipient_email || ''} />
-              </p>
-            </td>
-            <td className="px-5 py-3 hidden sm:table-cell">
-              <span className="text-xs font-medium text-slate-600">{PURPOSE_LABELS[r.purpose] || r.purpose}</span>
-            </td>
-            <td className="px-5 py-3 text-right font-bold text-slate-800">{money(Number(r.amount_sle))}</td>
-            <td className="px-5 py-3 text-center">
-              {r.email_sent ? (
-                <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium"><CheckCircle2 className="w-3.5 h-3.5" /> Sent</span>
-              ) : (
-                <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium"><Clock className="w-3.5 h-3.5" /> Pending</span>
-              )}
-            </td>
-            <td className="px-5 py-3 hidden md:table-cell text-slate-400 text-xs">{formatDate(r.paid_at)}</td>
-            <td className="px-5 py-3">
-              <div className="flex items-center justify-center gap-1.5">
-                <button onClick={() => handleDownload(r)} title="Download receipt"
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
-                  <Download className="w-4 h-4" />
-                </button>
-                <button onClick={() => handleResendEmail(r.id)} disabled={resendingId === r.id} title="Resend email"
-                  className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50">
-                  {resendingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                </button>
-              </div>
-            </td>
-          </tr>
-        ))}
-      </DataTable>
     </>
   );
 }
-
-/* ════════════════════════════════════════
-   SHARED COMPONENTS
-   ════════════════════════════════════════ */
 
 function Th({ children, align = 'left', className = '' }: { children: React.ReactNode; align?: 'left' | 'right' | 'center'; className?: string }) {
   return (

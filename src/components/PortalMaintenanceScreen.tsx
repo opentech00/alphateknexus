@@ -15,7 +15,7 @@ export function PortalMaintenanceScreen({
   const { url: logoUrl } = useAppLogo();
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 flex flex-col px-4 py-6 sm:py-10 safe-area-pt safe-area-pb">
+    <div className="app-screen bg-slate-50 flex flex-col px-4 py-6 sm:py-10 safe-area-pt safe-area-pb">
       <div className="flex items-center justify-between max-w-lg mx-auto w-full mb-6">
         <BrandLogo src={logoUrl} alt={companyName} className="h-8 w-auto" />
         <ThemeToggle menuId="maintenance-theme" />

@@ -72,7 +72,7 @@ export function BottomSheet({ open, onClose, title, showHandle = true, children,
   if (!open) return null;
 
   return createPortal((
-    <div className="fixed inset-0 z-[200] flex flex-col justify-end" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[200] flex flex-col justify-end" onTouchMove={(e) => e.stopPropagation()}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/55 backdrop-blur-sm animate-fadeIn transition-opacity duration-300"

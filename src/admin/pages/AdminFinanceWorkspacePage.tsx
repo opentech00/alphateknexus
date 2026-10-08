@@ -105,10 +105,10 @@ export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
   }, [staff]);
 
   const links = [
-    { label: 'Finance module', page: 'finance', icon: Landmark, desc: 'Invoices, payouts, and approvals' },
+    { label: 'Finance module', page: 'finance', icon: Landmark, desc: 'Receipts, bank deposits, invoices, and payouts' },
     { label: 'Service ledgers', page: 'finance-services', icon: Banknote, desc: 'Quote/hire requests and online or offline payments' },
     { label: 'Wallet', page: 'wallet', icon: Wallet, desc: 'Wallet balances and adjustments' },
-    { label: 'Receipts', page: 'receipts', icon: Receipt, desc: 'Payment receipts and emails' },
+    { label: 'Receipts', page: 'receipts', icon: Receipt, desc: 'View, share, download, and email official receipts' },
     { label: 'Analytics', page: 'analytics', icon: BarChart3, desc: 'Company-wide reporting' },
     { label: 'Employees', page: 'hr-employees', icon: Users, desc: 'Assign roles and portal access' },
   ];

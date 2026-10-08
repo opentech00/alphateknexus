@@ -6,7 +6,7 @@ type MissingConfigScreenProps = {
 
 export function MissingConfigScreen({ appName }: MissingConfigScreenProps) {
   return (
-    <div className="min-h-dvh bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex items-center justify-center p-6">
+    <div className="app-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex items-center justify-center p-6">
       <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
           <AlertTriangle className="h-6 w-6" aria-hidden="true" />

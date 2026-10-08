@@ -2,8 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Smartphone, Wallet, Banknote,
   CheckCircle2, Loader2, ShieldCheck, ArrowLeft,
-  Building2, Upload, FileText, X,
-  AlertTriangle, Plus,
+  Building2, Camera, X,
+  AlertTriangle, Plus, ImagePlus,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { startMonimePayment, pollPaymentStatus } from '../lib/monime';
@@ -11,14 +11,9 @@ import { copyForPollResult } from '../lib/paymentFailure';
 import { PaymentFailedScreen as SharedPaymentFailedScreen } from './checkout/PaymentOutcome';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { AmountFigure, ChannelPills, le, PayOption, SecureNote, StatusOrb } from './checkout/CheckoutUi';
+import { COMPANY_BANKS } from '../lib/companyDocs';
 
-const BANK_DOC_TYPES = [
-  { id: 'payslip', label: 'Payslip' },
-  { id: 'cheque', label: 'Cheque' },
-  { id: 'deposit_slip', label: 'Deposit Bank Slip' },
-];
-
-const ALLOWED_BANK_EXTS = new Set(['pdf', 'png', 'jpg', 'jpeg']);
+const ALLOWED_BANK_EXTS = new Set(['png', 'jpg', 'jpeg', 'webp', 'heic', 'heif']);
 const MAX_BANK_FILE_SIZE = 10 * 1024 * 1024;
 
 interface ServicePaymentStepProps {
@@ -42,10 +37,30 @@ export function ServicePaymentStep({
   const monimeAmount = selected === 'monime' && canPayDeposit && payMode === 'deposit' ? depositAmount! : amount;
   const { wallet_enabled } = useFeatureFlags();
   const [paying, setPaying] = useState(false);
-  const [bankDocType, setBankDocType] = useState('payslip');
   const [bankFile, setBankFile] = useState<File | null>(null);
+  const [bankPreview, setBankPreview] = useState<string | null>(null);
   const [bankFileError, setBankFileError] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  const acceptBankPhoto = (file: File | undefined) => {
+    if (!file) return;
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!ALLOWED_BANK_EXTS.has(ext) && !file.type.startsWith('image/')) {
+      setBankFileError('Upload a photo of the deposit slip (PNG, JPG, or HEIC).');
+      return;
+    }
+    if (file.size > MAX_BANK_FILE_SIZE) {
+      setBankFileError('Photo exceeds 10MB limit.');
+      return;
+    }
+    setBankFileError('');
+    setBankFile(file);
+    setBankPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+  };
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
 
@@ -84,13 +99,13 @@ export function ServicePaymentStep({
 
     if (isBank) {
       if (!bankFile) {
-        onFail('Please upload your bank payment slip, cheque, or deposit slip.');
+        onFail('Take a photo of your bank deposit slip and upload it.');
         setPaying(false);
         return;
       }
       const ext = bankFile.name.split('.').pop()?.toLowerCase() || '';
-      if (!ALLOWED_BANK_EXTS.has(ext)) {
-        onFail('Only PDF, PNG, and JPG files are accepted for bank payment proofs.');
+      if (!ALLOWED_BANK_EXTS.has(ext) && !bankFile.type.startsWith('image/')) {
+        onFail('Upload a photo of the deposit slip (PNG, JPG, or HEIC).');
         setPaying(false);
         return;
       }
@@ -117,7 +132,7 @@ export function ServicePaymentStep({
           booking_id: bookingId,
           user_id: user.id,
           payment_method: 'bank',
-          document_type: bankDocType,
+          document_type: 'deposit_slip',
           document_url: urlData.publicUrl,
           document_name: bankFile.name,
           document_size: bankFile.size,
@@ -355,78 +370,73 @@ export function ServicePaymentStep({
                 selected={selected === 'bank'}
                 onSelect={() => setSelected('bank')}
                 title="Bank transfer"
-                hint="Upload a slip for finance to confirm"
+                hint="Snap a photo of your bank deposit slip"
                 icon={<span className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center text-white"><Building2 className="w-5 h-5" /></span>}
               />
               {selected === 'bank' && (
                 <div className="space-y-3 p-4 bg-indigo-50 border border-indigo-200 rounded-2xl animate-slideUp">
                   <p className="text-xs text-indigo-800 leading-relaxed">
-                    Transfer to our bank account, then upload proof of payment for verification by the divisional manager.
-                    Your booking will be confirmed once the document is verified.
+                    Transfer to an Alphatek account below, then snap a photo of the bank deposit slip. Finance confirms the photo — that proof is not your official receipt.
                   </p>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">Document Type</label>
-                    <div className="flex flex-wrap gap-2">
-                      {BANK_DOC_TYPES.map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => setBankDocType(t.id)}
-                          className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                            bankDocType === t.id
-                              ? 'border-indigo-600 bg-indigo-600 text-white'
-                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                          }`}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="bg-white border border-indigo-100 rounded-xl p-3 space-y-1.5">
+                    {COMPANY_BANKS.map((b) => (
+                      <div key={b.account} className="flex justify-between gap-3 text-xs">
+                        <span className="font-semibold text-slate-700">{b.name}</span>
+                        <span className="font-mono text-slate-800">{b.account}</span>
+                      </div>
+                    ))}
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">Upload Proof</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">Deposit slip photo</label>
                     <input
-                      ref={fileInputRef}
+                      ref={cameraInputRef}
                       type="file"
-                      accept=".pdf,.png,.jpg,.jpeg"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (!f) return;
-                        const ext = f.name.split('.').pop()?.toLowerCase() || '';
-                        if (!ALLOWED_BANK_EXTS.has(ext)) {
-                          setBankFileError('Only PDF, PNG, and JPG files are accepted.');
-                          return;
-                        }
-                        if (f.size > MAX_BANK_FILE_SIZE) {
-                          setBankFileError('File exceeds 10MB limit.');
-                          return;
-                        }
-                        setBankFileError('');
-                        setBankFile(f);
-                      }}
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) => { acceptBankPhoto(e.target.files?.[0]); e.target.value = ''; }}
                       className="hidden"
                     />
-                    {bankFile ? (
-                      <div className="flex items-center gap-2 p-3 bg-white border border-indigo-200 rounded-lg">
-                        <FileText className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                        <span className="text-xs text-slate-700 font-medium flex-1 truncate">{bankFile.name}</span>
+                    <input
+                      ref={galleryInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/heic,image/heif,.png,.jpg,.jpeg,.webp,.heic"
+                      onChange={(e) => { acceptBankPhoto(e.target.files?.[0]); e.target.value = ''; }}
+                      className="hidden"
+                    />
+                    {bankFile && bankPreview ? (
+                      <div className="relative">
+                        <img src={bankPreview} alt="Deposit slip" className="w-full max-h-52 object-cover rounded-xl border border-indigo-200 bg-white" />
                         <button
                           type="button"
-                          onClick={() => { setBankFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                          className="p-1 rounded text-slate-400 hover:text-red-500"
+                          onClick={() => {
+                            setBankFile(null);
+                            setBankPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
+                          }}
+                          className="absolute top-2 right-2 p-1.5 rounded-full bg-white/90 text-slate-500 hover:text-red-500 shadow"
+                          aria-label="Remove photo"
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full min-h-[48px] flex items-center justify-center gap-2 p-3 border-2 border-dashed border-indigo-300 rounded-lg text-xs text-indigo-600 hover:bg-indigo-50 transition-colors font-medium"
-                      >
-                        <Upload className="w-4 h-4" />
-                        Choose file (PDF, PNG, JPG)
-                      </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => cameraInputRef.current?.click()}
+                          className="min-h-[48px] flex items-center justify-center gap-2 p-3 border-2 border-dashed border-indigo-300 rounded-lg text-xs text-indigo-700 hover:bg-indigo-50 font-semibold"
+                        >
+                          <Camera className="w-4 h-4" />
+                          Take photo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => galleryInputRef.current?.click()}
+                          className="min-h-[48px] flex items-center justify-center gap-2 p-3 border-2 border-dashed border-indigo-300 rounded-lg text-xs text-indigo-700 hover:bg-indigo-50 font-semibold"
+                        >
+                          <ImagePlus className="w-4 h-4" />
+                          Choose photo
+                        </button>
+                      </div>
                     )}
                     {bankFileError && (
                       <p className="mt-1.5 text-xs text-red-600">{bankFileError}</p>

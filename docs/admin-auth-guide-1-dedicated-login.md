@@ -29,7 +29,7 @@ import { useState, FormEvent } from 'react';
 import { LogIn, Eye, EyeOff, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
-export function AdminLoginPage() {
+export function AdminLoginPage() 
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

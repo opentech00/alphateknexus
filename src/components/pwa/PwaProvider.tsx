@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Download, RefreshCw, Share, WifiOff, X } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { useRegisterSW } from 'virtual:pwa-register/react';
+import { ErrorBoundary } from '../ErrorBoundary';
 import {
   canInstallIosPwa,
   isInAppBrowser,
@@ -27,7 +28,9 @@ export function PwaProvider() {
       <PwaInstallBanner />
       <IosInstallSheet />
       <OfflineBanner />
-      <PwaUpdateToast />
+      <ErrorBoundary fallback={null}>
+        <PwaUpdateToast />
+      </ErrorBoundary>
     </>
   );
 }

@@ -85,7 +85,7 @@ function Modal({
   if (!open) return null;
   return (
     <Portal>
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4" onTouchMove={(e) => e.stopPropagation()}>
       <div
         className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm animate-[fadeIn_0.15s_ease-out]"
         onClick={onClose}

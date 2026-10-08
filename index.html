@@ -24,7 +24,18 @@
     <link rel="apple-touch-startup-image" media="screen and (device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/icons/apple-splash-1668x2388.png" />
     <link rel="apple-touch-startup-image" media="screen and (device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/icons/apple-splash-1640x2360.png" />
     <link rel="apple-touch-startup-image" media="screen and (device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/icons/apple-splash-1536x2048.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <style>
+      html, body { margin: 0; min-height: 100%; min-height: 100vh; min-height: -webkit-fill-available; background: #f5f8ff; }
+      #root:empty { min-height: 100vh; min-height: -webkit-fill-available; background: #f5f8ff; }
+      #root:empty::after {
+        content: '';
+        position: fixed; inset: 0; margin: auto; width: 28px; height: 28px;
+        border: 3px solid #cbd5e1; border-top-color: #059669; border-radius: 50%;
+        animation: atn-boot-spin 0.7s linear infinite;
+      }
+      @keyframes atn-boot-spin { to { transform: rotate(360deg); } }
+    </style>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="AlphaTek" />
@@ -56,6 +67,21 @@
 </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        function fail() {
+          var r = document.getElementById('root');
+          if (!r || r.getAttribute('data-booted') || r.childNodes.length) return;
+          r.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,sans-serif;background:#f5f8ff;color:#0f172a;text-align:center"><div><p style="font-weight:700;margin:0 0 8px">AlphaTek Nexus could not load</p><p style="color:#64748b;font-size:14px;margin:0 0 16px">Check your connection and try again.</p><button onclick="location.reload()" style="background:#059669;color:#fff;border:0;border-radius:12px;padding:12px 20px;font-weight:600">Reload</button></div></div>';
+        }
+        window.addEventListener('error', fail);
+        window.addEventListener('unhandledrejection', fail);
+        setTimeout(function () {
+          var r = document.getElementById('root');
+          if (r && !r.getAttribute('data-booted') && !r.childNodes.length) fail();
+        }, 12000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

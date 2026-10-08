@@ -33,9 +33,12 @@ import { destinationForClientNotification } from './lib/notificationDestinations
 import { IdleWarningModal } from './components/IdleWarningModal';
 import { PwaProvider } from './components/pwa/PwaProvider';
 import { MonimeCheckoutHost } from './components/checkout/MonimeCheckoutHost';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { PortalMaintenanceScreen } from './components/PortalMaintenanceScreen';
 import { PortalCautionStack } from './components/CautionBanner';
 import { usePortalSettings } from './hooks/usePortalSettings';
+import { useCompactViewport } from './hooks/useCompactViewport';
+import { isCompactViewport } from './lib/viewport';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 
@@ -97,15 +100,16 @@ function ClientShell({
 }) {
   const portal = usePortalSettings();
   const { isAdmin } = useAuth();
+  const compact = useCompactViewport();
   const cautionProps = {
     announcementEnabled: portal.portal_announcement_enabled,
     announcement: portal.portal_announcement,
     portalClosed: !portal.portal_enabled && isAdmin,
   };
-  return (
-    <>
+  if (compact) {
+    return (
       <div
-        className={`block md:hidden fixed inset-0 h-[100dvh] w-full flex flex-col bg-slate-50 ${
+        className={`app-viewport bg-slate-50 ${
           mobileOverflow === 'hidden' ? 'overflow-hidden' : 'overflow-y-auto'
         }`}
       >
@@ -113,8 +117,14 @@ function ClientShell({
           <PortalCautionStack {...cautionProps} />
         </div>
         <div className="flex-1 min-h-0 relative">{mobile}</div>
+        <IdleWarningWrapper />
+        <FailedLoginBanner />
       </div>
-      <div className="hidden md:block min-h-screen bg-slate-50">
+    );
+  }
+  return (
+    <>
+      <div className="min-h-screen bg-slate-50">
         <TopNav currentPage={page} onNavigate={onNavigate} devAdmin={false} onToggleDevAdmin={() => {}} />
         <main className="pt-16 min-h-screen">
           <PortalCautionStack {...cautionProps} />
@@ -192,15 +202,7 @@ function PortalContent() {
     };
   }, []);
 
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false
-  );
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)');
-    const handler = () => setIsMobile(mq.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
+  const isMobile = useCompactViewport();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -223,7 +225,7 @@ function PortalContent() {
 
   const [showSplash, setShowSplash] = useState(() => {
     try {
-      return isMobile && localStorage.getItem('atn-onboarded') !== '1';
+      return isCompactViewport() && localStorage.getItem('atn-onboarded') !== '1';
     } catch { return false; }
   });
   const dismissSplash = () => {
@@ -257,7 +259,7 @@ function PortalContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="app-screen flex items-center justify-center bg-slate-50">
         <Loader2 className="w-7 h-7 animate-spin text-slate-400" />
       </div>
     );
@@ -421,7 +423,9 @@ export default function App() {
         <PortalContent />
         <MonimeCheckoutHost />
         <ToastContainer />
-        <PwaProvider />
+        <ErrorBoundary fallback={null}>
+          <PwaProvider />
+        </ErrorBoundary>
       </ThemeProvider>
     </AuthProvider>
   );

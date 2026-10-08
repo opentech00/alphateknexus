@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, FileText, ImagePlus, Loader2, Plus, Printer, X, FileDown } from 'lucide-react';
+import { CheckCircle2, FileText, ImagePlus, Loader2, Plus, Printer, X, FileDown, Share2 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { fetchMediaAsset, fallbackLogo } from '../../../lib/media';
 import {
@@ -19,6 +19,7 @@ import {
 } from '../../../lib/companyDocs';
 import { downloadHtmlAsPdf } from '../../../lib/invoicePdf';
 import { toast } from '../../../components/toast/toast';
+import { shareDocument } from './receiptActions';
 
 export interface InvoiceLineDraft {
   item: string;
@@ -575,6 +576,7 @@ export function ViewInvoiceModal({
   emailing?: boolean;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
   const parsed = parseInvoiceNotes(invoice.notes);
   const html = buildOfficialInvoiceHtml({
     invoiceNumber: invoice.invoice_number,
@@ -634,6 +636,24 @@ export function ViewInvoiceModal({
               className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold"
             >
               <Printer className="w-4 h-4" /> Print
+            </button>
+            <button
+              type="button"
+              disabled={shareBusy}
+              onClick={async () => {
+                setShareBusy(true);
+                await shareDocument({
+                  title: `Invoice ${invoice.invoice_number}`,
+                  text: `Alphatek invoice ${invoice.invoice_number}`,
+                  html,
+                  filename: `invoice-${invoice.invoice_number}.html`,
+                });
+                setShareBusy(false);
+              }}
+              className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold disabled:opacity-50"
+            >
+              {shareBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+              Share
             </button>
             <button type="button" onClick={onEmail} disabled={emailing}
               className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold disabled:opacity-50">

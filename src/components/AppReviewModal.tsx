@@ -51,7 +51,7 @@ export function AppReviewModal({ onClose, onSubmitted }: AppReviewModalProps) {
   if (submitted) {
     return (
       <Portal>
-      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onTouchMove={(e) => e.stopPropagation()}>
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
         <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           <div className="p-8 text-center">
@@ -77,7 +77,7 @@ export function AppReviewModal({ onClose, onSubmitted }: AppReviewModalProps) {
 
   return (
     <Portal>
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onTouchMove={(e) => e.stopPropagation()}>
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}

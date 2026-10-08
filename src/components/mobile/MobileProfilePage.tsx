@@ -396,7 +396,7 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
       {/* ── Delete Account Modal ── */}
       {showDeleteModal && (
         <Portal>
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn" onTouchMove={(e) => e.stopPropagation()}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm animate-scaleIn overflow-hidden">
             <div className="px-6 pt-6 pb-2 flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-900">Delete Account</h3>

@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   FileText, Search, Loader2, Plus, CheckCircle2, Download, Send,
-  Trash2, Clock, AlertCircle, DollarSign, Filter, Mail, Printer, Eye, FileDown,
+  Trash2, Clock, AlertCircle, DollarSign, Filter, Mail, Printer, Eye, FileDown, Share2,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { daysPastDue, downloadCsv } from './financeCsv';
@@ -14,6 +14,7 @@ import {
 } from '../../../lib/companyDocs';
 import { downloadHtmlAsPdf } from '../../../lib/invoicePdf';
 import { toast } from '../../../components/toast/toast';
+import { shareDocument } from './receiptActions';
 import { toSleCurrencyText } from '../../../lib/money';
 
 interface ProfileMap {
@@ -166,6 +167,17 @@ export function InvoicesTab() {
 
   const handlePrint = (inv: Invoice) => {
     openPrintableHtml(invoiceHtml(inv), `invoice-${inv.invoice_number}.html`);
+  };
+
+  const handleShare = async (inv: Invoice) => {
+    setActionLoading(`share-${inv.id}`);
+    await shareDocument({
+      title: `Invoice ${inv.invoice_number}`,
+      text: `Alphatek invoice ${inv.invoice_number} — ${fmtMoney(Number(inv.total), inv.currency)} due ${formatDate(inv.due_date)}.`,
+      html: invoiceHtml(inv),
+      filename: `invoice-${inv.invoice_number}.html`,
+    });
+    setActionLoading(null);
   };
 
   const handleSendEmail = async (inv: Invoice) => {
@@ -371,6 +383,11 @@ export function InvoicesTab() {
                             aria-label={`Print invoice ${inv.invoice_number}`}
                             className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
                             <Printer className="w-4 h-4" />
+                          </button>
+                          <button type="button" onClick={() => void handleShare(inv)} disabled={actionLoading === `share-${inv.id}`}
+                            title="Share" aria-label={`Share invoice ${inv.invoice_number}`}
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50">
+                            {actionLoading === `share-${inv.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
                           </button>
                           <button onClick={() => handleSendEmail(inv)} disabled={actionLoading === inv.id} title={inv.status === 'overdue' ? 'Send reminder' : 'Send to client'}
                             className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50">

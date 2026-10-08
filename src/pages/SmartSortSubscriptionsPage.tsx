@@ -960,7 +960,6 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
     <Portal>
       <div
         className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
-        style={{ height: '100dvh' }}
         onClick={onClose}
         onTouchMove={(e) => e.stopPropagation()}
       >

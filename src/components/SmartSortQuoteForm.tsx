@@ -283,7 +283,7 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
   if (view === 'preview') {
     return (
       <Portal>
-      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onTouchMove={(e) => e.stopPropagation()}>
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl flex flex-col max-h-[90vh]">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
             <h2 className="font-bold text-slate-900">Review Your Quote Request</h2>
@@ -362,7 +362,7 @@ export function SmartSortQuoteForm({ service, onCancel, onSuccess }: Props) {
 
   return (
     <Portal>
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onTouchMove={(e) => e.stopPropagation()}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-start justify-between px-5 pt-5 pb-3 flex-shrink-0">

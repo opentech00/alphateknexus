@@ -542,23 +542,18 @@ export function DocumentsManagementPage() {
 
   const handleVerify = async (verif: PaymentVerificationRow) => {
     setVerifyingId(verif.id);
-    const { data: userData } = await supabase.auth.getUser();
-    await supabase
-      .from('payment_verifications')
-      .update({
-        status: 'verified',
-        verified_by: userData.user?.id || null,
-        verified_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', verif.id);
+    const { data, error } = await supabase.rpc('finance_review_bank_slip', {
+      p_id: verif.id,
+      p_approve: true,
+      p_reason: null,
+    });
+    if (error || (data as { success?: boolean } | null)?.success === false) {
+      toast.error((data as { error?: string } | null)?.error || error?.message || 'Could not verify this deposit.');
+      setVerifyingId(null);
+      return;
+    }
 
-    await supabase
-      .from('bookings')
-      .update({ payment_status: 'verified' })
-      .eq('id', verif.booking_id);
-
-    toast.success('Payment verified');
+    toast.success('Bank deposit verified. An official receipt was issued.');
 
     // Send confirmation email
     supabase.functions.invoke('send-booking-email', {
@@ -577,19 +572,16 @@ export function DocumentsManagementPage() {
   const handleReject = async () => {
     if (!rejectModal || !rejectReason.trim()) return;
     setVerifyingId(rejectModal.id);
-    await supabase
-      .from('payment_verifications')
-      .update({
-        status: 'rejected',
-        rejection_reason: rejectReason.trim(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', rejectModal.id);
-
-    await supabase
-      .from('bookings')
-      .update({ payment_status: 'rejected' })
-      .eq('id', rejectModal.booking_id);
+    const { data, error } = await supabase.rpc('finance_review_bank_slip', {
+      p_id: rejectModal.id,
+      p_approve: false,
+      p_reason: rejectReason.trim(),
+    });
+    if (error || (data as { success?: boolean } | null)?.success === false) {
+      toast.error((data as { error?: string } | null)?.error || error?.message || 'Could not reject this deposit.');
+      setVerifyingId(null);
+      return;
+    }
 
     toast.success('Payment rejected');
 
@@ -673,7 +665,7 @@ export function DocumentsManagementPage() {
           {/* Validation notice */}
           <div className="mb-4 flex items-center gap-2 text-xs text-slate-600 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
             <Banknote className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
-            Bank payment proofs (payslips, cheques, deposit slips) submitted by clients for verification.
+            Bank deposit photos submitted by clients. Verify the slip to issue an official Alphatek receipt.
           </div>
 
           {/* Division categories */}

@@ -329,7 +329,7 @@ export function ReferralModal({ open, onClose }: { open: boolean; onClose: () =>
 
   return (
     <Portal>
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6" onTouchMove={(e) => e.stopPropagation()}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-[fadeInUp_0.2s_ease-out]"

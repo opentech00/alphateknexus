@@ -336,7 +336,7 @@ export function ServiceDetailModal({ service, rating, onClose, onHireNow, onRequ
   // Fallback for services without a detail definition
   if (!detail) {
     return createPortal((
-      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onTouchMove={(e) => e.stopPropagation()}>
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
         <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-8 max-w-md w-full text-center animate-in zoom-in-95 duration-300">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{service.name}</h2>
@@ -354,7 +354,7 @@ export function ServiceDetailModal({ service, rating, onClose, onHireNow, onRequ
   const ServiceIcon = svcIcon?.icon ?? SparklesIcon;
 
   return createPortal((
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ height: '100dvh' }} onTouchMove={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4" onTouchMove={(e) => e.stopPropagation()}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200"

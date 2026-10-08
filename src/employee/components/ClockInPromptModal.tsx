@@ -24,7 +24,6 @@ export function ClockInPromptModal({
     <Portal>
       <div
         className="fixed inset-0 z-[9980] flex items-center justify-center p-4"
-        style={{ height: '100dvh' }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="clock-in-prompt-title"
