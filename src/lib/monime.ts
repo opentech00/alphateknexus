@@ -1,8 +1,10 @@
 import { Capacitor } from '@capacitor/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { emitCheckoutOpen } from './checkoutBridge';
+import { PRODUCTION_HTTPS_ORIGIN } from './site';
 import { shouldKeepCheckoutShell } from './pwa';
 import { supabase } from './supabase';
+import { isCompactViewport } from './viewport';
 
 export type PaymentPurpose = 'invoice' | 'wallet_topup' | 'subscription' | 'booking';
 
@@ -29,6 +31,8 @@ export interface CreateCheckoutResult {
   amount: number;
   kind: string;
   redirected: boolean;
+  /** App stayed open. The checkout sheet owns the Monime window; do not poll here. */
+  hosted: boolean;
 }
 
 export interface MonimeReturnContext {
@@ -133,27 +137,31 @@ export async function createMonimeCheckout(
     amount: Number(data.amount ?? amount),
     kind: data.kind || 'full',
     redirected: false,
+    hosted: false,
   };
 }
 
-function openMonimeCheckout(url: string, reference: string): boolean {
-  const keepShell = Capacitor.isNativePlatform() || shouldKeepCheckoutShell();
+function openMonimeCheckout(url: string, reference: string): { redirected: boolean; hosted: boolean } {
+  const onLiveProduction = window.location.origin === PRODUCTION_HTTPS_ORIGIN;
+  // Stay on the page that is already working. A phone, an installed app, or any
+  // non-production origin must not be sent to the production cancel URL.
+  const keepShell = Capacitor.isNativePlatform()
+    || shouldKeepCheckoutShell()
+    || isCompactViewport()
+    || !onLiveProduction;
   if (keepShell) {
     const popup = window.open(url, 'atn-monime-checkout');
-    emitCheckoutOpen({ reference, checkoutUrl: url, popup });
-    if (!popup) {
-      window.location.assign(url);
-      return true;
-    }
-    return false;
+    emitCheckoutOpen({ reference, checkoutUrl: url, popup: popup ?? null });
+    return { redirected: false, hosted: true };
   }
   window.location.assign(url);
-  return true;
+  return { redirected: true, hosted: false };
 }
 
 /**
- * Creates a checkout session and navigates to Monime in the same tab.
- * Native WebView falls back to a popup; if that is blocked, same-tab redirect is used.
+ * Creates a checkout session and opens Monime.
+ * Phones and any origin other than production keep this app open. Desktop production
+ * navigates in the same tab. A blocked popup stays on the in-app checkout sheet.
  */
 export async function startMonimePayment(
   amount: number,
@@ -172,8 +180,8 @@ export async function startMonimePayment(
     amount: result.amount,
     mode,
   });
-  const redirected = openMonimeCheckout(result.checkoutUrl, result.reference);
-  return { ...result, redirected };
+  const opened = openMonimeCheckout(result.checkoutUrl, result.reference);
+  return { ...result, redirected: opened.redirected, hosted: opened.hosted };
 }
 
 /** Starts a fresh checkout for the same payment after a cancel, expiry, or timeout. */

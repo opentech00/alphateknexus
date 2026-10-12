@@ -415,9 +415,12 @@ export function WalletPanel({ onChooseService }: WalletPanelProps = {}) {
 
     setPayState('opening');
     try {
-      const result = await startMonimePayment(amt, 'wallet_topup', undefined, undefined, { nextPage: 'account' });
+      const result = await startMonimePayment(amt, 'wallet_topup', undefined, undefined, { nextPage: 'payments' });
       setPayReference(result.reference);
-      if (result.redirected) return;
+      if (result.redirected || result.hosted) {
+        setPayState('idle');
+        return;
+      }
 
       setPayState('waiting');
       setPollAttempt(0);

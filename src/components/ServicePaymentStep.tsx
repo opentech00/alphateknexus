@@ -217,7 +217,10 @@ export function ServicePaymentStep({
         `BK-${bookingId.slice(0, 8)}`,
         { nextPage, mode: canPayDeposit ? payMode : 'full' },
       );
-      if (result.redirected) return;
+      if (result.redirected || result.hosted) {
+        setPaying(false);
+        return;
+      }
 
       const pollResult = await pollPaymentStatus(result.reference);
       if (pollResult.status !== 'completed') {

@@ -38,7 +38,7 @@ export function isAndroidWebView(): boolean {
   return /Android/i.test(ua) && /; wv\)/.test(ua);
 }
 
-/** Keep the React app mounted while Monime runs, so cancel cannot strand the user on a DNS error page. */
+/** Installed and in-app browsers must stay mounted during Monime. Phones and other origins are handled in openMonimeCheckout. */
 export function shouldKeepCheckoutShell(): boolean {
   return isStandalone() || isInAppBrowser() || isAndroidWebView();
 }

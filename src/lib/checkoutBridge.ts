@@ -56,5 +56,12 @@ export function notifyOpenerOfCheckoutReturn(ref: string, status: string) {
       /* ignore */
     }
   }
+  // The return window is often production while the opener is the local or in-app origin.
+  // Target '*' so that opener still receives the message; it checks event.origin itself.
+  try {
+    opener.postMessage(payload, '*');
+  } catch {
+    /* ignore */
+  }
   return true;
 }

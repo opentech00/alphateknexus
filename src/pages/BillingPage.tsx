@@ -114,7 +114,7 @@ export function BillingPage({ onBack, bare = false }: { onBack?: () => void; bar
     setBusyId(inv.id);
     try {
       const started = await startMonimePayment(dueOf(inv), 'invoice', inv.id, inv.number, { nextPage: 'billing' });
-      if (started.redirected) return;
+      if (started.redirected || started.hosted) return;
       toast.info('Complete payment in Monime. This page updates when the bank confirms.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not start mobile money checkout');

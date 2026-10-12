@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Home, CalendarDays, Wallet, UserCircle, ChevronLeft,
 } from 'lucide-react';
@@ -7,7 +7,7 @@ import { BrandLogo } from '../BrandLogo';
 import { NotificationsPanel } from '../NotificationsPanel';
 import { MobileHome } from './MobileHome';
 import { MobileBookingsPage } from './MobileBookingsPage';
-import { PaymentsHub } from '../client/PaymentsHub';
+import { PaymentsHub, type PayTab } from '../client/PaymentsHub';
 import { MobileProfilePage } from './MobileProfilePage';
 import { MobileServicesPage } from './MobileServicesPage';
 import { useHaptics } from '../../hooks/useHaptics';
@@ -16,10 +16,25 @@ import { useAuth } from '../../contexts/AuthContext';
 type MobilePage = 'home' | 'bookings' | 'wallet' | 'profile' | 'services';
 
 interface Props {
+  page?: string;
   onNavigate: (page: string) => void;
   onSelectService: (svc: any, mode?: 'hire' | 'quote' | 'pickup' | 'subscribe') => void;
   onRebook: (booking: any) => void;
   onQuickBook: (serviceId: string, preset: any) => void;
+}
+
+export function shellTabForPage(page: string): MobilePage {
+  if (page === 'bookings') return 'bookings';
+  if (page === 'services') return 'services';
+  if (page === 'profile' || page === 'account') return 'profile';
+  if (page === 'payments' || page === 'billing' || page === 'quotes' || page === 'wallet') return 'wallet';
+  return 'home';
+}
+
+export function payTabForPage(page: string): PayTab {
+  if (page === 'billing') return 'bills';
+  if (page === 'quotes') return 'quotes';
+  return 'wallet';
 }
 
 const ALL_NAV_ITEMS: { id: MobilePage; label: string; icon: typeof Home }[] = [
@@ -38,13 +53,23 @@ const PAGE_TITLE: Record<MobilePage, string> = {
 };
 
 
-export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook }: Props) {
+export function MobileShell({ page = 'home', onNavigate, onSelectService, onRebook, onQuickBook }: Props) {
   const { url: logoUrl } = useAppLogo();
   const { profile } = useAuth();
   const { vibrate } = useHaptics();
-  const [mobilePage, setMobilePage] = useState<MobilePage>('home');
+  const [mobilePage, setMobilePage] = useState<MobilePage>(() => shellTabForPage(page));
   const [pageKey, setPageKey] = useState(0);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const skipPageSync = useRef(true);
+
+  useEffect(() => {
+    if (skipPageSync.current) {
+      skipPageSync.current = false;
+      return;
+    }
+    setMobilePage(shellTabForPage(page));
+    setPageKey((k) => k + 1);
+  }, [page]);
 
   // Edge swipe-to-back gesture tracking
   const touchStartX = useRef(0);
@@ -173,10 +198,12 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
           {mobilePage === 'wallet' && (
             <div className="p-4">
               <PaymentsHub
-                onNavigate={(page) => {
-                  if (page === 'services') handleSetPage('services');
-                  else if (page === 'home') handleSetPage('home');
-                  else onNavigate(page);
+                key={payTabForPage(page)}
+                initialTab={payTabForPage(page)}
+                onNavigate={(next) => {
+                  if (next === 'services') handleSetPage('services');
+                  else if (next === 'home') handleSetPage('home');
+                  else onNavigate(next);
                 }}
                 onChooseService={() => handleSetPage('services')}
               />

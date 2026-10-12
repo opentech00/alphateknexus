@@ -6,7 +6,7 @@ import { BillingPage } from '../../pages/BillingPage';
 import { QuotesPage } from '../../pages/QuotesPage';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 
-type PayTab = 'wallet' | 'bills' | 'receipts' | 'quotes';
+export type PayTab = 'wallet' | 'bills' | 'receipts' | 'quotes';
 
 export function PaymentsHub({
   onNavigate,

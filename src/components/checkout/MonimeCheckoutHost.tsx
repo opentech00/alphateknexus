@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, ShieldCheck, X } from 'lucide-react';
 import {
   CHECKOUT_CLOSE_EVENT,
@@ -12,9 +12,11 @@ import {
 
 export function MonimeCheckoutHost() {
   const [session, setSession] = useState<CheckoutOpenDetail | null>(null);
+  const returned = useRef(false);
 
   const stayInApp = useCallback(() => {
-    if (!session) return;
+    if (!session || returned.current) return;
+    returned.current = true;
     emitCheckoutClose();
     openPaymentReturnInPlace({ ref: session.reference, status: 'cancel' });
   }, [session]);
@@ -22,7 +24,10 @@ export function MonimeCheckoutHost() {
   useEffect(() => {
     const onOpen = (event: Event) => {
       const detail = (event as CustomEvent<CheckoutOpenDetail>).detail;
-      if (detail?.reference && detail.checkoutUrl) setSession(detail);
+      if (detail?.reference && detail.checkoutUrl) {
+        returned.current = false;
+        setSession(detail);
+      }
     };
     const onClose = () => setSession(null);
     window.addEventListener(CHECKOUT_OPEN_EVENT, onOpen);
@@ -38,6 +43,7 @@ export function MonimeCheckoutHost() {
     const allowed = new Set(allowedCheckoutOrigins());
     const onMessage = (event: MessageEvent) => {
       if (!allowed.has(event.origin) || !isCheckoutReturnMessage(event.data)) return;
+      returned.current = true;
       emitCheckoutClose();
       openPaymentReturnInPlace({
         ref: event.data.ref,
@@ -79,7 +85,9 @@ export function MonimeCheckoutHost() {
         </div>
         <h2 className="text-xl font-bold text-slate-900">Finish payment in the secure window</h2>
         <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-          AlphaTek Nexus stays open. If you cancel in Monime, you return here — nothing is charged.
+          {session.popup
+            ? 'AlphaTek Nexus stays open. If you cancel in Monime, you return here — nothing is charged.'
+            : 'Open Monime below. This page stays open, so cancelling brings you back here and nothing is charged.'}
         </p>
         <p className="mt-3 text-xs text-slate-400 font-mono break-all">{session.reference}</p>
         <div className="mt-6 flex items-center gap-2 text-sm text-slate-500">
@@ -93,7 +101,7 @@ export function MonimeCheckoutHost() {
             rel="noopener noreferrer"
             className="min-h-[48px] px-5 py-3 bg-emerald-600 text-white font-semibold rounded-xl text-center hover:bg-emerald-700"
           >
-            Reopen checkout
+            {session.popup ? 'Reopen checkout' : 'Open secure checkout'}
           </a>
           <button
             type="button"

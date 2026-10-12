@@ -360,7 +360,8 @@ function PortalContent() {
     );
   }
 
-  if (page === 'billing' || page === 'quotes' || page === 'support' || page === 'payments') {
+  const mobilePayTab = isMobile && (page === 'billing' || page === 'quotes' || page === 'payments');
+  if (!mobilePayTab && (page === 'billing' || page === 'quotes' || page === 'support' || page === 'payments')) {
     const body = page === 'billing'
       ? <BillingPage onBack={() => setPage('home')} />
       : page === 'quotes'
@@ -400,6 +401,7 @@ function PortalContent() {
       mobileOverflow="hidden"
       mobile={
         <MobileShell
+          page={page}
           onNavigate={handleNavigate}
           onSelectService={handleSelectService}
           onRebook={handleRebook}

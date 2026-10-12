@@ -125,7 +125,7 @@ Deno.serve(async (req: Request) => {
       kind: "field",
       initiatedBy: user.id,
       appOrigin,
-      returnPage: "payment-return",
+      returnPage: "field-paid",
       referenceBase: `FLD-${booking.id.slice(0, 8).toUpperCase()}`,
       label: "On-site payment",
     });

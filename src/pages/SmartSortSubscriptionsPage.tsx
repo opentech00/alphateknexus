@@ -403,7 +403,7 @@ export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscription
         invoice.invoice_number,
         { nextPage: 'smart-sort-subs' },
       );
-      if (result.redirected) return;
+      if (result.redirected || result.hosted) return;
       toast.info('Complete payment in Monime. This page updates when the bank confirms.');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to start payment.');
