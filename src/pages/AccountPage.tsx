@@ -3,14 +3,14 @@ import {
   User, Mail, Phone, Save, Shield, Key, CheckCircle2, LogOut,
   Wallet, CreditCard, Receipt, Clock, Gift, Bell, Palette,
   HelpCircle, Pencil, X, Heart, Calendar, ChevronRight,
-  Star, Loader2, CalendarDays, Package, CheckCheck,
+  Star, Loader2, CalendarDays, CheckCheck,
   MapPin, Monitor, Activity, Plus, Smartphone, Trash2, Lock, BarChart3, LifeBuoy,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { FavoritesPage } from './FavoritesPage';
 import { SchedulingCalendar } from '../components/SchedulingCalendar';
-import { WalletPanel } from '../components/WalletPanel';
+import { PaymentsHub } from '../components/client/PaymentsHub';
 import { ReferralPanel, ReferralModal } from '../components/ReferralPanel';
 import { AppearancePanel } from '../components/AppearancePanel';
 import { NotificationPreferencesPanel } from '../components/NotificationPreferencesPanel';
@@ -41,7 +41,7 @@ type ModalKind =
   | 'wallet' | 'spending' | null;
 
 const MODULE_GRID = [
-  { id: 'wallet',          label: 'Wallet',           sub: 'Credits balance & history',          icon: Wallet,       color: 'text-blue-600',    bg: 'bg-blue-50' },
+  { id: 'wallet',          label: 'Payments',         sub: 'Wallet, bills, receipts & quotes',   icon: Wallet,       color: 'text-blue-600',    bg: 'bg-blue-50' },
   { id: 'spending',        label: 'Spending Insights', sub: 'Visualize your payment history',    icon: BarChart3,    color: 'text-emerald-600', bg: 'bg-emerald-50' },
   { id: 'payment',         label: 'Payment Methods',  sub: 'Saved cards & mobile money',         icon: CreditCard,   color: 'text-violet-600',  bg: 'bg-violet-50' },
   { id: 'receipts',        label: 'Receipts',         sub: 'Download proof of payment',          icon: Receipt,      color: 'text-orange-600',  bg: 'bg-orange-50' },
@@ -602,23 +602,11 @@ function HelpSupport({ onOpenTickets }: { onOpenTickets: () => void }) {
   );
 }
 
-function ComingSoon({ label }: { label: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
-        <Package className="w-7 h-7 text-slate-300" />
-      </div>
-      <p className="font-semibold text-slate-700">{label}</p>
-      <p className="text-sm text-slate-400 mt-1">This feature is coming soon</p>
-    </div>
-  );
-}
-
 /* ───────────────────────── Main page ───────────────────────── */
 
 export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
   const { profile, user, signOut, refreshVerification } = useAuth();
-  const { referral_enabled, wallet_enabled } = useFeatureFlags();
+  const { referral_enabled } = useFeatureFlags();
   const [tab, setTab] = useState<AccountTab>('overview');
   const [modal, setModal] = useState<ModalKind>(null);
   const [referralOpen, setReferralOpen] = useState(false);
@@ -777,7 +765,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
 
   const openModal = async (id: string) => {
     if (id === 'referral' && referral_enabled) { setReferralOpen(true); return; }
-    if ((id === 'wallet' || id === 'referral') && !wallet_enabled && id === 'wallet') { return; }
+    if (id === 'referral' && !referral_enabled) { return; }
     if (id === 'service-history') {
       setModal('service-history');
       setHistoryLoading(true);
@@ -858,7 +846,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
       <div className="flex items-center gap-1 bg-white rounded-2xl border border-slate-200 shadow-sm p-1.5 mb-4">
         {[
           { id: 'overview',  label: 'Overview',  icon: User },
-          ...(wallet_enabled ? [{ id: 'wallet' as const, label: 'Wallet', icon: Wallet }] : []),
+          { id: 'wallet' as const, label: 'Payments', icon: Wallet },
           { id: 'spending',  label: 'Spending',   icon: BarChart3 },
           { id: 'favorites', label: 'Favorites', icon: Heart },
           { id: 'calendar',  label: 'Calendar',  icon: Calendar },
@@ -881,7 +869,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
         <>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-4">
             <div className="grid grid-cols-1 sm:grid-cols-2">
-              {MODULE_GRID.filter(m => (m.id !== 'wallet' || wallet_enabled) && (m.id !== 'referral' || referral_enabled)).map((mod, i) => {
+              {MODULE_GRID.filter(m => m.id !== 'referral' || referral_enabled).map((mod, i) => {
                 const Icon = mod.icon;
                 const isLast = i === MODULE_GRID.length - 1;
                 const isSecondLast = i === MODULE_GRID.length - 2;
@@ -928,7 +916,7 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
       {tab === 'spending' && <SpendingDashboard />}
 
       {/* ── Wallet Tab ── */}
-      {tab === 'wallet' && wallet_enabled && <WalletPanel onChooseService={() => onNavigate('services')} />}
+      {tab === 'wallet' && <PaymentsHub onNavigate={onNavigate} onChooseService={() => onNavigate('services')} />}
 
       {/* ── Favorites Tab ── */}
       {tab === 'favorites' && (
@@ -1102,19 +1090,17 @@ export function AccountPage({ onNavigate, onQuickBook }: AccountPageProps) {
       </Modal>
 
       {/* Wallet */}
-      {wallet_enabled && (
       <Modal
         open={modal === 'wallet'}
         onClose={() => setModal(null)}
-        title="Wallet"
+        title="Payments"
         icon={Wallet}
         iconColor="text-blue-600"
         iconBg="bg-blue-50"
-        maxWidth="max-w-2xl"
+        maxWidth="max-w-3xl"
       >
-        <WalletPanel onChooseService={() => { setModal(null); onNavigate('services'); }} />
+        <PaymentsHub onNavigate={(page) => { setModal(null); onNavigate(page); }} onChooseService={() => { setModal(null); onNavigate('services'); }} />
       </Modal>
-      )}
 
       {/* Payment Methods */}
       <Modal

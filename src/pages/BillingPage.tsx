@@ -32,7 +32,7 @@ function dueOf(inv: HubInvoice) {
   return Math.max(0, inv.total - inv.paid);
 }
 
-export function BillingPage({ onBack }: { onBack?: () => void }) {
+export function BillingPage({ onBack, bare = false }: { onBack?: () => void; bare?: boolean }) {
   const { user, profile } = useAuth();
   const [rows, setRows] = useState<HubInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,6 +154,7 @@ export function BillingPage({ onBack }: { onBack?: () => void }) {
       title="Billing"
       subtitle="Invoices from every division, with wallet or mobile money."
       onBack={onBack}
+      bare={bare}
       actions={(
         <p className="text-sm text-slate-600">
           Outstanding <span className="font-semibold text-slate-900">{moneySLE(outstanding)}</span>

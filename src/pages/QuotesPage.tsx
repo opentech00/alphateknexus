@@ -33,7 +33,7 @@ function stage(row: QuoteRow): { label: string; tone: string } {
   return { label: 'Waiting for a price', tone: 'bg-amber-50 text-amber-800' };
 }
 
-export function QuotesPage({ onBack }: { onBack?: () => void }) {
+export function QuotesPage({ onBack, bare = false }: { onBack?: () => void; bare?: boolean }) {
   const { user } = useAuth();
   const [rows, setRows] = useState<QuoteRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,6 +89,7 @@ export function QuotesPage({ onBack }: { onBack?: () => void }) {
       title="Quotes"
       subtitle="Prices from Alphatek. Accept to book and pay, or decline."
       onBack={onBack}
+      bare={bare}
     >
       <div role="tablist" aria-label="Quote filter" className="flex gap-2">
         {(['open', 'done'] as const).map((id) => (

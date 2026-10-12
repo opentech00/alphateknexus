@@ -19,7 +19,8 @@ import { BookingPage } from './pages/BookingPage';
 import { SmartSortSubscriptionsPage } from './pages/SmartSortSubscriptionsPage';
 import { BillingPage } from './pages/BillingPage';
 import { QuotesPage } from './pages/QuotesPage';
-import { SupportPage } from './pages/SupportPage';
+import { ClientInboxPage } from './pages/ClientInboxPage';
+import { PaymentsHub } from './components/client/PaymentsHub';
 import { PaymentReturnPage } from './pages/PaymentReturnPage';
 import { TopNav } from './components/TopNav';
 import { parsePaymentReturnHref, parsePaymentReturnLocation, paymentReturnHref } from './lib/paymentReturn';
@@ -359,22 +360,24 @@ function PortalContent() {
     );
   }
 
-  if (page === 'billing' || page === 'quotes' || page === 'support') {
+  if (page === 'billing' || page === 'quotes' || page === 'support' || page === 'payments') {
     const body = page === 'billing'
       ? <BillingPage onBack={() => setPage('home')} />
       : page === 'quotes'
         ? <QuotesPage onBack={() => setPage('home')} />
-        : <SupportPage onBack={() => setPage('home')} />;
+        : page === 'payments'
+          ? (
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 sm:py-8">
+              <PaymentsHub showTitle onNavigate={handleNavigate} />
+            </div>
+          )
+          : <ClientInboxPage onBack={() => setPage('home')} />;
     return (
       <ClientShell
         page={page}
         onNavigate={handleNavigate}
         mobile={body}
-        desktop={page === 'billing'
-          ? <BillingPage onBack={() => setPage('home')} />
-          : page === 'quotes'
-            ? <QuotesPage onBack={() => setPage('home')} />
-            : <SupportPage onBack={() => setPage('home')} />}
+        desktop={body}
       />
     );
   }

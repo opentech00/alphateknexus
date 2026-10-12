@@ -1,34 +1,20 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import {
   Trash2, Shield, Ship, Sparkles, ShoppingCart, ArrowRight,
-  Star, Zap, Clock, ChevronLeft, ChevronRight, TrendingUp,
+  Star, Zap, ChevronLeft, ChevronRight, TrendingUp,
   Wallet, Plus, Grid3X3, Info, MessageSquare, CalendarPlus,
   RefreshCw, CheckCircle2, Heart, Repeat2, PackageCheck,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ServiceDetailModal } from '../components/ServiceDetailModal';
 import { ServiceBundleSection } from '../components/ServiceBundleSection';
-import type { Bundle } from '../components/ServiceBundleSection';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { AnimatedMeshBackdrop } from '../components/AnimatedMeshBackdrop';
-import { toSleCurrencyText } from '../lib/money';
-
-const iconMap: Record<string, React.ReactNode> = {
-  Trash2: <Trash2 className="w-6 h-6" />,
-  Shield: <Shield className="w-6 h-6" />,
-  Ship: <Ship className="w-6 h-6" />,
-  Sparkles: <Sparkles className="w-6 h-6" />,
-  ShoppingCart: <ShoppingCart className="w-6 h-6" />,
-};
-
-interface Service {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  icon: string;
-  price_range: string;
-}
+import { useServiceBrandingImages } from '../lib/media';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
+import { buildCatalog, CATALOG_CATEGORIES } from '../lib/serviceCatalog';
+import { CATALOG_ICONS } from '../lib/catalogIcons';
+import type { Service } from '../types';
 
 interface ServicesPageProps {
   onNavigate: (page: string) => void;
@@ -40,54 +26,12 @@ interface ServiceRating {
   count: number;
 }
 
-const serviceExtras: Record<string, {
-  responseTime: string;
-  duration: string;
-  features: string[];
-  image: string;
-  category: string;
-}> = {
-  'clearing-forwarding': {
-    responseTime: '48h response',
-    duration: '2-5 business days',
-    features: ['Customs Documentation', 'Port Clearance', 'Cargo Tracking', 'Insurance Coverage'],
-    image: 'https://images.pexels.com/photos/2226458/pexels-photo-2226458.jpeg?auto=compress&cs=tinysrgb&w=600',
-    category: 'C&F',
-  },
-  'waste-management': {
-    responseTime: 'Same-day',
-    duration: 'Ongoing service',
-    features: ['Scheduled Collection', 'Recycling Services', 'Disposal Certification', 'Route Optimization'],
-    image: 'https://images.pexels.com/photos/6964174/pexels-photo-6964174.jpeg?auto=compress&cs=tinysrgb&w=600',
-    category: 'Smart Sort',
-  },
-  'private-security': {
-    responseTime: '24h deploy',
-    duration: 'Contract-based',
-    features: ['Armed & Unarmed Guards', 'CCTV Monitoring', 'Access Control', 'Event Security'],
-    image: 'https://images.pexels.com/photos/5699456/pexels-photo-5699456.jpeg?auto=compress&cs=tinysrgb&w=600',
-    category: 'Security',
-  },
-  'cleaning-janitorial': {
-    responseTime: 'Same-day',
-    duration: 'Per session / Monthly',
-    features: ['Deep Cleaning', 'Office Maintenance', 'Carpet & Upholstery', 'Sanitization'],
-    image: 'https://images.pexels.com/photos/4107120/pexels-photo-4107120.jpeg?auto=compress&cs=tinysrgb&w=600',
-    category: 'Cleaning',
-  },
-  'procurement': {
-    responseTime: '48h response',
-    duration: 'Project-based',
-    features: ['Strategic Sourcing', 'Vendor Management', 'Cost Analysis', 'Supply Chain'],
-    image: 'https://images.pexels.com/photos/4481259/pexels-photo-4481259.jpeg?auto=compress&cs=tinysrgb&w=600',
-    category: 'Procurement',
-  },
-};
-
-const categories = ['All', 'C&F', 'Smart Sort', 'Cleaning', 'Security', 'Procurement'];
+const categories = [...CATALOG_CATEGORIES];
 
 export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps) {
   const { wallet_enabled } = useFeatureFlags();
+  const { images: serviceImages } = useServiceBrandingImages();
+  const { format } = useDisplayCurrency();
 
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -210,9 +154,18 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
     carouselRef.current.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
   };
 
+  const catalog = useMemo(
+    () => buildCatalog(services, serviceImages, (n) => format(n, { compact: true })),
+    [services, serviceImages, format],
+  );
+  const catalogBySlug = useMemo(
+    () => Object.fromEntries(catalog.map((item) => [item.service.slug, item])),
+    [catalog],
+  );
+
   const filteredServices = activeCategory === 'All'
     ? services
-    : services.filter((s) => serviceExtras[s.slug]?.category === activeCategory);
+    : services.filter((s) => catalogBySlug[s.slug]?.meta.category === activeCategory);
 
   const topBooked = Object.entries(bookingCounts).sort((a, b) => b[1] - a[1])[0];
 
@@ -245,7 +198,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                 <p className="text-sm text-slate-500">Use your wallet to pay for any service across all divisions</p>
               </div>
             </div>
-            <button onClick={() => onNavigate('account')} className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 text-white font-medium rounded-xl hover:bg-slate-900 transition-colors text-sm">
+            <button onClick={() => onNavigate('payments')} className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 text-white font-medium rounded-xl hover:bg-slate-900 transition-colors text-sm">
               <Plus className="w-4 h-4" />
               Top up
             </button>
@@ -289,7 +242,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             {services.map((service) => {
-              const extras = serviceExtras[service.slug];
+              const extras = catalogBySlug[service.slug];
               const svcRating = getServiceRating(service);
               return (
                 <div
@@ -323,7 +276,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                       <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
                         <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold rounded-full shadow-sm">
                           <Zap className="w-3 h-3 fill-white" />
-                          {extras.responseTime}
+                          {extras.meta.responseTime}
                         </span>
                         {svcRating && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-black/60 backdrop-blur-md text-white text-xs font-bold rounded-full border border-white/10">
@@ -335,7 +288,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                     )}
                     <div className="absolute bottom-0 left-0 right-0 z-10 p-5">
                       <p className="text-xs text-emerald-300 font-semibold uppercase tracking-wider mb-1 line-clamp-1">
-                        {extras?.category || 'Service'}
+                        {extras?.meta.category || 'Service'}
                       </p>
                       <h3 className="text-xl font-bold text-white leading-snug">{service.name}</h3>
                       <div className="flex items-center gap-2 mt-2 text-emerald-400 text-sm font-semibold group-hover/card:gap-3 transition-all">
@@ -422,8 +375,9 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
       <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredServices.map((service, index) => {
-            const extras = serviceExtras[service.slug];
+            const extras = catalogBySlug[service.slug];
             const svcRating = getServiceRating(service);
+            const Icon = extras ? CATALOG_ICONS[extras.meta.icon] : Sparkles;
             return (
               <div
                 key={service.id}
@@ -438,7 +392,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-start gap-4">
                     <div className="w-13 h-13 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shadow-sm flex-shrink-0">
-                      {iconMap[service.icon]}
+                      <Icon className="w-6 h-6" />
                     </div>
                     <div>
                       <h3 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
@@ -473,7 +427,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                     {extras && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs font-bold rounded-full border border-emerald-500/20">
                         <Zap className="w-3 h-3 fill-emerald-500" />
-                        {extras.responseTime}
+                          {extras.meta.responseTime}
                       </span>
                     )}
                     {svcRating ? (
@@ -492,12 +446,12 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                 <div className="flex gap-8 mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                   <div>
                     <p className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Pricing</p>
-                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">{toSleCurrencyText(service.price_range)}</p>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">{extras?.priceLabel || service.price_range}</p>
                   </div>
                   {extras && (
                     <div>
                       <p className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Duration</p>
-                      <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">{extras.duration}</p>
+                      <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">{extras.meta.duration}</p>
                     </div>
                   )}
                 </div>
@@ -507,7 +461,7 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
                   <div className="mb-5">
                     <p className="text-[11px] text-slate-400 uppercase tracking-widest font-bold mb-2">Highlights</p>
                     <div className="grid grid-cols-2 gap-2">
-                      {extras.features.map((f) => (
+                      {extras.meta.features.map((f) => (
                         <div key={f} className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
                           <span>{f}</span>
@@ -598,8 +552,8 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
           service={detailService}
           rating={getServiceRating(detailService)}
           onClose={() => setDetailService(null)}
-          onHireNow={(svc, mode) => { setDetailService(null); handleBookService(svc, mode); }}
-          onRequestQuote={(svc) => { setDetailService(null); handleQuoteService(svc); }}
+          onHireNow={(svc, mode) => { setDetailService(null); handleBookService(svc as unknown as Service, mode); }}
+          onRequestQuote={(svc) => { setDetailService(null); handleQuoteService(svc as unknown as Service); }}
         />
       )}
     </div>

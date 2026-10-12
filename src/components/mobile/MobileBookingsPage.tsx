@@ -23,6 +23,7 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
 import { BookingCardSkeleton } from './Skeleton';
 import { SwipeableBookingCard } from './SwipeableBookingCard';
+import { JobProgress } from '../client/JobProgress';
 
 interface Booking {
   id: string;
@@ -518,7 +519,13 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                       </div>
                     )}
 
-                    <div className="mt-2.5 flex items-center justify-between gap-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 px-3 py-2 overflow-hidden">
+                    {booking.status !== 'cancelled' && (
+                      <div className="mt-2.5 px-1">
+                        <JobProgress status={booking.status} compact />
+                      </div>
+                    )}
+
+                    <div className="mt-2.5 flex items-center justify-between gap-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 px-3 py-2">
                       <div className="min-w-0">
                         <p className={`text-[15px] font-bold leading-tight tabular-nums truncate ${
                           price.pending ? 'text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-slate-100'
@@ -527,16 +534,16 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                         </p>
                         <p className="text-[11px] text-slate-500 truncate">{price.caption}</p>
                       </div>
-                      {bookingNeedsPayment(booking) && !price.pending && (
-                        <button
-                          type="button"
-                          onClick={() => setPayBooking(booking)}
-                          className="flex-shrink-0 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg active:scale-95 transition-transform"
-                        >
-                          Pay
-                        </button>
-                      )}
                     </div>
+                    {bookingNeedsPayment(booking) && !price.pending && (
+                      <button
+                        type="button"
+                        onClick={() => setPayBooking(booking)}
+                        className="mt-2 w-full min-h-[44px] rounded-xl text-sm font-semibold text-white bg-emerald-600 active:scale-[0.98] transition-transform"
+                      >
+                        {booking.payment_status === 'deposit_paid' ? 'Pay balance' : 'Pay'}
+                      </button>
+                    )}
 
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <button
@@ -602,16 +609,15 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
                           )}
                         </div>
 
-                        <div className="px-4 pb-3 flex flex-wrap justify-end gap-2">
+                        <div className="px-4 pb-3 flex flex-col gap-2">
                           {bookingNeedsPayment(booking) && paymentFailures.get(booking.id) && (
-                            <div className="w-full mb-1">
-                              <FailedPaymentNote attempt={paymentFailures.get(booking.id)} />
-                            </div>
+                            <FailedPaymentNote attempt={paymentFailures.get(booking.id)} />
                           )}
-                          {bookingNeedsPayment(booking) && (
+                          {bookingNeedsPayment(booking) && !price.pending && (
                             <button
+                              type="button"
                               onClick={() => setPayBooking(booking)}
-                              className="h-8 px-3 rounded-lg text-[11px] font-semibold text-white bg-emerald-600 active:scale-95 transition-transform"
+                              className="w-full min-h-[44px] rounded-xl text-sm font-semibold text-white bg-emerald-600 active:scale-[0.98] transition-transform"
                             >
                               {booking.payment_status === 'deposit_paid' ? 'Pay balance' : 'Pay now'}
                             </button>

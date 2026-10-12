@@ -2,15 +2,17 @@ import { useEffect, useState, useMemo } from 'react';
 import {
   Search, Ship, Trash2, Shield, Sparkles, ShoppingCart,
   Loader2, CalendarPlus, MessageSquare, PackageCheck, Repeat2,
-  Info, ArrowRight, Heart, Star, Zap, Clock, CheckCircle2,
+  Info, ArrowRight, Heart, Star, Zap, CheckCircle2,
   TrendingUp, Wallet, Plus, ChevronDown, X, AlertCircle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { Service } from '../../types';
 import { ServiceDetailModal } from '../ServiceDetailModal';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
-import { useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
-import { toSleCurrencyText } from '../../lib/money';
+import { useServiceBrandingImages } from '../../lib/media';
+import { useDisplayCurrency } from '../../hooks/useDisplayCurrency';
+import { buildCatalog, CATALOG_CATEGORIES } from '../../lib/serviceCatalog';
+import { CATALOG_ICONS } from '../../lib/catalogIcons';
 
 interface Props {
   onSelectService: (svc: Service, mode?: 'hire' | 'quote' | 'pickup' | 'subscribe') => void;
@@ -19,67 +21,7 @@ interface Props {
 
 type ServiceMode = 'hire' | 'quote' | 'pickup' | 'subscribe';
 
-interface ServiceMeta {
-  slug: string;
-  label: string;
-  shortLabel: string;
-  icon: typeof Ship;
-  image: string;
-  category: string;
-  responseTime: string;
-  duration: string;
-  features: string[];
-  defaultMode: ServiceMode;
-  hasQuote: boolean;
-  hasHire: boolean;
-  special?: 'waste';
-  colors: { bg: string; text: string; gradient: string; badge: string; btn: string };
-}
-
-const SERVICE_META: ServiceMeta[] = [
-  {
-    slug: 'clearing-forwarding', label: 'Clearing & Forwarding', shortLabel: 'Clearing',
-    icon: Ship, image: fallbackServiceImage('clearing-forwarding'), category: 'C&F',
-    responseTime: '48h response', duration: '2–5 business days',
-    features: ['Customs Documentation', 'Port Clearance', 'Cargo Tracking', 'Insurance'],
-    defaultMode: 'hire', hasQuote: true, hasHire: true,
-    colors: { bg: 'bg-blue-50', text: 'text-blue-600', gradient: 'from-blue-500 to-blue-700', badge: 'bg-blue-500', btn: 'bg-blue-600 hover:bg-blue-700' },
-  },
-  {
-    slug: 'procurement', label: 'Procurement', shortLabel: 'Procurement',
-    icon: ShoppingCart, image: fallbackServiceImage('procurement'), category: 'Procurement',
-    responseTime: '48h response', duration: 'Project-based',
-    features: ['Strategic Sourcing', 'Vendor Management', 'Cost Analysis', 'Supply Chain'],
-    defaultMode: 'quote', hasQuote: true, hasHire: true,
-    colors: { bg: 'bg-violet-50', text: 'text-violet-600', gradient: 'from-violet-500 to-violet-700', badge: 'bg-violet-500', btn: 'bg-violet-600 hover:bg-violet-700' },
-  },
-  {
-    slug: 'private-security', label: 'Private Security', shortLabel: 'Security',
-    icon: Shield, image: fallbackServiceImage('private-security'), category: 'Security',
-    responseTime: '24h deploy', duration: 'Contract-based',
-    features: ['Armed & Unarmed Guards', 'CCTV Monitoring', 'Access Control', 'Event Security'],
-    defaultMode: 'hire', hasQuote: true, hasHire: true,
-    colors: { bg: 'bg-slate-100', text: 'text-slate-700', gradient: 'from-slate-600 to-slate-800', badge: 'bg-slate-700', btn: 'bg-slate-800 hover:bg-slate-900' },
-  },
-  {
-    slug: 'cleaning-janitorial', label: 'Cleaning & Janitorial', shortLabel: 'Cleaning',
-    icon: Sparkles, image: fallbackServiceImage('cleaning-janitorial'), category: 'Cleaning',
-    responseTime: 'Same-day', duration: 'Per session / Monthly',
-    features: ['Deep Cleaning', 'Office Maintenance', 'Carpet & Upholstery', 'Sanitization'],
-    defaultMode: 'hire', hasQuote: true, hasHire: true,
-    colors: { bg: 'bg-cyan-50', text: 'text-cyan-600', gradient: 'from-cyan-500 to-cyan-700', badge: 'bg-cyan-500', btn: 'bg-cyan-600 hover:bg-cyan-700' },
-  },
-  {
-    slug: 'waste-management', label: 'Smart Sort (Waste)', shortLabel: 'Smart Sort',
-    icon: Trash2, image: fallbackServiceImage('waste-management'), category: 'Smart Sort',
-    responseTime: 'Same-day', duration: 'Ongoing service',
-    features: ['Scheduled Collection', 'Recycling', 'Disposal Certs', 'Route Tracking'],
-    defaultMode: 'pickup', hasQuote: true, hasHire: true, special: 'waste',
-    colors: { bg: 'bg-emerald-50', text: 'text-emerald-600', gradient: 'from-emerald-500 to-emerald-700', badge: 'bg-emerald-500', btn: 'bg-emerald-600 hover:bg-emerald-700' },
-  },
-];
-
-const CATEGORIES = ['All', 'C&F', 'Smart Sort', 'Cleaning', 'Security', 'Procurement'] as const;
+const CATEGORIES = CATALOG_CATEGORIES;
 const CATEGORY_ICONS: Record<string, typeof Ship> = {
   All: Sparkles, 'C&F': Ship, 'Smart Sort': Trash2, Cleaning: Sparkles, Security: Shield, Procurement: ShoppingCart,
 };
@@ -88,6 +30,7 @@ interface ServiceRating { avg: number; count: number }
 
 export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
   const { images: serviceImages } = useServiceBrandingImages();
+  const { format } = useDisplayCurrency();
   const { wallet_enabled } = useFeatureFlags();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,15 +108,22 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
     }
   };
 
-  const filteredMeta = useMemo(() => {
-    return SERVICE_META.filter(m => {
-      const catMatch = activeCategory === 'All' || m.category === activeCategory;
+  const catalog = useMemo(
+    () => buildCatalog(services, serviceImages, (n) => format(n, { compact: true })),
+    [services, serviceImages, format],
+  );
+
+  const filteredItems = useMemo(() => {
+    return catalog.filter((item) => {
+      const catMatch = activeCategory === 'All' || item.meta.category === activeCategory;
+      const q = search.toLowerCase();
       const searchMatch = search === '' ||
-        m.label.toLowerCase().includes(search.toLowerCase()) ||
-        m.shortLabel.toLowerCase().includes(search.toLowerCase());
+        item.meta.label.toLowerCase().includes(q) ||
+        item.meta.shortLabel.toLowerCase().includes(q) ||
+        item.service.name.toLowerCase().includes(q);
       return catMatch && searchMatch;
     });
-  }, [activeCategory, search]);
+  }, [catalog, activeCategory, search]);
 
   const topBooked = Object.entries(bookingCounts).sort((a, b) => b[1] - a[1])[0];
 
@@ -222,7 +172,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
           </div>
         </div>
         <button
-          onClick={() => onNavigate('account')}
+          onClick={() => onNavigate('payments')}
           className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 dark:bg-slate-700 text-white text-xs font-semibold rounded-xl active:scale-95 transition-transform flex-shrink-0"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -308,12 +258,13 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
 
       {/* Service cards */}
       <div className="px-4 mt-4 pb-8 space-y-3">
-        {filteredMeta.map((meta, index) => {
-          const service = services.find(s => s.slug === meta.slug);
-          const svcRating = service ? getServiceRating(service) : null;
-          const isFav = service ? favorites.has(service.id) : false;
+        {filteredItems.map((item, index) => {
+          const service = item.service;
+          const meta = item.meta;
+          const svcRating = getServiceRating(service);
+          const isFav = favorites.has(service.id);
           const isExpanded = expandedSlug === meta.slug;
-          const Icon = meta.icon;
+          const Icon = CATALOG_ICONS[meta.icon];
 
           return (
             <div
@@ -326,7 +277,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
               {/* Image header */}
               <div className={`relative h-28 ${meta.colors.bg} overflow-hidden`}>
                 <img
-                  src={meta.image}
+                  src={item.image}
                   alt={meta.label}
                   className="absolute inset-0 w-full h-full object-cover"
                   loading="lazy"
@@ -377,7 +328,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
                 <div className="flex items-center gap-4 min-w-0">
                   <div>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-medium">Pricing</p>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5">{toSleCurrencyText(service?.price_range) || '—'}</p>
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5">{item.priceLabel}</p>
                   </div>
                   <div className="h-8 w-px bg-slate-100 dark:bg-slate-700" />
                   <div>
@@ -391,8 +342,8 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
               {/* Expanded content */}
               {isExpanded && (
                 <div className="px-4 pb-4 animate-slide-in-from-bottom">
-                  {service?.description && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 leading-relaxed">{service.description}</p>
+                  {item.meta.blurb && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 leading-relaxed">{item.meta.blurb}</p>
                   )}
 
                   {/* Features */}
@@ -407,7 +358,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
 
                   {/* View details */}
                   <button
-                    onClick={() => service && setDetailService(service)}
+                    onClick={() => setDetailService(service)}
                     className="group/details w-full flex items-center justify-center gap-1.5 py-2.5 mb-2.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl active:scale-[0.98] hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all no-select border border-blue-100 dark:border-blue-800/50"
                   >
                     <Info className="w-3.5 h-3.5 transition-transform group-hover/details:scale-110" />
@@ -419,7 +370,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
                   {meta.special === 'waste' ? (
                     <div className="space-y-2">
                       <button
-                        onClick={() => service && handleBook(service, 'pickup')}
+                        onClick={() => handleBook(service, 'pickup')}
                         className="w-full flex items-center justify-center gap-2 py-3 bg-slate-800 text-white font-semibold rounded-xl active:scale-[0.98] transition-transform no-select text-sm shadow-sm"
                       >
                         <PackageCheck className="w-4 h-4" />
@@ -427,14 +378,14 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
                       </button>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => service && handleBook(service, 'subscribe')}
+                          onClick={() => handleBook(service, 'subscribe')}
                           className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-emerald-600 text-white font-semibold rounded-xl active:scale-[0.98] transition-transform no-select text-sm"
                         >
                           <Repeat2 className="w-3.5 h-3.5" />
                           Subscribe
                         </button>
                         <button
-                          onClick={() => service && handleQuote(service)}
+                          onClick={() => handleQuote(service)}
                           className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-white dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 border border-slate-200 text-slate-700 font-medium rounded-xl active:scale-[0.98] transition-transform no-select text-sm"
                         >
                           <MessageSquare className="w-3.5 h-3.5" />
@@ -446,7 +397,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
                     <div className="flex gap-2">
                       {meta.hasHire && (
                         <button
-                          onClick={() => service && handleBook(service, meta.defaultMode)}
+                          onClick={() => handleBook(service, meta.defaultMode)}
                           className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-white font-semibold rounded-xl active:scale-[0.98] transition-transform no-select text-sm shadow-sm ${meta.colors.btn}`}
                         >
                           <CalendarPlus className="w-3.5 h-3.5" />
@@ -455,7 +406,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
                       )}
                       {meta.hasQuote && meta.defaultMode !== 'quote' && (
                         <button
-                          onClick={() => service && handleQuote(service)}
+                          onClick={() => handleQuote(service)}
                           className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-white dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 border border-slate-200 text-slate-700 font-medium rounded-xl active:scale-[0.98] transition-transform no-select text-sm"
                         >
                           <MessageSquare className="w-3.5 h-3.5" />
@@ -471,7 +422,7 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
         })}
 
         {/* Empty state */}
-        {filteredMeta.length === 0 && (
+        {filteredItems.length === 0 && (
           <div className="text-center py-12">
             <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-3">
               <Search className="w-7 h-7 text-slate-300 dark:text-slate-600" />

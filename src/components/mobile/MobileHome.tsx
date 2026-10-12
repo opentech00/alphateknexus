@@ -1,23 +1,25 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Search, ChevronRight, Ship, Trash2, Shield, Sparkles, ShoppingCart,
+  Search, ChevronRight,
   ArrowRight, RefreshCw, UserCircle, ChevronDown, MapPin, Calendar,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import type { Service } from '../../types';
 import { ServiceDetailModal } from '../ServiceDetailModal';
-import { useAppLogo, useServiceBrandingImages, fallbackServiceImage } from '../../lib/media';
+import { useAppLogo } from '../../lib/media';
 import { BrandLogo } from '../BrandLogo';
 import { useHaptics } from '../../hooks/useHaptics';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { ServiceCardSkeleton, BookingMiniSkeleton } from './Skeleton';
 import { NotificationsPanel } from '../NotificationsPanel';
-import { useDisplayCurrency } from '../../hooks/useDisplayCurrency';
 import { ExploreServicesCarousel } from '../ExploreServicesCarousel';
 import { CampaignPromoBanner } from '../CampaignPromoBanner';
 import { DueInvoicesBanner } from '../portal/DueInvoicesBanner';
-import { toSleCurrencyText } from '../../lib/money';
+import { useServiceCatalog } from '../../hooks/useServiceCatalog';
+import { CATALOG_ICONS } from '../../lib/catalogIcons';
+import type { CatalogItem } from '../../lib/serviceCatalog';
+import { JobProgress } from '../client/JobProgress';
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -26,32 +28,6 @@ interface Props {
 }
 
 type ServiceMode = 'hire' | 'quote' | 'pickup' | 'subscribe';
-
-interface ServiceMeta {
-  slug: string;
-  label: string;
-  icon: React.ReactNode;
-  image: string;
-  blurb: string;
-  priceHint: string;
-  special?: 'waste';
-}
-
-const SERVICE_META: ServiceMeta[] = [
-  { slug: 'waste-management',    label: 'Waste Management',      icon: <Trash2 className="w-5 h-5" />,        image: fallbackServiceImage('waste-management'),    blurb: 'Smart, clean and sustainable waste solutions for a greener city.', priceHint: 'From SLE 300,000', special: 'waste' },
-  { slug: 'private-security',    label: 'Private Security',      icon: <Shield className="w-5 h-5" />,       image: fallbackServiceImage('private-security'),    blurb: 'Trained professionals for your safety and peace of mind.', priceHint: 'From SLE 250,000' },
-  { slug: 'clearing-forwarding', label: 'Clearing & Forwarding', icon: <Ship className="w-5 h-5" />,        image: fallbackServiceImage('clearing-forwarding'), blurb: 'Fast, reliable and global logistics solutions.', priceHint: 'From SLE 500,000' },
-  { slug: 'cleaning-janitorial', label: 'Cleaning & Janitorial', icon: <Sparkles className="w-5 h-5" />,      image: fallbackServiceImage('cleaning-janitorial'), blurb: 'Spotless spaces for a healthier environment.', priceHint: 'From SLE 120,000' },
-  { slug: 'procurement',         label: 'Procurement',            icon: <ShoppingCart className="w-5 h-5" />, image: fallbackServiceImage('procurement'),         blurb: 'Quality products and services when you need them.', priceHint: 'From SLE 100,000' },
-];
-
-const SERVICE_COLORS: Record<string, { chip: string; text: string; price: string; ring: string }> = {
-  'clearing-forwarding': { chip: 'bg-indigo-100', text: 'text-indigo-600', price: 'text-indigo-600', ring: 'ring-indigo-200' },
-  'procurement':         { chip: 'bg-amber-100',  text: 'text-amber-600',  price: 'text-amber-600',  ring: 'ring-amber-200' },
-  'private-security':    { chip: 'bg-blue-100',   text: 'text-blue-600',   price: 'text-blue-600',   ring: 'ring-blue-200' },
-  'cleaning-janitorial': { chip: 'bg-teal-100',   text: 'text-teal-600',   price: 'text-teal-600',   ring: 'ring-teal-200' },
-  'waste-management':    { chip: 'bg-emerald-100', text: 'text-emerald-600', price: 'text-emerald-600', ring: 'ring-emerald-200' },
-};
 
 interface HomeBooking {
   id: string;
@@ -80,22 +56,19 @@ const statusLabels: Record<string, string> = {
 };
 
 function ServiceGridCard({
-  meta,
-  service,
+  item,
   index,
   wide = false,
   onViewDetails,
-  priceText,
 }: {
-  meta: ServiceMeta;
-  service?: Service;
+  item: CatalogItem;
   index: number;
   wide?: boolean;
   onViewDetails: (svc: Service) => void;
-  priceText: string;
 }) {
   const { vibrate } = useHaptics();
-  const colors = SERVICE_COLORS[meta.slug] || { chip: 'bg-slate-100', text: 'text-slate-600', price: 'text-slate-600', ring: 'ring-slate-200' };
+  const colors = item.meta.colors;
+  const Icon = CATALOG_ICONS[item.meta.icon];
 
   return (
     <div
@@ -104,29 +77,29 @@ function ServiceGridCard({
     >
       <div className="relative h-24 overflow-hidden">
         <img
-          src={meta.image}
-          alt={meta.label}
+          src={item.image}
+          alt={item.meta.label}
           className="absolute inset-0 w-full h-full object-cover media-photo"
           loading="lazy"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />
         <div className={`absolute left-3 bottom-3 w-9 h-9 rounded-xl bg-white/95 shadow-sm ring-1 ${colors.ring} flex items-center justify-center ${colors.text}`}>
-          {meta.icon}
+          <Icon className="w-5 h-5" />
         </div>
       </div>
 
       <button
         onClick={() => {
           vibrate('light');
-          if (service) onViewDetails(service);
+          onViewDetails(item.service);
         }}
         className="w-full text-left p-3.5 no-select"
       >
-        <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100 leading-tight">{meta.label}</h3>
-        <p className={`mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400 ${wide ? 'line-clamp-1' : 'line-clamp-2 min-h-8'}`}>{meta.blurb}</p>
+        <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100 leading-tight">{item.meta.label}</h3>
+        <p className={`mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400 ${wide ? 'line-clamp-1' : 'line-clamp-2 min-h-8'}`}>{item.meta.blurb}</p>
         <div className="mt-2.5 flex items-center justify-between">
-          <p className={`text-[13px] font-bold ${colors.price}`}>{priceText}</p>
+          <p className={`text-[13px] font-bold ${colors.price}`}>{item.priceLabel}</p>
           <span className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 inline-flex items-center justify-center">
             <ArrowRight className={`w-4 h-4 ${colors.text}`} />
           </span>
@@ -164,6 +137,7 @@ function BookingMiniCard({
           {statusLabels[booking.status] || booking.status}
         </span>
       </div>
+      <JobProgress status={booking.status} compact />
       {booking.location && (
         <div className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-slate-500 truncate">
           <MapPin className="w-3 h-3 flex-shrink-0" />
@@ -175,23 +149,14 @@ function BookingMiniCard({
 }
 
 export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props) {
-  const { images: serviceImages } = useServiceBrandingImages();
+  const { catalog, services, loading, reload } = useServiceCatalog();
   const { url: logoUrl } = useAppLogo();
   const { profile } = useAuth();
   const { vibrate } = useHaptics();
-  const { format } = useDisplayCurrency();
-  const [services, setServices] = useState<Service[]>([]);
   const [bookings, setBookings] = useState<HomeBooking[]>([]);
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
   const [detailService, setDetailService] = useState<Service | null>(null);
   const [showFloatHeader, setShowFloatHeader] = useState(false);
-
-  const fetchServices = useCallback(async () => {
-    const { data } = await supabase.from('services').select('*').eq('is_active', true).eq('is_internal', false).order('created_at');
-    setServices((data as Service[]) || []);
-    setLoading(false);
-  }, []);
 
   const fetchBookings = useCallback(async () => {
     const { data } = await supabase
@@ -202,13 +167,12 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
     setBookings((data as unknown as HomeBooking[]) || []);
   }, []);
 
-  useEffect(() => { fetchServices(); }, [fetchServices]);
   useEffect(() => { fetchBookings(); }, [fetchBookings]);
 
   const handleRefresh = useCallback(async () => {
     vibrate('light');
-    await Promise.all([fetchServices(), fetchBookings()]);
-  }, [fetchServices, fetchBookings, vibrate]);
+    await Promise.all([reload(), fetchBookings()]);
+  }, [reload, fetchBookings, vibrate]);
 
   const { ref: scrollRef, pulling, progress, refreshing } = usePullToRefresh({
     onRefresh: handleRefresh,
@@ -231,8 +195,11 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
   const firstName = profile?.full_name?.split(' ')[0] || 'there';
   const initials = (profile?.full_name || profile?.email || 'U').trim().charAt(0).toUpperCase();
 
-  const filtered = SERVICE_META.filter(m =>
-    search === '' || m.label.toLowerCase().includes(search.toLowerCase())
+  const filtered = catalog.filter((item) =>
+    search === ''
+    || item.meta.label.toLowerCase().includes(search.toLowerCase())
+    || item.meta.shortLabel.toLowerCase().includes(search.toLowerCase())
+    || item.service.name.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleSelect = (svc: Service, mode: ServiceMode) => {
@@ -248,24 +215,14 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
 
   const pullIndicatorHeight = refreshing ? 40 : pulling ? Math.round(progress * 40) : 0;
 
-  const priceLabel = (raw: string) => {
-    const text = toSleCurrencyText(raw);
-    const match = text.match(/([\d,]+(?:\.\d+)?)/);
-    if (!match) return text;
-    return `From ${format(Number(match[1].replace(/,/g, '')), { compact: true })}`;
-  };
-
-  const exploreSlides = SERVICE_META.map((meta) => {
-    const svc = services.find(s => s.slug === meta.slug);
-    return {
-      slug: meta.slug,
-      title: meta.label,
-      blurb: meta.blurb,
-      image: serviceImages[meta.slug] || meta.image,
-      priceLabel: priceLabel(svc?.price_range?.trim() || meta.priceHint),
-      cta: 'Explore',
-    };
-  });
+  const exploreSlides = catalog.map((item) => ({
+    slug: item.service.slug,
+    title: item.meta.label,
+    blurb: item.meta.blurb,
+    image: item.image,
+    priceLabel: item.priceLabel,
+    cta: 'Explore',
+  }));
 
   return (
     <div ref={scrollRef} className="flex flex-col min-h-full bg-[#f5f8ff] dark:bg-slate-950 black:bg-black no-tap-highlight pb-8">
@@ -334,9 +291,9 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
       </div>
       <div className="px-5 mb-4 grid grid-cols-3 gap-2">
         {([
+          ['payments', 'Payments'],
           ['quotes', 'Quotes'],
-          ['billing', 'Billing'],
-          ['support', 'Support'],
+          ['support', 'Inbox'],
         ] as const).map(([id, label]) => (
           <button
             key={id}
@@ -402,20 +359,15 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {filtered.map((meta, idx) => {
-              const svc = services.find(s => s.slug === meta.slug);
-              return (
+            {filtered.map((item, idx) => (
                 <ServiceGridCard
-                  key={meta.slug}
-                  meta={meta}
-                  service={svc}
+                  key={item.service.id}
+                  item={item}
                   index={idx}
-                  wide={meta.slug === 'procurement'}
+                  wide={item.service.slug === 'procurement'}
                   onViewDetails={handleViewDetails}
-                  priceText={priceLabel(svc?.price_range?.trim() || meta.priceHint)}
                 />
-              );
-            })}
+            ))}
           </div>
         )}
       </div>

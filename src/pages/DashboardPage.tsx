@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight, Wallet, CalendarDays, Briefcase, Sparkles,
   Clock, CheckCircle2, AlertCircle, Plus,
@@ -20,10 +20,13 @@ import { AnimatedMeshBackdrop } from '../components/AnimatedMeshBackdrop';
 import { CampaignPromoBanner } from '../components/CampaignPromoBanner';
 import { DueInvoicesBanner } from '../components/portal/DueInvoicesBanner';
 import { fallbackServiceImage, useServiceBrandingImages } from '../lib/media';
+import { buildCatalog, CATALOG_META, type ServiceMode } from '../lib/serviceCatalog';
+import { CATALOG_ICONS } from '../lib/catalogIcons';
+import { JobProgress } from '../components/client/JobProgress';
 
 interface DashboardPageProps {
   onNavigate?: (page: string) => void;
-  onSelectService?: (service: Service, mode?: 'hire' | 'quote' | 'pickup' | 'subscribe') => void;
+  onSelectService?: (service: Service, mode?: ServiceMode) => void;
   onQuickBook?: (serviceId: string, preset: any) => void;
 }
 
@@ -39,37 +42,28 @@ interface BookingRow {
   services: { name: string; slug: string } | null;
 }
 
-const serviceLinks: {
-  slug: string; label: string; mode?: 'hire' | 'quote' | 'pickup' | 'subscribe';
-}[] = [
-  { slug: 'clearing-forwarding', label: 'Clearing & Forwarding', mode: 'hire' },
-  { slug: 'waste-management',    label: 'Smart Sort Waste',      mode: 'pickup' },
-  { slug: 'private-security',    label: 'Private Security',      mode: 'hire' },
-  { slug: 'cleaning-janitorial', label: 'Cleaning & Janitorial', mode: 'hire' },
-  { slug: 'procurement',         label: 'Procurement',           mode: 'quote' },
-];
-
-const heroServiceIcons: Record<string, typeof Ship> = {
-  'clearing-forwarding': Ship,
-  'waste-management': Trash2,
-  'private-security': Shield,
-  'cleaning-janitorial': Sparkles,
-  procurement: ShoppingCart,
-};
+const fallbackHeroLinks = Object.values(CATALOG_META).map((m) => ({
+  slug: m.slug,
+  label: m.label,
+  mode: m.defaultMode,
+}));
 
 function HeroServiceWords({
+  items,
   onPick,
 }: {
-  onPick: (slug: string, mode?: 'hire' | 'quote' | 'pickup' | 'subscribe') => void;
+  items: { slug: string; label: string; mode?: ServiceMode }[];
+  onPick: (slug: string, mode?: ServiceMode) => void;
 }) {
+  const links = items.length > 0 ? items : fallbackHeroLinks;
   const [active, setActive] = useState(0);
 
   useEffect(() => {
     const id = window.setInterval(() => {
-      setActive((i) => (i + 1) % serviceLinks.length);
+      setActive((i) => (i + 1) % Math.max(links.length, 1));
     }, 2800);
     return () => window.clearInterval(id);
-  }, []);
+  }, [links.length]);
 
   return (
     <div className="hidden md:flex flex-shrink-0 w-[17.5rem] flex-col justify-center">
@@ -79,8 +73,8 @@ function HeroServiceWords({
           Our services
         </p>
         <ul className="relative space-y-0.5">
-          {serviceLinks.map((s, i) => {
-            const Icon = heroServiceIcons[s.slug] ?? Briefcase;
+          {links.map((s, i) => {
+            const Icon = CATALOG_ICONS[CATALOG_META[s.slug]?.icon || 'Sparkles'] ?? Briefcase;
             const on = i === active;
             return (
               <li
@@ -236,38 +230,12 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
   );
 }
 
-const TIMELINE_STEPS = ['pending', 'confirmed', 'in_progress', 'completed'];
 function StatusTimeline({ status }: { status: string }) {
-  const idx = TIMELINE_STEPS.indexOf(status);
   if (status === 'cancelled') return null;
   return (
     <div>
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Progress</p>
-      <div className="flex items-center gap-0">
-        {TIMELINE_STEPS.map((step, i) => {
-          const done = i <= idx;
-          const active = i === idx;
-          return (
-            <div key={step} className="flex items-center flex-1 last:flex-none">
-              <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                active ? 'bg-emerald-600 border-emerald-600' :
-                done   ? 'bg-emerald-100 border-emerald-400' :
-                         'bg-white border-slate-200'
-              }`}>
-                {done && <span className={`w-2.5 h-2.5 rounded-full ${active ? 'bg-white' : 'bg-emerald-500'}`} />}
-              </div>
-              {i < TIMELINE_STEPS.length - 1 && (
-                <div className={`flex-1 h-0.5 ${i < idx ? 'bg-emerald-400' : 'bg-slate-200'}`} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex justify-between mt-1.5">
-        {TIMELINE_STEPS.map(s => (
-          <p key={s} className="text-[10px] text-slate-400 capitalize">{s.replace('_', ' ')}</p>
-        ))}
-      </div>
+      <JobProgress status={status} />
     </div>
   );
 }
@@ -348,8 +316,17 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
   }, []);
 
   const firstName      = profile?.full_name?.split(' ')[0] || 'there';
-  const activeBookings = bookings.filter(b => ['pending', 'confirmed', 'in_progress'].includes(b.status)).length;
+  const activeBookings = bookings.filter(b => ['pending', 'pending_review', 'approved', 'confirmed', 'in_progress'].includes(b.status)).length;
   const completedCount = bookings.filter(b => b.status === 'completed').length;
+  const catalog = useMemo(
+    () => buildCatalog(services, serviceImages, (n) => format(n, { compact: true })),
+    [services, serviceImages, format],
+  );
+  const heroItems = catalog.map((item) => ({
+    slug: item.service.slug,
+    label: item.meta.shortLabel,
+    mode: item.meta.defaultMode,
+  }));
 
   const handleServiceClick = (slug: string, mode?: 'hire' | 'quote' | 'pickup' | 'subscribe') => {
     const svc = services.find(s => s.slug === slug);
@@ -422,7 +399,7 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
                 </button>
               </div>
             </div>
-            <HeroServiceWords onPick={handleServiceClick} />
+            <HeroServiceWords items={heroItems} onPick={handleServiceClick} />
           </div>
         </div>
       </section>
@@ -437,7 +414,7 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
       <section className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 transition-all duration-700 delay-100 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'}`}>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[
-            ...(wallet_enabled ? [{ label: 'Wallet Balance', value: format(walletBalance), icon: Wallet,       color: 'emerald', page: 'account' }] : []),
+            ...(wallet_enabled ? [{ label: 'Wallet Balance', value: format(walletBalance), icon: Wallet,       color: 'emerald', page: 'payments' }] : []),
             { label: 'Active Bookings', value: String(activeBookings),  icon: Clock,         color: 'blue',    page: 'bookings' },
             { label: 'Completed',       value: String(completedCount),  icon: CheckCircle2,  color: 'teal',    page: 'bookings' },
             { label: 'Services Available', value: String(services.length), icon: Briefcase,     color: 'amber',   page: 'services' },
@@ -466,18 +443,18 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
         <ExploreServicesCarousel
           animatedBackdrop
           contentClassName="p-6 sm:p-8 min-h-[280px]"
-          slides={serviceLinks.map((s) => ({
-            slug: s.slug,
-            title: s.label,
-            blurb: 'Book, manage and get this service done with ease.',
-            image: serviceImages[s.slug] || fallbackServiceImage(s.slug),
-            priceLabel: 'Explore this division',
+          slides={catalog.map((item) => ({
+            slug: item.service.slug,
+            title: item.meta.label,
+            blurb: item.meta.blurb,
+            image: item.image || fallbackServiceImage(item.service.slug),
+            priceLabel: item.priceLabel,
             cta: 'Explore',
           }))}
           onViewAll={() => onNavigate?.('services')}
           onSelect={(slug) => {
-            const link = serviceLinks.find(s => s.slug === slug);
-            handleServiceClick(slug, link?.mode);
+            const item = catalog.find((c) => c.service.slug === slug);
+            handleServiceClick(slug, item?.meta.defaultMode);
           }}
         />
       </section>
@@ -640,7 +617,7 @@ export function DashboardPage({ onNavigate, onSelectService, onQuickBook }: Dash
                 </div>
                 <p className="text-[11px] text-emerald-100/80 leading-relaxed flex-1">Pay for any service with your wallet balance.</p>
                 <button
-                  onClick={() => onNavigate?.('account')}
+                  onClick={() => onNavigate?.('payments')}
                   className="w-full mt-3 flex items-center justify-center gap-1.5 py-2 bg-white/15 border border-white/25 text-white text-xs font-semibold rounded-xl hover:bg-white/25 transition-colors active:scale-[0.98] backdrop-blur-sm"
                 >
                   <Plus className="w-3.5 h-3.5" /> Top Up

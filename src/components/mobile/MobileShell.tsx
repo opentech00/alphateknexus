@@ -7,10 +7,9 @@ import { BrandLogo } from '../BrandLogo';
 import { NotificationsPanel } from '../NotificationsPanel';
 import { MobileHome } from './MobileHome';
 import { MobileBookingsPage } from './MobileBookingsPage';
-import { WalletPanel } from '../WalletPanel';
+import { PaymentsHub } from '../client/PaymentsHub';
 import { MobileProfilePage } from './MobileProfilePage';
 import { MobileServicesPage } from './MobileServicesPage';
-import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { useHaptics } from '../../hooks/useHaptics';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -26,21 +25,20 @@ interface Props {
 const ALL_NAV_ITEMS: { id: MobilePage; label: string; icon: typeof Home }[] = [
   { id: 'home',     label: 'Home',     icon: Home },
   { id: 'bookings', label: 'Bookings', icon: CalendarDays },
-  { id: 'wallet',   label: 'Wallet',   icon: Wallet },
+  { id: 'wallet',   label: 'Pay',      icon: Wallet },
   { id: 'profile',  label: 'Profile',  icon: UserCircle },
 ];
 
 const PAGE_TITLE: Record<MobilePage, string> = {
   home: 'Home',
   bookings: 'My Bookings',
-  wallet: 'Wallet',
+  wallet: 'Payments',
   profile: 'Account',
   services: 'All Services',
 };
 
 
 export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook }: Props) {
-  const { wallet_enabled } = useFeatureFlags();
   const { url: logoUrl } = useAppLogo();
   const { profile } = useAuth();
   const { vibrate } = useHaptics();
@@ -151,6 +149,7 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
                 if (page === 'services') handleSetPage('services');
                 else if (page === 'bookings') handleSetPage('bookings');
                 else if (page === 'account') handleSetPage('profile');
+                else if (page === 'payments' || page === 'billing' || page === 'quotes') handleSetPage('wallet');
                 else onNavigate(page);
               }}
               onSelectService={onSelectService}
@@ -171,9 +170,16 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
             />
           )}
 
-          {mobilePage === 'wallet' && wallet_enabled && (
+          {mobilePage === 'wallet' && (
             <div className="p-4">
-              <WalletPanel onChooseService={() => handleSetPage('services')} />
+              <PaymentsHub
+                onNavigate={(page) => {
+                  if (page === 'services') handleSetPage('services');
+                  else if (page === 'home') handleSetPage('home');
+                  else onNavigate(page);
+                }}
+                onChooseService={() => handleSetPage('services')}
+              />
             </div>
           )}
 
@@ -189,7 +195,10 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
           {mobilePage === 'services' && (
             <MobileServicesPage
               onSelectService={onSelectService}
-              onNavigate={onNavigate}
+              onNavigate={(page) => {
+                if (page === 'payments' || page === 'billing' || page === 'quotes') handleSetPage('wallet');
+                else onNavigate(page);
+              }}
             />
           )}
         </div>
@@ -197,8 +206,8 @@ export function MobileShell({ onNavigate, onSelectService, onRebook, onQuickBook
 
       {/* Bottom Navigation — pinned in the flex column, padded above the system inset */}
       <nav className="flex-shrink-0 z-40 bg-white/95 dark:bg-slate-900 black:bg-black border-t border-slate-200 dark:border-slate-700 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] no-select w-full mobile-nav-pb backdrop-blur">
-        <div className="flex items-stretch justify-around h-14 px-2 max-w-lg mx-auto w-full">
-          {ALL_NAV_ITEMS.filter(item => item.id !== 'wallet' || wallet_enabled).map(item => {
+        <div className="flex items-stretch justify-around min-h-14 px-1 max-w-lg mx-auto w-full">
+          {ALL_NAV_ITEMS.map(item => {
             const Icon = item.icon;
             const active = mobilePage === item.id;
             return (

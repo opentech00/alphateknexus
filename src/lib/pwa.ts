@@ -61,6 +61,7 @@ export const CLIENT_PWA_PAGES = [
   'billing',
   'quotes',
   'support',
+  'payments',
 ] as const;
 
 export type ClientPwaPage = (typeof CLIENT_PWA_PAGES)[number];

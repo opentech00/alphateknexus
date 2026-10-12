@@ -22,6 +22,8 @@ interface AdminNotificationsContextValue {
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   markReadBySlug: (slug: string) => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
+  clearAll: () => Promise<void>;
   loading: boolean;
 }
 
@@ -110,8 +112,21 @@ export function AdminNotificationsProvider({ children }: { children: ReactNode }
     setNotifications((prev) => prev.map((n) => (n.service_slug === slug ? { ...n, read: true } : n)));
   };
 
+  const deleteNotification = async (id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    const { error } = await supabase.from('notifications').delete().eq('id', id);
+    if (error) fetchNotifications();
+  };
+
+  const clearAll = async () => {
+    if (!user) return;
+    setNotifications([]);
+    const { error } = await supabase.from('notifications').delete().eq('user_id', user.id);
+    if (error) fetchNotifications();
+  };
+
   return (
-    <AdminNotificationsContext.Provider value={{ notifications, unreadCount, unreadByType, unreadBySlug, markAsRead, markAllAsRead, markReadBySlug, loading }}>
+    <AdminNotificationsContext.Provider value={{ notifications, unreadCount, unreadByType, unreadBySlug, markAsRead, markAllAsRead, markReadBySlug, deleteNotification, clearAll, loading }}>
       {children}
     </AdminNotificationsContext.Provider>
   );

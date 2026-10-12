@@ -55,7 +55,7 @@ function HelpCircle(props: any) {
   return <MessageSquare {...props} />;
 }
 
-export function MessagesPage() {
+export function MessagesPage({ embedded = false }: { embedded?: boolean }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -243,6 +243,7 @@ export function MessagesPage() {
 
   return (
     <div>
+      {!embedded && (
       <PageHeader
         title="Messages"
         description="Customer messages with smart categorization for easy staff management"
@@ -259,6 +260,7 @@ export function MessagesPage() {
           </button>
         }
       />
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <StatCard label="Conversations" value={conversations.length} icon={Inbox} color="text-blue-600" accent="bg-blue-50" />

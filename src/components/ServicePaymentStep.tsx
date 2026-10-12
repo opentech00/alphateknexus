@@ -265,7 +265,7 @@ export function ServicePaymentStep({
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-28 lg:pb-10">
+    <div className="min-h-screen bg-slate-50 lg:pb-10">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-4 sm:pt-8">
         <button onClick={onBack} className="inline-flex items-center gap-2 min-h-[44px] text-sm text-slate-500 hover:text-slate-700 mb-3">
           <ArrowLeft className="w-4 h-4" /> Back
@@ -462,7 +462,7 @@ export function ServicePaymentStep({
         </div>
       </div>
 
-      <div className="lg:hidden fixed bottom-0 inset-x-0 z-20 bg-white/95 backdrop-blur border-t border-slate-200 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="lg:hidden sticky bottom-0 z-30 mt-4 bg-white/95 backdrop-blur border-t border-slate-200 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(15,23,42,0.06)]">
         <div className="max-w-5xl mx-auto flex items-center gap-3">
           <AmountFigure compact amount={selected === 'monime' ? monimeAmount : amount} />
           <button

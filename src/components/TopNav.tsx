@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   LayoutDashboard, Briefcase, CalendarDays, UserCircle, FileText, Receipt,
-  LogOut, Menu, X, Shield, ChevronDown, Landmark,
+  LogOut, Menu, X, Shield, ChevronDown, Landmark, Wallet,
   Sun, Moon, Monitor, Circle,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,6 +26,7 @@ const navItems = [
 ];
 
 const financeItems = [
+  { label: 'Payments', page: 'payments', icon: Wallet, hint: 'Wallet, bills, receipts, quotes' },
   { label: 'Quotes', page: 'quotes', icon: FileText, hint: 'Price offers to review' },
   { label: 'Billing', page: 'billing', icon: Receipt, hint: 'Invoices and payments' },
 ] as const;

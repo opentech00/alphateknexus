@@ -12,6 +12,8 @@ import { PageHeader, EmptyState, Spinner } from '../components/ui';
 import { ServiceRequestExportMenu } from '../../components/ServiceRequestExportMenu';
 import { bookingToExportRow } from '../../lib/exportServiceRequests';
 import { toast } from '../../components/toast/toast';
+import { BookingTracker } from '../../components/BookingTracker';
+import { JobProgress } from '../../components/client/JobProgress';
 
 interface BookingDetails {
   // C&F hire
@@ -285,7 +287,7 @@ export function BookingsManagementPage() {
   const [modeFilter, setModeFilter] = useState<ModeFilter>('all');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'details' | 'messages' | 'documents'>('details');
+  const [activeTab, setActiveTab] = useState<'tracker' | 'details' | 'messages' | 'documents'>('tracker');
 
   const fetchBookings = async () => {
     let query = supabase
@@ -455,6 +457,9 @@ export function BookingsManagementPage() {
                           </>
                         )}
                       </div>
+                      <div className="mt-3 max-w-sm">
+                        <JobProgress status={booking.status} />
+                      </div>
                       <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
                         <span className="inline-flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5" />
@@ -531,8 +536,18 @@ export function BookingsManagementPage() {
 
                 {expandedBooking === booking.id && (
                   <div className="border-t border-slate-100">
-                    {hasDetails && (
                       <div className="flex border-b border-slate-100">
+                        <button
+                          onClick={() => setActiveTab('tracker')}
+                          className={`flex-1 py-3 text-xs font-medium text-center transition-colors ${
+                            activeTab === 'tracker'
+                              ? 'text-emerald-700 border-b-2 border-emerald-500 bg-emerald-50/50'
+                              : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          Tracker
+                        </button>
+                        {hasDetails && (
                         <button
                           onClick={() => setActiveTab('details')}
                           className={`flex-1 py-3 text-xs font-medium text-center transition-colors ${
@@ -544,6 +559,7 @@ export function BookingsManagementPage() {
                           <FileText className="w-3.5 h-3.5 inline mr-1.5" />
                           Full Details
                         </button>
+                        )}
                         <button
                           onClick={() => setActiveTab('messages')}
                           className={`flex-1 py-3 text-xs font-medium text-center transition-colors ${
@@ -567,9 +583,10 @@ export function BookingsManagementPage() {
                           Documents
                         </button>
                       </div>
-                    )}
                     <div className="p-5">
-                      {activeTab === 'details' && hasDetails ? (
+                      {activeTab === 'tracker' ? (
+                        <BookingTracker bookingId={booking.id} currentStatus={booking.status} />
+                      ) : activeTab === 'details' && hasDetails ? (
                         <ServiceDetailsPanel
                           details={(booking.details || {}) as Record<string, unknown>}
                           notes={booking.notes}

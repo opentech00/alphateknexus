@@ -35,7 +35,7 @@ interface TicketMessage {
   created_at: string;
 }
 
-export function SupportPage({ onBack }: { onBack?: () => void }) {
+export function SupportPage({ onBack, bare = false }: { onBack?: () => void; bare?: boolean }) {
   const { user, profile } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [active, setActive] = useState<Ticket | null>(null);
@@ -172,7 +172,7 @@ export function SupportPage({ onBack }: { onBack?: () => void }) {
   };
 
   return (
-    <PortalPage title="Support" subtitle="Search help, or open a ticket and keep the conversation with Alphatek in one place." onBack={onBack}>
+    <PortalPage title="Support" subtitle="Search help, or open a ticket and keep the conversation with Alphatek in one place." onBack={onBack} bare={bare}>
       <KnowledgeSearch />
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <div className="lg:col-span-2 space-y-3">

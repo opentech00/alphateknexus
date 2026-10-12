@@ -12,7 +12,7 @@ const SLUG_TO_ADMIN_PAGE: Record<string, string> = {
 export function destinationForClientNotification(n: IncomingNotification): string {
   if (n.type === 'support') return 'support';
   if (/quote/i.test(`${n.title} ${n.body}`)) return 'quotes';
-  if (n.type === 'payment') return 'billing';
+  if (n.type === 'payment') return 'payments';
   if (n.booking_id || n.type === 'booking_update' || n.type === 'message' || n.type === 'review_prompt') {
     return 'bookings';
   }

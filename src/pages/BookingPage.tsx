@@ -1,16 +1,11 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import {
   ArrowLeft, Calendar, MapPin, Clock, CheckCircle2,
-  ChevronRight, Wallet, Smartphone, ShieldCheck,
-  Loader2, Receipt as ReceiptIcon, Banknote,
+  ChevronRight, Loader2, Receipt as ReceiptIcon, Banknote,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from '../components/toast/toast';
-import { pollPaymentStatus, startMonimePayment } from '../lib/monime';
-import { copyForPollResult } from '../lib/paymentFailure';
 import { PaymentFailedScreen } from '../components/checkout/PaymentOutcome';
-
-const SERVICE_FEE = 25;
 import { SchedulingCalendar } from '../components/SchedulingCalendar';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { LocationAutocomplete } from '../components/LocationAutocomplete';
@@ -33,8 +28,11 @@ import { ProcurementHireForm } from '../components/ProcurementHireForm';
 import { ProcurementQuoteForm } from '../components/ProcurementQuoteForm';
 import { PrivateSecurityHireForm } from '../components/PrivateSecurityHireForm';
 import { PrivateSecurityQuoteForm } from '../components/PrivateSecurityQuoteForm';
-import { useFeatureFlags } from '../hooks/useFeatureFlags';
-import { ChannelPills, le, PayOption, SecureNote, StatusOrb } from '../components/checkout/CheckoutUi';
+import { StatusOrb } from '../components/checkout/CheckoutUi';
+import { ServicePaymentStep } from '../components/ServicePaymentStep';
+import { parsePriceHint } from '../lib/serviceCatalog';
+
+const SERVICE_FEE = 25;
 
 interface Service {
   id: string;
@@ -89,11 +87,14 @@ function MobileHeader({ title, onBack }: { title: string; onBack: () => void }) 
 function SummaryStep({
   service,
   formData,
-  onBack,
+  total,
+  proceeding,
   onProceed,
 }: {
   service: Service;
   formData: any;
+  total: number;
+  proceeding?: boolean;
   onBack: () => void;
   onProceed: () => void;
 }) {
@@ -107,8 +108,7 @@ function SummaryStep({
     { icon: <MapPin className="w-4 h-4 text-slate-400" />, label: 'Location', value: formData.location || 'Not specified' },
   ];
 
-  const serviceFee = SERVICE_FEE;
-  const total = SERVICE_FEE;
+  const serviceFee = total;
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
@@ -184,99 +184,12 @@ function SummaryStep({
       <div className="flex-shrink-0 bg-white border-t border-slate-100 px-4 md:px-6 py-3 safe-area-pb">
         <button
           onClick={onProceed}
-          className="w-full py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm no-select flex items-center justify-center gap-2"
+          disabled={proceeding}
+          className="w-full py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm no-select flex items-center justify-center gap-2 disabled:opacity-50"
         >
-          Proceed to Payment
-          <ChevronRight className="w-4 h-4" />
+          {proceeding ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
+          {proceeding ? 'Creating booking…' : 'Proceed to Payment'}
         </button>
-      </div>
-    </div>
-  );
-}
-
-function PaymentStep({
-  service,
-  total,
-  onPay,
-  paying,
-}: {
-  service: Service;
-  formData: any;
-  total: number;
-  onBack: () => void;
-  onPay: (methodId: string) => void;
-  paying: boolean;
-}) {
-  const [selected, setSelected] = useState<string>('monime');
-  const { wallet_enabled } = useFeatureFlags();
-
-  return (
-    <div className="flex flex-col h-full bg-slate-50">
-      <div className="flex-1 overflow-y-auto mobile-scroll p-4 md:p-6 pb-4">
-        <h2 className="text-lg font-bold text-slate-900 mb-1">How would you like to pay?</h2>
-        <p className="text-sm text-slate-500 mb-5">{service.name}</p>
-
-        <div className="md:grid md:grid-cols-[minmax(0,1fr)_240px] md:gap-5 md:items-start">
-          <div role="radiogroup" aria-label="Payment method" className="space-y-2.5">
-            <PayOption
-              accent="blue"
-              selected={selected === 'monime'}
-              onSelect={() => setSelected('monime')}
-              title="Pay with Monime"
-              hint="Mobile money, card, or bank"
-              icon={<span className="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center text-white"><Smartphone className="w-5 h-5" /></span>}
-            />
-            {selected === 'monime' && (
-              <div className="px-1 animate-slideUp"><ChannelPills /></div>
-            )}
-            {wallet_enabled && (
-              <PayOption
-                accent="blue"
-                selected={selected === 'wallet'}
-                onSelect={() => setSelected('wallet')}
-                title="Wallet balance"
-                hint="Use store credit"
-                icon={<span className="w-11 h-11 rounded-xl bg-slate-700 flex items-center justify-center text-white"><Wallet className="w-5 h-5" /></span>}
-              />
-            )}
-            <PayOption
-              accent="blue"
-              selected={selected === 'cash'}
-              onSelect={() => setSelected('cash')}
-              title="Cash on delivery"
-              hint="Pay the crew when they arrive"
-              icon={<span className="w-11 h-11 rounded-xl bg-amber-600 flex items-center justify-center text-white"><Banknote className="w-5 h-5" /></span>}
-            />
-            {selected === 'cash' && (
-              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 leading-relaxed animate-slideUp">
-                Have {le(total)} ready. A numbered receipt is issued when it is collected.
-              </div>
-            )}
-          </div>
-          <div className="hidden md:block rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-            <p className="text-xs font-medium text-slate-500">Due now</p>
-            <p key={total} className="text-2xl font-bold text-slate-900 tabular-nums animate-scaleIn">{le(total)}</p>
-            <SecureNote />
-          </div>
-        </div>
-        <div className="mt-4 md:hidden"><SecureNote /></div>
-      </div>
-
-      <div className="flex-shrink-0 bg-white/95 backdrop-blur border-t border-slate-100 px-4 md:px-6 py-3 safe-area-pb">
-        <div className="flex items-center gap-3 max-w-3xl mx-auto">
-          <div className="md:hidden min-w-0">
-            <p className="text-[11px] text-slate-500">Due now</p>
-            <p key={selected} className="text-lg font-bold text-slate-900 tabular-nums animate-scaleIn">{le(total)}</p>
-          </div>
-          <button
-            onClick={() => onPay(selected)}
-            disabled={paying}
-            className="flex-1 min-h-[48px] py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm no-select flex items-center justify-center gap-2 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          >
-            {paying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-            <span className="truncate">{paying ? 'Opening secure checkout…' : selected === 'monime' ? 'Pay with Monime' : `Pay ${le(total)}`}</span>
-          </button>
-        </div>
       </div>
     </div>
   );
@@ -302,6 +215,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
   const [paymentError, setPaymentError] = useState('');
   const [paymentFailCode, setPaymentFailCode] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [createdBookingId, setCreatedBookingId] = useState('');
 
   useEffect(() => {
     if (rebookData) {
@@ -447,30 +361,26 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
     );
   }
 
-  const handlePay = async (methodId: string) => {
+  const bookingTotal = parsePriceHint(service.price_range, SERVICE_FEE);
+
+  const createBookingForPayment = async () => {
+    if (createdBookingId) {
+      setStep('payment');
+      return;
+    }
     setLoading(true);
     setError('');
-    setPaymentError('');
-    setPaymentFailCode('');
-    setPaymentFailCode('');
-
     try {
-      // Validate required fields before insert
       if (!formData.scheduled_date) {
         setError('Please select a date before proceeding.');
         setStep('form');
         return;
       }
-
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setError('You must be signed in to book a service.');
         return;
       }
-
-      const isCash = methodId === 'cash';
-      const isWallet = methodId === 'wallet';
-
       const { data: bookingData, error: insertError } = await supabase.from('bookings').insert({
         service_id: service.id,
         user_id: user.id,
@@ -483,18 +393,14 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
         latitude: formData.latitude,
         longitude: formData.longitude,
         notes: formData.notes || null,
-        details: { total_sle: SERVICE_FEE },
+        details: { total_sle: bookingTotal },
         status: 'pending_review',
-        payment_method: isCash ? 'cash' : isWallet ? 'wallet' : 'monime',
-        payment_status: isCash ? 'pending_cash' : 'pending',
+        payment_status: 'pending',
       }).select('id').single();
-
       if (insertError) {
         setError(insertError.message);
         return;
       }
-
-      // Send booking confirmation email (fire-and-forget)
       supabase.functions.invoke('send-booking-email', {
         body: {
           eventType: 'booking_confirmation',
@@ -506,71 +412,10 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
           location: formData.location || null,
         },
       }).catch(() => {});
-
-      // Cash on Delivery: create a pending cash payment record, skip online checkout
-      if (isCash) {
-        const { error: payErr } = await supabase.from('payments').insert({
-          user_id: user.id,
-          payable_type: 'booking',
-          payable_id: bookingData.id,
-          amount_sle: SERVICE_FEE,
-          method: 'cash',
-          status: 'pending',
-        });
-        if (payErr) {
-          setPaymentError('Your booking was created but we could not record the cash payment request. Please contact support.');
-          setPaymentFailCode('unknown');
-          setStep('payment_failed');
-          return;
-        }
-        setPayReference('');
-        setStep('success');
-        return;
-      }
-
-      if (isWallet) {
-        const { data: walletResult, error: walletErr } = await supabase.rpc('pay_booking_from_wallet', {
-          p_booking_id: bookingData.id,
-          p_amount: SERVICE_FEE,
-        });
-        if (walletErr || !walletResult?.success) {
-          const insufficient = walletResult?.error === 'Insufficient wallet balance.';
-          setPaymentError(
-            insufficient
-              ? `Insufficient wallet balance. You have SLE ${Number(walletResult?.balance ?? 0).toLocaleString()} but need SLE ${SERVICE_FEE.toLocaleString()}.`
-              : walletResult?.error || walletErr?.message || 'Wallet payment could not be completed.',
-          );
-          setPaymentFailCode(insufficient ? 'insufficient_funds' : 'unknown');
-          setStep('payment_failed');
-          return;
-        }
-        setPayReference(bookingData.id.slice(0, 8));
-        setStep('success');
-        return;
-      }
-
-      const result = await startMonimePayment(
-        SERVICE_FEE,
-        'booking',
-        bookingData.id,
-        `BK-${bookingData.id.slice(0, 8)}`,
-        { nextPage: 'bookings' },
-      );
-      setPayReference(result.reference);
-      if (result.redirected) return;
-      const pollResult = await pollPaymentStatus(result.reference);
-      if (pollResult.status !== 'completed') {
-        const copy = copyForPollResult(pollResult);
-        setPaymentError(copy.body);
-        setPaymentFailCode(copy.code);
-        setStep('payment_failed');
-        return;
-      }
-      setStep('success');
-    } catch (err: any) {
-      setPaymentError(err.message || 'Payment failed. Your booking was created — you can retry from your bookings page.');
-      setPaymentFailCode('unknown');
-      setStep('payment_failed');
+      setCreatedBookingId(bookingData.id);
+      setStep('payment');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create booking.');
     } finally {
       setLoading(false);
     }
@@ -592,7 +437,7 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
               <div className="flex items-center gap-2 font-semibold mb-1">
                 <Banknote className="w-4 h-4" /> Cash on Delivery
               </div>
-              Please have <span className="font-semibold">SLE {SERVICE_FEE.toFixed(2)}</span> ready when our team arrives to deliver the service. A numbered receipt will be issued on collection.
+              Please have <span className="font-semibold">SLE {bookingTotal.toLocaleString()}</span> ready when our team arrives to deliver the service. A numbered receipt will be issued on collection.
             </div>
           )}
           {payReference && (
@@ -669,8 +514,10 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
           <SummaryStep
             service={service}
             formData={formData}
+            total={bookingTotal}
+            proceeding={loading}
             onBack={() => setStep('form')}
-            onProceed={() => setStep('payment')}
+            onProceed={() => { void createBookingForPayment(); }}
           />
         </div>
       </div>
@@ -699,15 +546,27 @@ export function BookingPage({ service, onNavigate, rebookData, mode = 'hire' }: 
             <div className="w-28" />
           </div>
         </div>
-        <div className="flex-1 overflow-hidden relative max-w-3xl mx-auto w-full">
-          <PaymentStep
-            service={service}
-            formData={formData}
-            total={SERVICE_FEE}
-            onBack={() => setStep('summary')}
-            onPay={handlePay}
-            paying={loading}
-          />
+        <div className="flex-1 overflow-y-auto relative max-w-3xl mx-auto w-full p-4">
+          {createdBookingId ? (
+            <ServicePaymentStep
+              amount={bookingTotal}
+              bookingId={createdBookingId}
+              serviceName={service.name}
+              serviceSlug={service.slug}
+              onBack={() => setStep('summary')}
+              onSuccess={(method, ref) => {
+                setPayReference(ref || (method === 'cash' ? '' : createdBookingId.slice(0, 8)));
+                setStep('success');
+              }}
+              onFail={(msg, code) => {
+                setPaymentError(msg);
+                setPaymentFailCode(code || 'unknown');
+                setStep('payment_failed');
+              }}
+            />
+          ) : (
+            <div className="p-6 text-sm text-slate-500">Creating your booking…</div>
+          )}
         </div>
       </div>
     );

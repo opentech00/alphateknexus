@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader } from '../components/ui';
+import { CATALOG_META } from '../../lib/serviceCatalog';
 
 const divisions = [
   {
@@ -70,6 +71,7 @@ interface Props {
 
 export function DivisionsPage({ onNavigate }: Props) {
   const [jobCounts, setJobCounts] = useState<Record<string, { jobs: number; quotes: number; pending: number }>>({});
+  const [liveNames, setLiveNames] = useState<Record<string, { name: string; description: string; price: string }>>({});
 
   useEffect(() => {
     const fetch = async () => {
@@ -84,11 +86,19 @@ export function DivisionsPage({ onNavigate }: Props) {
         if (!counts[slug]) counts[slug] = { jobs: 0, quotes: 0, pending: 0 };
         counts[slug].jobs++;
         if (b.details?.quote_request === true) counts[slug].quotes++;
-        if (b.status === 'pending') counts[slug].pending++;
+        if (['pending', 'pending_review'].includes(b.status)) counts[slug].pending++;
       });
       setJobCounts(counts);
     };
     fetch();
+    (async () => {
+      const { data } = await supabase.from('services').select('slug, name, description, price_range').eq('is_active', true);
+      const next: Record<string, { name: string; description: string; price: string }> = {};
+      (data || []).forEach((s: { slug: string; name: string; description: string | null; price_range: string | null }) => {
+        next[s.slug] = { name: s.name, description: s.description || '', price: s.price_range || '' };
+      });
+      setLiveNames(next);
+    })();
   }, []);
 
   return (
@@ -103,6 +113,8 @@ export function DivisionsPage({ onNavigate }: Props) {
         {divisions.map((div) => {
           const Icon = div.icon;
           const counts = jobCounts[div.slug] || { jobs: 0, quotes: 0, pending: 0 };
+          const live = liveNames[div.slug];
+          const meta = CATALOG_META[div.slug];
           return (
             <div
               key={div.name}
@@ -114,8 +126,11 @@ export function DivisionsPage({ onNavigate }: Props) {
                   <Icon className={`w-6 h-6 ${div.textColor}`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-slate-900">{div.name}</h3>
-                  <p className="text-sm text-slate-500 mt-0.5">{div.description}</p>
+                  <h3 className="font-bold text-slate-900">{live?.name || div.name}</h3>
+                  <p className="text-sm text-slate-500 mt-0.5">{live?.description || meta?.blurb || div.description}</p>
+                  {(live?.price || meta?.priceHint) && (
+                    <p className="text-xs font-semibold text-slate-700 mt-1">{live?.price || meta?.priceHint}</p>
+                  )}
                 </div>
                 <ArrowRight className={`w-5 h-5 ${div.textColor} opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all flex-shrink-0`} />
               </div>

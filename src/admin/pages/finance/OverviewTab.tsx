@@ -387,12 +387,22 @@ export function OverviewTab({ onOpenTab, onOpenLedgers }: { onOpenTab: (tab: Fin
             <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '100ms' }}><StatCard label="LEDGER ONLINE" value={money(ledgerOnline)} icon={Smartphone} color="text-blue-500" accent="bg-blue-50" /></div>
             <div className="animate-[fadeInUp_0.35s_ease_both]" style={{ animationDelay: '150ms' }}><StatCard label="LEDGER OFFLINE" value={money(ledgerOffline)} icon={Banknote} color="text-slate-600" accent="bg-slate-50" /></div>
           </div>
-          {onOpenLedgers && (
-            <button type="button" onClick={onOpenLedgers}
-              className="text-sm font-semibold text-emerald-700 hover:text-emerald-800">
-              Open service ledgers →
+          <div className="flex flex-wrap gap-2">
+            {onOpenLedgers && (
+              <button type="button" onClick={onOpenLedgers}
+                className="text-sm font-semibold text-emerald-700 hover:text-emerald-800 min-h-[44px] px-3 rounded-xl border border-emerald-100 bg-emerald-50">
+                Open service ledgers
+              </button>
+            )}
+            <button type="button" onClick={() => onOpenTab('receipts')}
+              className="text-sm font-semibold text-slate-700 hover:text-slate-900 min-h-[44px] px-3 rounded-xl border border-slate-200 bg-white">
+              Official receipts
             </button>
-          )}
+            <button type="button" onClick={() => onOpenTab('bank-receipt')}
+              className="text-sm font-semibold text-slate-700 hover:text-slate-900 min-h-[44px] px-3 rounded-xl border border-slate-200 bg-white">
+              Bank deposits
+            </button>
+          </div>
           {walletPending !== 0 && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
               Wallet adjustments awaiting a second admin: {money(walletPending)}.

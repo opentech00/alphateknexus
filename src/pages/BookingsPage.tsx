@@ -21,6 +21,7 @@ import { loadLatestFailedMonime, failureCopy, type FailedPaymentAttempt } from '
 import { bookingDepositAmount, bookingDueAmount, bookingNeedsPayment } from '../lib/bookingPay';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useServiceBrandingImages, fallbackServiceImage } from '../lib/media';
+import { JobProgress } from '../components/client/JobProgress';
 
 interface Booking {
   id: string;
@@ -97,7 +98,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortBy>('date_desc');
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(initialExpandId ?? null);
-  const [detailTab, setDetailTab] = useState<'overview' | 'tracker' | 'messages' | 'documents'>('overview');
+  const [detailTab, setDetailTab] = useState<'overview' | 'tracker' | 'messages' | 'documents'>('tracker');
   const [reviewModal, setReviewModal] = useState<{ bookingId: string; serviceId: string; serviceName: string } | null>(null);
   const [reviewedBookings, setReviewedBookings] = useState<Set<string>>(new Set());
   const [walletBalance, setWalletBalance] = useState(0);
@@ -464,7 +465,7 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
                     return (
                       <button
                         key={booking.id}
-                        onClick={() => { setSelectedBookingId(booking.id); setDetailTab('overview'); }}
+                        onClick={() => { setSelectedBookingId(booking.id); setDetailTab('tracker'); }}
                         className={`w-full text-left bg-white rounded-xl border overflow-hidden hover:shadow-md transition-all duration-300 border-l-4 ${sc.accent} ${
                           isSelected ? 'ring-2 ring-slate-800 ring-offset-1 shadow-md' : 'border-y-slate-200 border-r-slate-200'
                         } ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
@@ -484,6 +485,11 @@ export function BookingsPage({ onNavigate, onRebook, initialExpandId }: Bookings
                                 {sc.label}
                               </span>
                             </div>
+                            {booking.status !== 'cancelled' && (
+                              <div className="mt-1.5 max-w-[12rem]">
+                                <JobProgress status={booking.status} compact />
+                              </div>
+                            )}
                             <div className="flex items-center gap-3 text-xs text-slate-400">
                               <span className="flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />

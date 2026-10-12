@@ -7,13 +7,18 @@ export function PortalPage({
   onBack,
   actions,
   children,
+  bare = false,
 }: {
   title: string;
   subtitle: string;
   onBack?: () => void;
   actions?: ReactNode;
   children: ReactNode;
+  bare?: boolean;
 }) {
+  if (bare) {
+    return <div className="space-y-5">{children}</div>;
+  }
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-6">
       {onBack && (

@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { BookOpen, Loader2, Plus, Send } from 'lucide-react';
+import { MessagesPage } from './MessagesPage';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from '../../components/toast/toast';
@@ -37,29 +38,33 @@ interface Article {
 const STATUSES = ['open', 'waiting', 'resolved', 'closed'] as const;
 
 export function AdminSupportPage() {
-  const [tab, setTab] = useState<'tickets' | 'help'>('tickets');
+  const [tab, setTab] = useState<'tickets' | 'jobs' | 'help'>('tickets');
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Support</h1>
-        <p className="text-sm text-slate-500 mt-1">Reply to tickets and keep help articles current.</p>
+        <h1 className="text-2xl font-bold text-slate-900">Inbox</h1>
+        <p className="text-sm text-slate-500 mt-1">Support tickets, job chats, and help articles in one place.</p>
       </div>
-      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
-        {(['tickets', 'help'] as const).map((key) => (
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit overflow-x-auto">
+        {([
+          { key: 'tickets' as const, label: 'Tickets' },
+          { key: 'jobs' as const, label: 'Job chats' },
+          { key: 'help' as const, label: 'Help articles' },
+        ]).map(({ key, label }) => (
           <button
             key={key}
             type="button"
             onClick={() => setTab(key)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize ${
+            className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${
               tab === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
             }`}
           >
-            {key === 'help' ? 'Help articles' : 'Tickets'}
+            {label}
           </button>
         ))}
       </div>
-      {tab === 'tickets' ? <TicketInbox /> : <HelpArticlesAdmin />}
+      {tab === 'tickets' ? <TicketInbox /> : tab === 'jobs' ? <MessagesPage embedded /> : <HelpArticlesAdmin />}
     </div>
   );
 }

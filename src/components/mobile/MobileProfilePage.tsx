@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { WalletPanel } from '../WalletPanel';
+import { PaymentsHub } from '../client/PaymentsHub';
 import { FavoritesPage } from '../../pages/FavoritesPage';
 import { AppearancePanel } from '../AppearancePanel';
 import { ReferralModal } from '../ReferralPanel';
@@ -197,7 +197,7 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
           {[
             { icon: Briefcase, label: 'All Services', color: 'text-blue-600', bg: 'bg-blue-50', action: () => onMobileNav('services') },
             { icon: CalendarDays, label: 'Bookings', color: 'text-green-600', bg: 'bg-green-50', action: () => onMobileNav('bookings') },
-            ...(wallet_enabled ? [{ icon: Wallet, label: 'Wallet', color: 'text-violet-600', bg: 'bg-violet-50', action: () => setActiveModal('wallet') as any }] : []),
+            { icon: Wallet, label: 'Payments', color: 'text-violet-600', bg: 'bg-violet-50', action: () => onMobileNav('wallet') },
             { icon: Heart, label: 'Favorites', color: 'text-rose-500', bg: 'bg-rose-50', action: () => setActiveModal('favorites') },
           ].map(({ icon: Icon, label, color, bg, action }) => (
             <button key={label} onClick={action} className="flex flex-col items-center gap-2 min-h-[72px] active:scale-90 transition-transform">
@@ -229,12 +229,10 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
         <MenuItem icon={User} iconBg="bg-blue-50" iconColor="text-blue-600"
           label="Edit Profile" sub="Update photo, name, phone & address"
           onClick={() => setActiveModal('edit-profile')} />
-        {wallet_enabled && (
         <MenuItem icon={Wallet} iconBg="bg-violet-50" iconColor="text-violet-600"
-          label="Wallet" sub="Credits balance & transaction history"
-          right={<span className={`font-bold text-sm ${stats.walletBalance < 0 ? 'text-red-600' : 'text-blue-600'}`}>{fmtBalance(stats.walletBalance)}</span>}
-          onClick={() => setActiveModal('wallet')} />
-        )}
+          label="Payments" sub="Wallet, bills, receipts & quotes"
+          right={wallet_enabled ? <span className={`font-bold text-sm ${stats.walletBalance < 0 ? 'text-red-600' : 'text-blue-600'}`}>{fmtBalance(stats.walletBalance)}</span> : undefined}
+          onClick={() => onMobileNav('wallet')} />
         <MenuItem icon={CreditCard} iconBg="bg-purple-50" iconColor="text-purple-600"
           label="Payment Methods" sub="Saved cards & mobile money"
           onClick={() => setActiveModal('payment')} />
@@ -260,8 +258,8 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
           </a>
         )}
         <MenuItem icon={Headphones} iconBg="bg-teal-50" iconColor="text-teal-600"
-          label="Help & Support" sub="Get help or contact support"
-          onClick={() => setActiveModal('help')} />
+          label="Help & Support" sub="Tickets and job chats"
+          onClick={() => onNavigate('support')} />
         <MenuItem icon={Settings} iconBg="bg-slate-100" iconColor="text-slate-500"
           label="Settings" sub="App settings & preferences"
           onClick={() => setActiveModal('appearance')} />
@@ -285,13 +283,14 @@ export function MobileProfilePage({ onMobileNav, onNavigate, onQuickBook, onRebo
       </div>
 
       {/* ── Bottom-Sheet Modals ── */}
-      {wallet_enabled && (
-      <BottomSheet open={activeModal === 'wallet'} onClose={() => { setActiveModal(null); fetchStats(); }} title="Wallet" showHandle>
+      <BottomSheet open={activeModal === 'wallet'} onClose={() => { setActiveModal(null); fetchStats(); }} title="Payments" showHandle>
         <div className="p-4">
-          <WalletPanel onChooseService={() => { setActiveModal(null); onMobileNav('services'); }} />
+          <PaymentsHub
+            onNavigate={(page) => { setActiveModal(null); onNavigate(page); }}
+            onChooseService={() => { setActiveModal(null); onMobileNav('services'); }}
+          />
         </div>
       </BottomSheet>
-      )}
 
       <BottomSheet open={activeModal === 'favorites'} onClose={() => setActiveModal(null)} title="Favorites" showHandle>
         <div className="p-4">

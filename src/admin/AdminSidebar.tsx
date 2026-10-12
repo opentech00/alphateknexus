@@ -60,7 +60,7 @@ const navSections: NavSection[] = [
       { label: 'Booking Review', page: 'booking-review', icon: ClipboardCheck },
       { label: 'All Bookings', page: 'bookings', icon: CalendarDays },
       { label: 'Messages', page: 'messages', icon: MessageSquare },
-      { label: 'Support', page: 'support', icon: LifeBuoy },
+      { label: 'Inbox', page: 'support', icon: LifeBuoy },
       { label: 'Documents', page: 'documents', icon: FolderOpen },
       { label: 'Clients', page: 'clients', icon: Users },
       { label: 'User Management', page: 'users', icon: UserCog },

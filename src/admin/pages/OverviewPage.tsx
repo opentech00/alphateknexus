@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   TrendingUp, Users, Clock, AlertTriangle, UserCheck, MessageSquare,
-  CalendarCheck, BookOpen, Sparkles, RefreshCw, FileText, Wallet, Star, Smartphone,
+  CalendarCheck, BookOpen, Sparkles, RefreshCw, FileText, Wallet, Star, Smartphone, LifeBuoy, Landmark,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PageHeader, StatCard, Card } from '../components/ui';
@@ -16,6 +16,8 @@ interface Stats {
   scheduledPickups: number;
   activeBookings: number;
   quoteRequests: number;
+  openTickets: number;
+  pendingBankSlips: number;
 }
 
 const months = ['Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
@@ -40,7 +42,7 @@ export function OverviewPage() {
   const [stats, setStats] = useState<Stats>({
     activeJobs: 0, totalClients: 0, pendingTasks: 0, incidents: 0,
     activeClients: 0, openRequests: 0, scheduledPickups: 0, activeBookings: 0,
-    quoteRequests: 0,
+    quoteRequests: 0, openTickets: 0, pendingBankSlips: 0,
   });
   const [divisionJobs, setDivisionJobs] = useState<Record<string, number>>(
     Object.fromEntries(divisionMeta.map((d) => [d.slug, 0]))
@@ -72,6 +74,8 @@ export function OverviewPage() {
         scheduledPickups: scheduled,
         activeBookings: allBookings.filter((b: any) => !['completed', 'cancelled'].includes(b.status)).length,
         quoteRequests: quotes,
+        openTickets: 0,
+        pendingBankSlips: 0,
       });
 
       const jobsBySlug: Record<string, number> = {};
@@ -103,6 +107,16 @@ export function OverviewPage() {
         avg: rData.length ? rData.reduce((s: number, r: any) => s + r.rating, 0) / rData.length : 0,
         appReviews: appR.length,
       });
+
+      const [{ count: ticketCount }, { data: slips }] = await Promise.all([
+        supabase.from('support_tickets').select('id', { count: 'exact', head: true }).in('status', ['open', 'waiting']),
+        supabase.rpc('finance_pending_bank_slips', { p_service_id: null }),
+      ]);
+      setStats((prev) => ({
+        ...prev,
+        openTickets: ticketCount || 0,
+        pendingBankSlips: Array.isArray(slips) ? slips.length : 0,
+      }));
 
       setLoading(false);
     };
@@ -161,6 +175,8 @@ export function OverviewPage() {
           <PortalStat icon={Star} value={reviewStats.avg.toFixed(1)} label="Avg Rating" color="text-amber-600" bg="bg-amber-50" />
           <PortalStat icon={MessageSquare} value={reviewStats.total} label="Total Reviews" color="text-emerald-600" bg="bg-emerald-50" />
           <PortalStat icon={Smartphone} value={reviewStats.appReviews} label="App Reviews" color="text-blue-600" bg="bg-blue-50" />
+          <PortalStat icon={LifeBuoy} value={stats.openTickets} label="Open Tickets" color="text-teal-600" bg="bg-teal-50" />
+          <PortalStat icon={Landmark} value={stats.pendingBankSlips} label="Bank slips to review" color="text-amber-600" bg="bg-amber-50" />
         </div>
       </Card>
 
