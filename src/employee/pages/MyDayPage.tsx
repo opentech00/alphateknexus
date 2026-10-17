@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import {
   AlertCircle, ArrowRight, Banknote, CalendarDays, CheckCircle2, ClipboardList,
-  Clock, Inbox, Loader2, LogIn, LogOut, Sun, Sunset, Moon,
+  Clock, Inbox, Landmark, Loader2, LogIn, LogOut, Sun, Sunset, Moon,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/EmployeeAuthContext';
@@ -16,7 +16,7 @@ import {
 } from '../lib/attendance';
 import { destinationForNotification, type NavTarget } from '../lib/workNav';
 import { toast } from '../../components/toast/toast';
-import { isInternalDepartmentSlug } from '../../lib/capabilities';
+import { canManageAdminFinanceWorkspace, isInternalDepartmentSlug } from '../../lib/capabilities';
 
 interface DayBooking {
   id: string;
@@ -68,11 +68,12 @@ function todayLong() {
 }
 
 export function MyDayPage({ onNavigate }: { onNavigate: (target: NavTarget) => void }) {
-  const { employee, user, hasCapability } = useAuth();
+  const { employee, user, hasCapability, isAdminFinanceOps } = useAuth();
   const { notifications, unreadCount } = useEmployeeNotifications();
   const liveId = useId();
   const canCash = hasCapability('div.cash_collections');
   const isInternal = isInternalDepartmentSlug(employee?.services?.slug);
+  const canFinance = isAdminFinanceOps || canManageAdminFinanceWorkspace(employee);
   const today = localWorkDate();
 
   const [loading, setLoading] = useState(true);
@@ -342,9 +343,23 @@ export function MyDayPage({ onNavigate }: { onNavigate: (target: NavTarget) => v
               )}
             </FocusCard>
 
-            {canCash && (
+            {canFinance && (
               <FocusCard
                 delay={300}
+                icon={Landmark}
+                title="Admin & Finance"
+                empty="Open the department workspace to manage receipts, wallets, ledgers, and approvals."
+                actionLabel="Open workspace"
+                onAction={() => onNavigate({ page: 'admin-finance' })}
+              >
+                <p className="text-sm font-semibold text-slate-900">Manage all financial activities</p>
+                <p className="text-xs text-slate-500 mt-0.5">Finance module, service ledgers, wallet, and receipts</p>
+              </FocusCard>
+            )}
+
+            {canCash && (
+              <FocusCard
+                delay={canFinance ? 360 : 300}
                 icon={Banknote}
                 title="Cash to collect"
                 empty="No pending cash collections."

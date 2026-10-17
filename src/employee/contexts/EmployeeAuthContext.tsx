@@ -18,6 +18,7 @@ interface AuthContextValue {
   capabilities: Set<string>;
   hasCapability: (key: CapabilityKey | string) => boolean;
   isDivisionHead: boolean;
+  isAdminFinanceOps: boolean;
   loading: boolean;
   refreshEmployee: () => Promise<void>;
   signIn: (identifier: string, password: string) => Promise<{ error: string | null }>;
@@ -40,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [appAccess, setAppAccess] = useState<AppAccess | null>(null);
   const [capabilities, setCapabilities] = useState<Set<string>>(new Set());
+  const [isAdminFinanceOps, setIsAdminFinanceOps] = useState(false);
   const [loading, setLoading] = useState(true);
   const lastActivityRef = useRef<number>(Date.now());
   const [idleWarningVisible, setIdleWarningVisible] = useState(false);
@@ -96,15 +98,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setEmployee(emp);
 
     if (emp) {
-      const [{ data: access }, { data: caps }] = await Promise.all([
+      const [{ data: access }, { data: caps }, { data: financeOps }] = await Promise.all([
         supabase.from('app_access').select('app_type, is_active').eq('employee_id', emp.id).maybeSingle(),
         supabase.from('employee_capabilities').select('capability_key').eq('employee_id', emp.id),
+        supabase.rpc('is_admin_finance_ops'),
       ]);
       setAppAccess(access as AppAccess | null);
       setCapabilities(new Set((caps || []).map((c: { capability_key: string }) => c.capability_key)));
+      setIsAdminFinanceOps(financeOps === true);
     } else {
       setAppAccess(null);
       setCapabilities(new Set());
+      setIsAdminFinanceOps(false);
     }
   };
 
@@ -119,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setEmployee(null);
         setAppAccess(null);
         setCapabilities(new Set());
+        setIsAdminFinanceOps(false);
         setLoading(false);
         return;
       }
@@ -201,6 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setEmployee(null);
     setAppAccess(null);
     setCapabilities(new Set());
+    setIsAdminFinanceOps(false);
   };
 
   const clearPasswordFlag = () => {
@@ -224,6 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       session, user, employee, appAccess, capabilities, hasCapability, isDivisionHead,
+      isAdminFinanceOps,
       loading, refreshEmployee, signIn, signOut, clearPasswordFlag,
       idleWarningVisible, idleWarningSecondsLeft, dismissIdleWarning,
     }}>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, Calendar, MessageCircle, Info, Check, CheckCheck, X, Trash2 } from 'lucide-react';
+import { Bell, Calendar, MessageCircle, Info, Check, CheckCheck, X, Trash2, Megaphone } from 'lucide-react';
+import { campaignIdFromNotification, trackCampaignEvent } from '../lib/campaigns';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { openIncomingNotification } from './toast/toast';
@@ -10,10 +11,11 @@ interface Notification {
   user_id: string;
   title: string;
   body: string;
-  type: 'booking_update' | 'message' | 'system';
+  type: string;
   read: boolean;
   booking_id: string | null;
   created_at: string;
+  metadata?: Record<string, unknown> | null;
 }
 
 function timeAgo(dateString: string): string {
@@ -39,6 +41,8 @@ function getNotificationIcon(type: Notification['type']) {
       return <Calendar className="w-5 h-5 text-emerald-500" />;
     case 'message':
       return <MessageCircle className="w-5 h-5 text-blue-500" />;
+    case 'announcement':
+      return <Megaphone className="w-5 h-5 text-violet-500" />;
     case 'system':
       return <Info className="w-5 h-5 text-amber-500" />;
     default:
@@ -135,6 +139,8 @@ export function NotificationsPanel({ dark }: { dark?: boolean } = {}) {
 
   const openNotification = (notification: Notification) => {
     if (!notification.read) markAsRead(notification.id);
+    const campaignId = campaignIdFromNotification(notification);
+    if (campaignId) trackCampaignEvent(campaignId, 'click', 'notification');
     setIsOpen(false);
     openIncomingNotification(notification);
   };

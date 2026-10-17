@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   Loader2, FileText, Calendar, Upload, FileBarChart, User, CreditCard,
-  Banknote, ClipboardList, GitBranch, type LucideIcon,
+  Banknote, ClipboardList, GitBranch, Landmark, Wallet, Receipt, type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { supabase } from '../lib/supabase';
-import { isInternalDepartmentSlug } from '../../lib/capabilities';
+import { canManageAdminFinanceWorkspace, isInternalDepartmentSlug } from '../../lib/capabilities';
 
 interface RoleActivity {
   id: string;
@@ -31,6 +31,11 @@ const ACTIVITY_ICONS: Record<string, LucideIcon> = {
   'work-queue': ClipboardList,
   leave: Calendar,
   'hr-files': FileText,
+  'admin-finance': Landmark,
+  finance: Landmark,
+  wallet: Wallet,
+  receipts: Receipt,
+  'finance-services': Banknote,
 };
 
 const TYPE_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -40,7 +45,7 @@ const TYPE_META: Record<string, { label: string; color: string; bg: string }> = 
 };
 
 export function ActivitiesPage({ onNavigate }: { onNavigate: (key: string) => void }) {
-  const { employee, hasCapability } = useAuth();
+  const { employee, hasCapability, isAdminFinanceOps } = useAuth();
   const [activities, setActivities] = useState<RoleActivity[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -82,12 +87,24 @@ export function ActivitiesPage({ onNavigate }: { onNavigate: (key: string) => vo
         }
       }
 
+      if (isAdminFinanceOps || canManageAdminFinanceWorkspace(employee)) {
+        const financeActs: RoleActivity[] = [
+          { id: 'af-workspace', activity_key: 'admin-finance', activity_label: 'Admin & Finance', activity_description: 'Department workspace for all financial activities', activity_type: 'page', display_order: -40 },
+          { id: 'af-finance', activity_key: 'finance', activity_label: 'Finance module', activity_description: 'Receipts, bank deposits, invoices, and payouts', activity_type: 'page', display_order: -30 },
+          { id: 'af-ledgers', activity_key: 'finance-services', activity_label: 'Service ledgers', activity_description: 'Quote and hire payments across divisions', activity_type: 'page', display_order: -20 },
+          { id: 'af-wallet', activity_key: 'wallet', activity_label: 'Wallet', activity_description: 'Wallet balances and adjustments', activity_type: 'page', display_order: -10 },
+        ];
+        for (const a of financeActs) {
+          if (!deduped.has(a.activity_key)) deduped.set(a.activity_key, a);
+        }
+      }
+
       setActivities(
         [...deduped.values()].sort((a, b) => a.display_order - b.display_order),
       );
       setLoading(false);
     })();
-  }, [employee, hasCapability]);
+  }, [employee, hasCapability, isAdminFinanceOps]);
 
   if (loading) {
     return (

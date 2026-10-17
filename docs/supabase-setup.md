@@ -140,6 +140,27 @@ supabase functions deploy process-jobs
 supabase functions deploy search-knowledge
 ```
 
+Campaign email and push delivery
+
+Campaigns use the notification outbox and always honor each client's **Offers & marketing** preference plus their email, push, and in-app channel toggles.
+
+Set these as Supabase Edge Function secrets:
+
+- `RESEND_API_KEY` — email delivery
+- `APP_URL=https://alphateknexus.vercel.app` — CTA, push, and preference links
+- `FCM_SERVICE_ACCOUNT_JSON` — preferred Firebase service-account JSON for FCM HTTP v1
+- `FCM_SERVER_KEY` — optional legacy fallback only
+
+Then apply the campaign migration and deploy both delivery functions:
+
+```bash
+supabase db push --project-ref "$SUPABASE_PROJECT_REF"
+supabase functions deploy send-campaign
+supabase functions deploy send-notification
+```
+
+Native push permission is requested only when the user enables Push Notifications in settings. Android uses separate `general` and `marketing` notification channels. Campaign performance records unique banner views, CTA clicks, and dismissals without exposing service-role credentials to the client.
+
 WhatsApp Cloud API (optional, not used at signup)
 
 Client sign-up collects a unique E.164 phone and verifies **email** (Resend). WhatsApp OTP is not sent on create-account.

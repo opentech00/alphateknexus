@@ -3,11 +3,11 @@ import { EmployeeNotificationsProvider } from './contexts/EmployeeNotificationsC
 import { LoginPage } from './pages/LoginPage';
 import { EmployeeDashboardPage } from './pages/EmployeeDashboardPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
-import { CashCollectionsPage } from './pages/CashCollectionsPage';
 import { FieldStaffApp } from './field/FieldStaffApp';
 import { IdleWarningModal } from '../components/IdleWarningModal';
 import { OfficeClockInPrompt } from './components/OfficeClockInPrompt';
 import { ToastContainer } from '../components/toast/ToastContainer';
+import { FinancePrivacyProvider } from '../contexts/FinancePrivacyContext';
 import { Loader2, ShieldAlert } from 'lucide-react';
 
 function IdleWarningWrapper() {
@@ -61,10 +61,12 @@ function EmployeeContent() {
 
   return (
     <EmployeeNotificationsProvider>
-      <EmployeeDashboardPage />
-      <OfficeClockInPrompt />
-      <IdleWarningWrapper />
-      <ToastContainer />
+      <FinancePrivacyProvider>
+        <EmployeeDashboardPage />
+        <OfficeClockInPrompt />
+        <IdleWarningWrapper />
+        <ToastContainer />
+      </FinancePrivacyProvider>
     </EmployeeNotificationsProvider>
   );
 }

@@ -47,6 +47,7 @@ interface NotificationPreferences {
   cat_incidents: boolean;
   cat_smart_sort: boolean;
   cat_system: boolean;
+  cat_marketing: boolean;
 }
 
 interface PushSubscription {
@@ -65,6 +66,7 @@ const CATEGORY_MAP: Record<string, keyof NotificationPreferences> = {
   incidents: "cat_incidents",
   smart_sort: "cat_smart_sort",
   system: "cat_system",
+  marketing: "cat_marketing",
 };
 
 // ── FCM HTTP v1 helpers ──────────────────────────────────────────
@@ -209,9 +211,22 @@ async function sendPushV1(
   };
 
   if (platform === "web") {
+    const appUrl = (Deno.env.get("APP_URL") || "https://alphateknexus.vercel.app").replace(/\/$/, "");
+    const rawLink = String(metadata.link || "/");
+    const link = rawLink.startsWith("http")
+      ? rawLink
+      : `${appUrl}${rawLink.startsWith("/") ? "" : "/"}${rawLink}`;
     message["webpush"] = {
-      notification: { title, body, icon: "/alphateknexus_logo.png" },
-      fcm_options: { link: String(metadata.link || "/") },
+      notification: {
+        title,
+        body,
+        icon: `${appUrl}/icons/pwa-192.png`,
+        badge: `${appUrl}/icons/pwa-192.png`,
+        ...(typeof metadata.media_url === "string" && metadata.media_url
+          ? { image: metadata.media_url }
+          : {}),
+      },
+      fcm_options: { link },
     };
   }
 
@@ -342,10 +357,39 @@ async function sendPushToToken(
 
 // ── Email helpers ───────────────────────────────────────────────
 
-function buildEmailHtml(title: string, body: string, subtitle: string, mediaUrl?: string): string {
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function buildEmailHtml(
+  title: string,
+  body: string,
+  subtitle: string,
+  mediaUrl?: string,
+  ctaLabel?: string,
+  ctaLink?: string,
+  marketing = false,
+): string {
   const appUrl = (Deno.env.get("APP_URL") || "https://alphateknexus.vercel.app").replace(/\/$/, "");
+  const safeTitle = escapeHtml(title);
+  const safeBody = escapeHtml(body).replace(/\n/g, "<br>");
+  const safeSubtitle = escapeHtml(subtitle);
+  const href = ctaLink
+    ? (ctaLink.startsWith("http") ? ctaLink : `${appUrl}${ctaLink.startsWith("/") ? "" : "/"}${ctaLink}`)
+    : appUrl;
   const hero = mediaUrl
-    ? `<tr><td style="padding:0;"><img src="${mediaUrl}" alt="" width="560" style="display:block;width:100%;max-height:280px;object-fit:cover;"></td></tr>`
+    ? `<tr><td style="padding:0;"><img src="${escapeHtml(mediaUrl)}" alt="" width="560" style="display:block;width:100%;max-height:280px;object-fit:cover;"></td></tr>`
+    : "";
+  const cta = ctaLabel
+    ? `<p style="margin:24px 0 0;"><a href="${escapeHtml(href)}" style="display:inline-block;padding:12px 20px;background:#059669;color:#fff;text-decoration:none;font-size:14px;font-weight:bold;border-radius:10px;">${escapeHtml(ctaLabel)}</a></p>`
+    : "";
+  const preferenceFooter = marketing
+    ? `<br><a href="${appUrl}/?page=account" style="color:#64748b;">Manage marketing preferences</a>`
     : "";
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -357,17 +401,18 @@ function buildEmailHtml(title: string, body: string, subtitle: string, mediaUrl?
 <tr><td style="padding:28px 36px 22px;border-bottom:1px solid #edf1f5;">
 <table width="100%" cellpadding="0" cellspacing="0"><tr>
 <td><img src="${appUrl}/alphateknexus_logo.png" width="42" height="42" alt="AlphaTek Nexus" style="display:block;border-radius:10px;"></td>
-<td style="padding-left:12px;"><strong style="display:block;color:#0f172a;font-size:17px;">AlphaTek Nexus</strong><span style="display:block;margin-top:3px;color:#64748b;font-size:12px;">${subtitle}</span></td>
+<td style="padding-left:12px;"><strong style="display:block;color:#0f172a;font-size:17px;">AlphaTek Nexus</strong><span style="display:block;margin-top:3px;color:#64748b;font-size:12px;">${safeSubtitle}</span></td>
 </tr></table>
 </td></tr>
 ${hero}
 <tr><td style="padding:34px 36px 30px;">
 <p style="margin:0 0 10px;color:#10b981;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;">Account notification</p>
-<h1 style="margin:0 0 12px;color:#0f172a;font-size:24px;line-height:1.25;">${title}</h1>
-<p style="margin:0;color:#475569;font-size:15px;line-height:1.65;">${body}</p>
+<h1 style="margin:0 0 12px;color:#0f172a;font-size:24px;line-height:1.25;">${safeTitle}</h1>
+<p style="margin:0;color:#475569;font-size:15px;line-height:1.65;">${safeBody}</p>
+${cta}
 </td></tr>
 <tr><td style="padding:20px 36px;background:#f8fafc;border-top:1px solid #edf1f5;">
-<p style="margin:0;color:#64748b;font-size:12px;line-height:1.6;">This is an automated message from AlphaTek Nexus.<br>Sign in to your portal for more details. No reply is needed.</p>
+<p style="margin:0;color:#64748b;font-size:12px;line-height:1.6;">This is an automated message from AlphaTek Nexus.<br>Sign in to your portal for more details. No reply is needed.${preferenceFooter}</p>
 <p style="margin:12px 0 0;color:#94a3b8;font-size:11px;">&copy; AlphaTek Nexus. All rights reserved.</p>
 </td></tr>
 </table>
@@ -376,8 +421,20 @@ ${hero}
 </body></html>`;
 }
 
-function buildEmailText(title: string, body: string): string {
-  return `AlphaTek Nexus\n\n${title}\n${body}\n\nThis is an automated message. No reply is needed.`;
+function buildEmailText(
+  title: string,
+  body: string,
+  ctaLabel?: string,
+  ctaLink?: string,
+  marketing = false,
+): string {
+  const appUrl = (Deno.env.get("APP_URL") || "https://alphateknexus.vercel.app").replace(/\/$/, "");
+  const href = ctaLink
+    ? (ctaLink.startsWith("http") ? ctaLink : `${appUrl}${ctaLink.startsWith("/") ? "" : "/"}${ctaLink}`)
+    : "";
+  const action = ctaLabel && href ? `\n\n${ctaLabel}: ${href}` : "";
+  const preferences = marketing ? `\nManage marketing preferences: ${appUrl}/?page=account` : "";
+  return `AlphaTek Nexus\n\n${title}\n${body}${action}\n\nThis is an automated message. No reply is needed.${preferences}`;
 }
 
 function getSubjectForEvent(eventType: string, title: string): string {
@@ -390,6 +447,7 @@ async function sendEmail(
   subject: string,
   html: string,
   text: string,
+  marketing = false,
 ): Promise<{ ok: boolean; error?: string }> {
   const resendKey = Deno.env.get("RESEND_API_KEY");
   if (!resendKey) {
@@ -409,6 +467,11 @@ async function sendEmail(
         subject,
         html,
         text,
+        ...(marketing ? {
+          headers: {
+            "List-Unsubscribe": `<${(Deno.env.get("APP_URL") || "https://alphateknexus.vercel.app").replace(/\/$/, "")}/?page=account>`,
+          },
+        } : {}),
       }),
     });
 
@@ -545,9 +608,39 @@ Deno.serve(async (req: Request) => {
               ? meta.email_body
               : row.body;
             const mediaUrl = typeof meta.media_url === "string" ? meta.media_url : undefined;
-            const html = buildEmailHtml(row.title, emailBody, row.event_type.replace(/_/g, " "), mediaUrl);
-            const text = buildEmailText(row.title, emailBody);
-            const emailResult = await sendEmail(supabase, recipientEmail, subject, html, text);
+            const ctaLabel = typeof meta.cta_label === "string" ? meta.cta_label : undefined;
+            const rawCtaLink = typeof meta.link === "string" ? meta.link : undefined;
+            const ctaLink = rawCtaLink && typeof meta.campaign_id === "string"
+              ? (
+                rawCtaLink.includes("campaign_channel=")
+                  ? rawCtaLink.replace(/campaign_channel=[^&]+/, "campaign_channel=email")
+                  : `${rawCtaLink}${rawCtaLink.includes("?") ? "&" : "?"}campaign_channel=email`
+              )
+              : rawCtaLink;
+            const html = buildEmailHtml(
+              row.title,
+              emailBody,
+              row.event_type.replace(/_/g, " "),
+              mediaUrl,
+              ctaLabel,
+              ctaLink,
+              row.category === "marketing",
+            );
+            const text = buildEmailText(
+              row.title,
+              emailBody,
+              ctaLabel,
+              ctaLink,
+              row.category === "marketing",
+            );
+            const emailResult = await sendEmail(
+              supabase,
+              recipientEmail,
+              subject,
+              html,
+              text,
+              row.category === "marketing",
+            );
 
             if (emailResult.ok) {
               emailSent = true;

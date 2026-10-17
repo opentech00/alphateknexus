@@ -73,6 +73,53 @@ export function isInternalDepartmentSlug(slug?: string | null): boolean {
   return slug === INTERNAL_DEPARTMENT_SLUG;
 }
 
+export const ADMIN_FINANCE_WORKSPACE_PAGES = [
+  'admin-finance',
+  'finance',
+  'wallet',
+  'receipts',
+  'finance-services',
+  'finance-cf',
+  'finance-smart-sort',
+  'finance-cleaning',
+  'finance-security',
+  'finance-procurement',
+] as const;
+
+export type AdminFinanceWorkspacePage = (typeof ADMIN_FINANCE_WORKSPACE_PAGES)[number];
+
+export function isAdminFinanceWorkspacePage(page: string): page is AdminFinanceWorkspacePage {
+  return (ADMIN_FINANCE_WORKSPACE_PAGES as readonly string[]).includes(page);
+}
+
+export function isFinanceManagerRoleName(name?: string | null): boolean {
+  return (name || '').toLowerCase().includes('finance manager');
+}
+
+export function isAdminFinanceManagerRoleName(name?: string | null): boolean {
+  const n = (name || '').toLowerCase();
+  return n.includes('finance manager') || n.includes('admin manager');
+}
+
+type AdminFinanceEmployee = {
+  status?: string | null;
+  org_role?: string | null;
+  position?: string | null;
+  services?: { slug?: string | null } | null;
+  hr_roles?: { name?: string | null } | null;
+};
+
+export function canManageAdminFinanceWorkspace(employee?: AdminFinanceEmployee | null): boolean {
+  if (!employee || employee.status === 'inactive') return false;
+  const slug = employee.services?.slug;
+  const roleName = employee.hr_roles?.name;
+  const position = (employee.position || '').toLowerCase();
+  if (isInternalDepartmentSlug(slug) && employee.org_role === 'division_head') return true;
+  if (isFinanceManagerRoleName(roleName) || position.includes('finance manager')) return true;
+  if (isInternalDepartmentSlug(slug) && isAdminFinanceManagerRoleName(roleName)) return true;
+  return false;
+}
+
 export function canonicalSlug(slug: string | null | undefined): string | null {
   if (!slug) return null;
   return SLUG_ALIASES[slug] || slug;
@@ -82,6 +129,9 @@ export function templateKeysForRoleName(name: string | null | undefined): Capabi
   const n = (name || '').toLowerCase();
   if (n.includes('head')) {
     return [...GRANTABLE_CAPABILITIES];
+  }
+  if (n.includes('finance manager')) {
+    return ['div.view', 'div.reports', 'div.manage_documents', 'div.delegate_tasks'];
   }
   if (n.includes('finance officer') || n.includes('admin assistant') || n === 'admin') {
     return ['div.view', 'div.reports', 'div.manage_documents'];

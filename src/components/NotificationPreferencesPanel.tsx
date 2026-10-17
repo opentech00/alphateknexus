@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Bell, Mail, Smartphone, Calendar, CreditCard, MessageCircle, Truck, Users, AlertTriangle, Recycle, Info, Loader2 } from 'lucide-react';
+import { Bell, Mail, Smartphone, Calendar, CreditCard, MessageCircle, Truck, Users, AlertTriangle, Recycle, Info, Loader2, Megaphone } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import {
+  hasPushPermission,
+  requestPushNotifications,
+  unregisterDeviceToken,
+  type AppRole,
+} from '../lib/pushNotifications';
 
 interface NotificationPrefs {
   email_enabled: boolean;
@@ -15,6 +21,7 @@ interface NotificationPrefs {
   cat_incidents: boolean;
   cat_smart_sort: boolean;
   cat_system: boolean;
+  cat_marketing: boolean;
 }
 
 const DEFAULT_PREFS: NotificationPrefs = {
@@ -29,6 +36,7 @@ const DEFAULT_PREFS: NotificationPrefs = {
   cat_incidents: true,
   cat_smart_sort: true,
   cat_system: true,
+  cat_marketing: true,
 };
 
 interface CategoryConfig {
@@ -47,6 +55,7 @@ const CATEGORIES: CategoryConfig[] = [
   { key: 'cat_incidents', label: 'Incidents', description: 'Field incident reports and resolutions', icon: AlertTriangle },
   { key: 'cat_smart_sort', label: 'Smart Sort', description: 'Pickup reminders and subscription renewals', icon: Recycle },
   { key: 'cat_system', label: 'System', description: 'Announcements and system-wide notices', icon: Info },
+  { key: 'cat_marketing', label: 'Offers & marketing', description: 'Promotions, discounts, and service recommendations', icon: Megaphone },
 ];
 
 interface ChannelToggleProps {
@@ -115,41 +124,74 @@ function CategoryToggle({ icon: Icon, label, description, enabled, onChange }: C
   );
 }
 
-export function NotificationPreferencesPanel({ dark }: { dark?: boolean }) {
-  const { user } = useAuth();
+export function NotificationPreferencesPanel({
+  dark,
+  role = 'client',
+}: {
+  dark?: boolean;
+  role?: AppRole;
+}) {
+  const [userId, setUserId] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [pushPermissionGranted, setPushPermissionGranted] = useState(true);
 
   const fetchPrefs = useCallback(async () => {
-    if (!user) return;
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setUserId(user.id);
+      setPushPermissionGranted(await hasPushPermission());
       const { data } = await supabase
         .from('notification_preferences')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
-      if (data) setPrefs(data as NotificationPrefs);
+      if (data) setPrefs({ ...DEFAULT_PREFS, ...(data as Partial<NotificationPrefs>) });
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     fetchPrefs();
   }, [fetchPrefs]);
 
   const updatePref = async (key: keyof NotificationPrefs, value: boolean) => {
+    if (!userId) return;
+    const previous = prefs[key];
+    setNotice(null);
+    if (key === 'push_enabled') {
+      if (value) {
+        const granted = await requestPushNotifications(role);
+        if (!granted) {
+          setPushPermissionGranted(false);
+          setNotice(Capacitor.isNativePlatform()
+            ? 'Push permission is off. Enable notifications for AlphaTek Nexus in your device settings.'
+            : 'Browser alerts are off. Allow notifications for this site to hear about offers while the tab is in the background.');
+          return;
+        }
+        setPushPermissionGranted(true);
+      } else if (Capacitor.isNativePlatform()) {
+        await unregisterDeviceToken(role);
+      }
+    }
     setPrefs((prev) => ({ ...prev, [key]: value }));
     setSaving(true);
     try {
-      await supabase
+      const { error } = await supabase
         .from('notification_preferences')
-        .upsert({ user_id: user!.id, [key]: value, updated_at: new Date().toISOString() });
+        .upsert({ user_id: userId, [key]: value, updated_at: new Date().toISOString() });
+      if (error) throw error;
       setShowSaved(true);
       setTimeout(() => setShowSaved(false), 2000);
+    } catch {
+      setPrefs((prev) => ({ ...prev, [key]: previous }));
+      setNotice('We could not save this preference. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -171,6 +213,13 @@ export function NotificationPreferencesPanel({ dark }: { dark?: boolean }) {
 
   return (
     <div className="space-y-4">
+      {notice && (
+        <div className={`rounded-xl border px-4 py-3 text-sm ${
+          dark ? 'bg-amber-950/40 border-amber-800 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'
+        }`}>
+          {notice}
+        </div>
+      )}
       <div className={`rounded-xl border ${cardClass} overflow-hidden`}>
         <div className={`px-5 py-4 border-b ${dark ? 'border-slate-700' : 'border-slate-100'}`}>
           <div className="flex items-center justify-between">
@@ -182,7 +231,14 @@ export function NotificationPreferencesPanel({ dark }: { dark?: boolean }) {
         <div className={`px-5 divide-y ${dividerClass}`}>
           <ChannelToggle icon={Bell} label="In-App Notifications" enabled={prefs.in_app_enabled} onChange={(v) => updatePref('in_app_enabled', v)} />
           <ChannelToggle icon={Mail} label="Email Notifications" enabled={prefs.email_enabled} onChange={(v) => updatePref('email_enabled', v)} />
-          <ChannelToggle icon={Smartphone} label="Push Notifications" enabled={prefs.push_enabled} onChange={(v) => updatePref('push_enabled', v)} />
+          <ChannelToggle
+            icon={Smartphone}
+            label={prefs.push_enabled && !pushPermissionGranted
+              ? (Capacitor.isNativePlatform() ? 'Enable Push Notifications' : 'Enable Browser Alerts')
+              : (Capacitor.isNativePlatform() ? 'Push Notifications' : 'Browser Alerts')}
+            enabled={prefs.push_enabled && pushPermissionGranted}
+            onChange={(v) => updatePref('push_enabled', v)}
+          />
         </div>
       </div>
 

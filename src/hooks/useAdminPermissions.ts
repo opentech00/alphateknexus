@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
+import { ADMIN_FINANCE_WORKSPACE_PAGES } from '../lib/capabilities';
 
 interface AdminPermissionsState {
   loading: boolean;
@@ -53,19 +54,23 @@ export function useAdminPermissions(profile: Profile | null, isAdmin: boolean): 
       }
 
       // Load permissions for this admin's HR role
-      const { data, error } = await supabase
-        .from('hr_role_permissions')
-        .select('page_key, can_access')
-        .eq('role_id', profile.admin_role_id)
-        .eq('can_access', true);
+      const [{ data, error }, { data: financeOps }] = await Promise.all([
+        supabase
+          .from('hr_role_permissions')
+          .select('page_key, can_access')
+          .eq('role_id', profile.admin_role_id)
+          .eq('can_access', true),
+        supabase.rpc('is_admin_finance_ops'),
+      ]);
 
       if (cancelled) return;
 
-      if (error || !data) {
-        setAllowedPages(new Set());
-      } else {
-        setAllowedPages(new Set(data.map(p => p.page_key)));
+      const pages = new Set<string>(error || !data ? [] : data.map(p => p.page_key));
+      if (financeOps) {
+        ADMIN_FINANCE_WORKSPACE_PAGES.forEach((page) => pages.add(page));
+        pages.add('analytics');
       }
+      setAllowedPages(pages);
       setLoading(false);
     };
 

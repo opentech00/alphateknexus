@@ -1,5 +1,6 @@
 import type { IncomingNotification } from '../components/toast/toast';
 import { destinationForNotification } from '../employee/lib/workNav';
+import { campaignDestination } from './campaigns';
 
 const SLUG_TO_ADMIN_PAGE: Record<string, string> = {
   'clearing-forwarding': 'division-cf',
@@ -10,6 +11,9 @@ const SLUG_TO_ADMIN_PAGE: Record<string, string> = {
 };
 
 export function destinationForClientNotification(n: IncomingNotification): string {
+  if (n.type === 'announcement' || n.metadata?.campaign_id) {
+    return campaignDestination(n.metadata?.cta_page);
+  }
   if (n.type === 'support') return 'support';
   if (/quote/i.test(`${n.title} ${n.body}`)) return 'quotes';
   if (n.type === 'payment') return 'payments';

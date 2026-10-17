@@ -4,6 +4,16 @@ export type EmployeePage =
   | 'my-day'
   | 'work-inbox'
   | 'division-workspace'
+  | 'admin-finance'
+  | 'finance'
+  | 'wallet'
+  | 'receipts'
+  | 'finance-services'
+  | 'finance-cf'
+  | 'finance-smart-sort'
+  | 'finance-cleaning'
+  | 'finance-security'
+  | 'finance-procurement'
   | 'activities'
   | 'documents'
   | 'report'
@@ -25,6 +35,16 @@ export const PAGE_LABELS: Record<EmployeePage, string> = {
   'my-day': 'My Day',
   'work-inbox': 'Work inbox',
   'division-workspace': 'Division workspace',
+  'admin-finance': 'Admin & Finance',
+  finance: 'Finance module',
+  wallet: 'Wallet',
+  receipts: 'Receipts',
+  'finance-services': 'Service ledgers',
+  'finance-cf': 'C&F ledger',
+  'finance-smart-sort': 'Smart Sort ledger',
+  'finance-cleaning': 'Cleaning ledger',
+  'finance-security': 'Security ledger',
+  'finance-procurement': 'Procurement ledger',
   activities: 'More work',
   documents: 'Documents',
   report: 'Report',
@@ -91,8 +111,11 @@ export function destinationForActivityKey(key: string): NavTarget {
     case 'division':
     case 'role':
     case 'id-card':
+      return { page: 'profile' };
     case 'manage-division':
-      return key === 'manage-division' ? { page: 'division-workspace' } : { page: 'profile' };
+      return { page: 'division-workspace' };
+    case 'admin-finance':
+      return { page: 'admin-finance' };
     default:
       if (isEmployeePage(key)) return { page: key };
       return { page: 'my-day' };

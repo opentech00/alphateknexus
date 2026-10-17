@@ -13,6 +13,7 @@ import { useServiceBrandingImages } from '../../lib/media';
 import { useDisplayCurrency } from '../../hooks/useDisplayCurrency';
 import { buildCatalog, CATALOG_CATEGORIES } from '../../lib/serviceCatalog';
 import { CATALOG_ICONS } from '../../lib/catalogIcons';
+import { CampaignPromoBanner } from '../CampaignPromoBanner';
 
 interface Props {
   onSelectService: (svc: Service, mode?: 'hire' | 'quote' | 'pickup' | 'subscribe') => void;
@@ -180,6 +181,10 @@ export function MobileServicesPage({ onSelectService, onNavigate }: Props) {
         </button>
       </div>
       )}
+
+      <div className="mx-4 mt-3">
+        <CampaignPromoBanner onNavigate={onNavigate} onSelectService={onSelectService} />
+      </div>
 
       {/* Search */}
       <div className="px-4 mt-3" style={{ animation: 'fadeInUp 0.4s ease-out 0.06s both' }}>

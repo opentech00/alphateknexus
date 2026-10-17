@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Banknote, Bell, Briefcase, Calendar, ClipboardList, Clock, FolderOpen, GitBranch, Inbox, Loader2, Shield } from 'lucide-react';
+import { Banknote, Bell, Briefcase, Calendar, ClipboardList, Clock, FolderOpen, GitBranch, Inbox, Landmark, Loader2, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fmtDate } from '../types';
-import { isInternalDepartmentSlug } from '../../lib/capabilities';
+import { canManageAdminFinanceWorkspace, isInternalDepartmentSlug } from '../../lib/capabilities';
 
 type OverviewNavKey =
   | 'bookings'
@@ -13,6 +13,7 @@ type OverviewNavKey =
   | 'notifications'
   | 'cash-collections'
   | 'manage-division'
+  | 'admin-finance'
   | 'work-queue'
   | 'leave'
   | 'hr-files';
@@ -40,6 +41,7 @@ interface Props {
 }
 
 export function EmployeeOverviewInsights({ employee, isDivisionHead, hasCapability, onNavigate }: Props) {
+  const canFinance = canManageAdminFinanceWorkspace(employee);
   const [insightLoading, setInsightLoading] = useState(true);
   const [activeTasks, setActiveTasks] = useState<any[]>([]);
   const [upcomingBookings, setUpcomingBookings] = useState<any[]>([]);
@@ -185,7 +187,8 @@ export function EmployeeOverviewInsights({ employee, isDivisionHead, hasCapabili
     { label: 'Delegated Tasks', page: 'delegated-tasks' as OverviewNavKey, icon: GitBranch, show: true },
     { label: 'Notifications', page: 'notifications' as OverviewNavKey, icon: Bell, show: true },
     { label: 'Cash Collections', page: 'cash-collections' as OverviewNavKey, icon: Banknote, show: hasCapability('div.cash_collections') },
-    { label: 'Manage Division', page: 'manage-division' as OverviewNavKey, icon: Shield, show: isDivisionHead || hasCapability('div.manage_staff_access') },
+    { label: 'Admin & Finance', page: 'admin-finance' as OverviewNavKey, icon: Landmark, show: canFinance },
+    { label: 'Manage Division', page: 'manage-division' as OverviewNavKey, icon: Shield, show: (isDivisionHead || hasCapability('div.manage_staff_access')) && !(isInternal && canFinance) },
   ].filter((a) => a.show);
 
   const unreadCount = announcementFeed.filter((n) => !n.read).length;

@@ -31,6 +31,12 @@ import { SplashScreen } from './components/mobile/SplashScreen';
 import { ToastContainer } from './components/toast/ToastContainer';
 import { registerToastNotificationOpener } from './components/toast/toast';
 import { destinationForClientNotification } from './lib/notificationDestinations';
+import {
+  campaignIdFromNotification,
+  openCampaignDestination,
+  trackCampaignEvent,
+  type CampaignChannel,
+} from './lib/campaigns';
 import { IdleWarningModal } from './components/IdleWarningModal';
 import { PwaProvider } from './components/pwa/PwaProvider';
 import { MonimeCheckoutHost } from './components/checkout/MonimeCheckoutHost';
@@ -169,11 +175,58 @@ function PortalContent() {
   const [bookingMode, setBookingMode] = useState<'hire' | 'quote' | 'pickup' | 'subscribe'>('hire');
   const [rebookData, setRebookData] = useState<any>(null);
 
+  const openCampaignFromNotice = (ctaPage: unknown) => {
+    void openCampaignDestination(ctaPage, {
+      onNavigate: setPage,
+      onSelectService: (service) => {
+        setBookingService(service);
+        setBookingMode('hire');
+        setPage('booking');
+      },
+    });
+  };
+
   useEffect(() => {
     return registerToastNotificationOpener((n) => {
+      const campaignId = campaignIdFromNotification(n);
+      if (campaignId) {
+        trackCampaignEvent(campaignId, 'click', 'notification');
+        openCampaignFromNotice(n.metadata?.cta_page);
+        return;
+      }
       setPage(destinationForClientNotification(n));
     });
   }, []);
+
+  useEffect(() => {
+    const onNotificationTap = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        screen?: string;
+        campaignId?: string;
+        ctaPage?: string;
+      }>).detail || {};
+      if (detail.campaignId) {
+        trackCampaignEvent(detail.campaignId, 'click', 'push');
+        openCampaignFromNotice(detail.ctaPage || detail.screen);
+        return;
+      }
+      const next = detail.screen === 'booking' ? 'bookings' : detail.screen;
+      if (next) setPage(next);
+    };
+    window.addEventListener('app-notification-tap', onNotificationTap);
+    return () => window.removeEventListener('app-notification-tap', onNotificationTap);
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    const campaignId = params.get('campaign');
+    const rawChannel = params.get('campaign_channel');
+    const channel: CampaignChannel = rawChannel === 'email' || rawChannel === 'push' || rawChannel === 'share'
+      ? rawChannel
+      : 'notification';
+    if (campaignId) trackCampaignEvent(campaignId, 'click', channel);
+  }, [user]);
 
   useEffect(() => {
     const onReturn = () => {

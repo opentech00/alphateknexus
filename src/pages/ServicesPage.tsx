@@ -14,6 +14,7 @@ import { useServiceBrandingImages } from '../lib/media';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { buildCatalog, CATALOG_CATEGORIES } from '../lib/serviceCatalog';
 import { CATALOG_ICONS } from '../lib/catalogIcons';
+import { CampaignPromoBanner } from '../components/CampaignPromoBanner';
 import type { Service } from '../types';
 
 interface ServicesPageProps {
@@ -205,6 +206,10 @@ export function ServicesPage({ onNavigate, onSelectService }: ServicesPageProps)
           </div>
       </div>
       )}
+
+      <div className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 ${wallet_enabled ? 'mt-4' : 'pt-6'} transition-all duration-700 delay-75 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+        <CampaignPromoBanner onNavigate={onNavigate} onSelectService={onSelectService} />
+      </div>
 
       {/* Header */}
       <section className={`pt-10 pb-6 text-center transition-all duration-700 delay-100 ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>

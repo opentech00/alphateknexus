@@ -15,7 +15,7 @@ export interface Service {
 export type MediaCategory = 'app_logo' | 'service_branding' | 'login_carousel' | 'splash' | 'general' | 'campaign';
 
 export type CampaignKind = 'promo' | 'marketing' | 'discount';
-export type CampaignAudience = 'all' | 'service';
+export type CampaignAudience = 'all' | 'service' | 'new_clients' | 'inactive_clients' | 'recent_bookers' | 'wallet_users';
 export type CampaignStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed' | 'cancelled';
 
 export interface Campaign {
@@ -32,12 +32,15 @@ export interface Campaign {
   cta_label: string | null;
   cta_page: string | null;
   audience: CampaignAudience;
+  audience_days: number;
   service_slugs: string[];
   channel_email: boolean;
   channel_push: boolean;
   channel_in_app: boolean;
   status: CampaignStatus;
   scheduled_at: string | null;
+  expires_at: string | null;
+  priority: number;
   sent_at: string | null;
   recipient_count: number;
   enqueued_count: number;

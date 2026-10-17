@@ -84,7 +84,7 @@ export function EmployeeNotificationsPage({ onNavigate }: { onNavigate?: (target
           </button>
         </div>
         <div className="max-w-2xl">
-          <NotificationPreferencesPanel />
+          <NotificationPreferencesPanel role="employee" />
         </div>
       </div>
     );

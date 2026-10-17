@@ -321,7 +321,7 @@ export function SettingsPage({ onNavigate }: { onNavigate?: (page: string) => vo
         </button>
         {showNotifPrefs && (
           <div className="mt-2">
-            <NotificationPreferencesPanel />
+            <NotificationPreferencesPanel role="admin" />
           </div>
         )}
         <button

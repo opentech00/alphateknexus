@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { showBrowserNotification } from '../../lib/pushNotifications';
 import {
   isIncomingToastSuppressed,
   openIncomingNotification,
@@ -44,6 +45,13 @@ export function useIncomingNotificationToasts(enabled = true) {
                 label: 'Open',
                 onClick: () => openIncomingNotification(n),
               },
+            });
+            const meta = (n.metadata || {}) as Record<string, unknown>;
+            showBrowserNotification(n.title, n.body, {
+              campaign_id: typeof meta.campaign_id === 'string' ? meta.campaign_id : '',
+              cta_page: typeof meta.cta_page === 'string' ? meta.cta_page : '',
+              screen: typeof meta.screen === 'string' ? meta.screen : '',
+              booking_id: n.booking_id || '',
             });
           },
         )

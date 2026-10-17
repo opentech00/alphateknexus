@@ -22,9 +22,10 @@ interface StaffRow {
 
 interface Props {
   onNavigate: (page: string) => void;
+  showCompanyTools?: boolean;
 }
 
-export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
+export function AdminFinanceWorkspacePage({ onNavigate, showCompanyTools = true }: Props) {
   const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState(0);
@@ -109,8 +110,12 @@ export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
     { label: 'Service ledgers', page: 'finance-services', icon: Banknote, desc: 'Quote/hire requests and online or offline payments' },
     { label: 'Wallet', page: 'wallet', icon: Wallet, desc: 'Wallet balances and adjustments' },
     { label: 'Receipts', page: 'receipts', icon: Receipt, desc: 'View, share, download, and email official receipts' },
-    { label: 'Analytics', page: 'analytics', icon: BarChart3, desc: 'Company-wide reporting' },
-    { label: 'Employees', page: 'hr-employees', icon: Users, desc: 'Assign roles and portal access' },
+    ...(showCompanyTools
+      ? [
+          { label: 'Analytics', page: 'analytics', icon: BarChart3, desc: 'Company-wide reporting' },
+          { label: 'Employees', page: 'hr-employees', icon: Users, desc: 'Assign roles and portal access' },
+        ]
+      : []),
   ];
 
   if (loading) {
@@ -206,13 +211,15 @@ export function AdminFinanceWorkspacePage({ onNavigate }: Props) {
       <Card className="p-5 sm:p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-slate-900">Staff roster</h2>
-          <button
-            type="button"
-            onClick={() => onNavigate('hr-employees')}
-            className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
-          >
-            Manage employees
-          </button>
+          {showCompanyTools && (
+            <button
+              type="button"
+              onClick={() => onNavigate('hr-employees')}
+              className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
+            >
+              Manage employees
+            </button>
+          )}
         </div>
         {staff.length === 0 ? (
           <p className="text-sm text-slate-500">Assign staff to Admin & Finance from HR → Employees.</p>

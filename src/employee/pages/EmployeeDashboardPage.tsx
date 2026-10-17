@@ -3,7 +3,7 @@ import {
   Mail, Phone, MapPin, Calendar, AlertTriangle, User, Briefcase,
   Building2, BadgeCheck, CreditCard, LogOut, Loader2, Clock, Bell,
   ChevronRight, Menu, X, KeyRound, Banknote, ClipboardList,
-  GitBranch, Shield, Inbox, CalendarDays, FolderOpen, Sun,
+  GitBranch, Shield, Inbox, CalendarDays, FolderOpen, Sun, Landmark,
 } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { supabase } from '../lib/supabase';
@@ -27,11 +27,17 @@ import { LeaveAttendancePage } from './LeaveAttendancePage';
 import { HrFilesPage } from './HrFilesPage';
 import { MyDayPage } from './MyDayPage';
 import { EmployeeScorecard } from '../components/EmployeeScorecard';
-import { isInternalDepartmentSlug } from '../../lib/capabilities';
+import {
+  canManageAdminFinanceWorkspace,
+  isAdminFinanceWorkspacePage,
+  isInternalDepartmentSlug,
+} from '../../lib/capabilities';
+import { AdminFinanceEmployeePages } from './AdminFinanceEmployeePages';
 import {
   destinationForActivityKey,
   destinationForNotification,
   PAGE_LABELS,
+  isEmployeePage,
   type EmployeePage,
   type NavTarget,
   type WorkInboxTab,
@@ -41,7 +47,7 @@ import { registerToastNotificationOpener } from '../../components/toast/toast';
 type NavItem = { key: EmployeePage; label: string; icon: typeof Sun };
 
 export function EmployeeDashboardPage() {
-  const { employee, signOut, hasCapability, isDivisionHead } = useAuth();
+  const { employee, signOut, hasCapability, isDivisionHead, isAdminFinanceOps } = useAuth();
   const { url: logoUrl } = useAppLogo();
   const [idCard, setIdCard] = useState<IdCard | null>(null);
   const [cardLoading, setCardLoading] = useState(true);
@@ -125,11 +131,17 @@ export function EmployeeDashboardPage() {
   const sm = STATUS_META[employee.status] ?? STATUS_META.active;
   const cardStatus = idCard ? STATUS_META[idCard.status] ?? STATUS_META.active : null;
   const isInternalDept = isInternalDepartmentSlug(employee.services?.slug);
+  const canFinance = isAdminFinanceOps || canManageAdminFinanceWorkspace(employee);
+  const showDivisionWorkspace =
+    (isDivisionHead || hasCapability('div.manage_staff_access')) && !(isInternalDept && canFinance);
 
   const workItems: NavItem[] = [
     { key: 'my-day', label: 'My Day', icon: Sun },
     { key: 'work-inbox', label: isInternalDept ? 'Department inbox' : 'Work inbox', icon: Inbox },
-    ...(isDivisionHead || hasCapability('div.manage_staff_access')
+    ...(canFinance
+      ? [{ key: 'admin-finance' as EmployeePage, label: 'Admin & Finance', icon: Landmark }]
+      : []),
+    ...(showDivisionWorkspace
       ? [{ key: 'division-workspace' as EmployeePage, label: 'Division workspace', icon: Shield }]
       : []),
     { key: 'activities', label: 'More work', icon: ClipboardList },
@@ -146,7 +158,7 @@ export function EmployeeDashboardPage() {
     { key: 'notifications', label: 'Notifications', icon: Bell },
   ];
 
-  const wideMain = page === 'division-workspace';
+  const wideMain = page === 'division-workspace' || isAdminFinanceWorkspacePage(page);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -260,7 +272,7 @@ export function EmployeeDashboardPage() {
           id="employee-main"
           ref={mainRef}
           tabIndex={-1}
-          className={`${wideMain ? 'max-w-6xl' : 'max-w-4xl'} mx-auto px-4 sm:px-6 py-6 space-y-6 outline-none`}
+          className={`${wideMain ? 'max-w-7xl' : 'max-w-4xl'} mx-auto px-4 sm:px-6 py-6 space-y-6 outline-none`}
         >
           {page === 'my-day' && <MyDayPage onNavigate={handleNavigate} />}
           {page === 'work-inbox' && (
@@ -273,7 +285,17 @@ export function EmployeeDashboardPage() {
           )}
           {page === 'leave' && <LeaveAttendancePage />}
           {page === 'hr-files' && <HrFilesPage />}
-          {page === 'division-workspace' && <DivisionWorkspacePage />}
+          {page === 'division-workspace' && (
+            isInternalDept && canFinance
+              ? <AdminFinanceEmployeePages page="admin-finance" onNavigate={(p) => { if (isEmployeePage(p)) handleNavigate(p); }} />
+              : <DivisionWorkspacePage />
+          )}
+          {canFinance && isAdminFinanceWorkspacePage(page) && (
+            <AdminFinanceEmployeePages
+              page={page}
+              onNavigate={(p) => { if (isEmployeePage(p)) handleNavigate(p); }}
+            />
+          )}
           {page === 'activities' && (
             <ActivitiesPage onNavigate={(k) => handleNavigate(destinationForActivityKey(k))} />
           )}
