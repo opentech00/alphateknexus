@@ -10,6 +10,7 @@ import { INTERNAL_DEPARTMENT_SLUG } from '../../lib/capabilities';
 import { PrivacyToggle, SensitiveValue } from '../../components/SensitiveValue';
 import { maskEmail } from '../../lib/sensitive';
 import { useFinancePrivacy } from '../../contexts/FinancePrivacyContext';
+import { HodFinanceStaffPanel } from '../../components/finance/HodFinanceStaffPanel';
 
 interface StaffRow {
   id: string;
@@ -139,6 +140,8 @@ export function AdminFinanceWorkspacePage({ onNavigate, showCompanyTools = true 
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
       )}
 
+      <HodFinanceStaffPanel />
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-[fadeInUp_0.3s_ease]">
         <button type="button" onClick={() => onNavigate('finance-services')} className="text-left hover:-translate-y-0.5 transition-transform">
           <StatCard label="Ledger pending" value={money(ledger.pending)} icon={Clock} color="text-amber-600" accent="bg-amber-50" />
@@ -222,7 +225,7 @@ export function AdminFinanceWorkspacePage({ onNavigate, showCompanyTools = true 
           )}
         </div>
         {staff.length === 0 ? (
-          <p className="text-sm text-slate-500">Assign staff to Admin & Finance from HR → Employees.</p>
+          <p className="text-sm text-slate-500">HR onboards the employee. The Head of Department then assigns a finance position.</p>
         ) : (
           <div className="divide-y divide-slate-100">
             {staff.map((e) => {

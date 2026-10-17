@@ -92,15 +92,6 @@ export function isAdminFinanceWorkspacePage(page: string): page is AdminFinanceW
   return (ADMIN_FINANCE_WORKSPACE_PAGES as readonly string[]).includes(page);
 }
 
-export function isFinanceManagerRoleName(name?: string | null): boolean {
-  return (name || '').toLowerCase().includes('finance manager');
-}
-
-export function isAdminFinanceManagerRoleName(name?: string | null): boolean {
-  const n = (name || '').toLowerCase();
-  return n.includes('finance manager') || n.includes('admin manager');
-}
-
 type AdminFinanceEmployee = {
   status?: string | null;
   org_role?: string | null;
@@ -112,12 +103,14 @@ type AdminFinanceEmployee = {
 export function canManageAdminFinanceWorkspace(employee?: AdminFinanceEmployee | null): boolean {
   if (!employee || employee.status === 'inactive') return false;
   const slug = employee.services?.slug;
-  const roleName = employee.hr_roles?.name;
-  const position = (employee.position || '').toLowerCase();
+  const roleName = (employee.hr_roles?.name || '').toLowerCase();
   if (isInternalDepartmentSlug(slug) && employee.org_role === 'division_head') return true;
-  if (isFinanceManagerRoleName(roleName) || position.includes('finance manager')) return true;
-  if (isInternalDepartmentSlug(slug) && isAdminFinanceManagerRoleName(roleName)) return true;
-  return false;
+  if (roleName.includes('finance manager')) return true;
+  if (!isInternalDepartmentSlug(slug)) return false;
+  return roleName === 'admin'
+    || roleName === 'finance officer'
+    || roleName === 'admin assistant'
+    || roleName.includes('admin manager');
 }
 
 export function canonicalSlug(slug: string | null | undefined): string | null {
