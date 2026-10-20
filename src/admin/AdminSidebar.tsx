@@ -13,7 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAdminNotifications } from './contexts/AdminNotificationsContext';
 import { useAdminOperations } from './contexts/AdminOperationsContext';
 import { AdminNotificationsBell } from '../components/AdminNotificationsBell';
-import { LiveActivityIndicator } from '../components/LiveActivityIndicator';
+import { LiveActivityIndicator, useLiveActivity } from '../components/LiveActivityIndicator';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { toast } from '../components/toast/toast';
 import { useAppLogo } from '../lib/media';
@@ -166,6 +166,7 @@ function isHrPage(page: string): boolean {
 export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
   const { profile, signOut, hasAdminPermission, isSuperAdmin } = useAuth();
   const { unreadByType, unreadCount, unreadBySlug, markReadBySlug } = useAdminNotifications();
+  const live = useLiveActivity();
   const { newJobCount, jobReviewCount, newTaskCount } = useAdminOperations();
   const { url: logoUrl } = useAppLogo();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -189,16 +190,16 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
   const pageBadge: Record<string, number> = {
     overview: unreadCount,
     analytics: 0,
-    divisions: 0,
-    'division-cf': unreadBySlug['clearing-forwarding'] || 0,
-    'division-smart-sort': unreadBySlug['waste-management'] || 0,
-    'division-cleaning': unreadBySlug['cleaning-janitorial'] || 0,
-    'division-security': unreadBySlug['private-security'] || 0,
-    'division-procurement': unreadBySlug['procurement'] || 0,
+    divisions: Object.values(live.counts.bySlug).reduce((sum, count) => sum + count, 0),
+    'division-cf': (unreadBySlug['clearing-forwarding'] || 0) + (live.counts.bySlug['clearing-forwarding'] || 0),
+    'division-smart-sort': (unreadBySlug['waste-management'] || 0) + (live.counts.bySlug['waste-management'] || 0),
+    'division-cleaning': (unreadBySlug['cleaning-janitorial'] || 0) + (live.counts.bySlug['cleaning-janitorial'] || 0),
+    'division-security': (unreadBySlug['private-security'] || 0) + (live.counts.bySlug['private-security'] || 0),
+    'division-procurement': (unreadBySlug['procurement'] || 0) + (live.counts.bySlug['procurement'] || 0),
     'booking-review': 0,
     bookings: (unreadByType['booking_update'] || 0) + (unreadByType['message'] || 0),
-    messages: unreadByType['message'] || 0,
-    support: unreadByType['support'] || 0,
+    messages: (unreadByType['message'] || 0) + live.counts.messages,
+    support: (unreadByType['support'] || 0) + live.counts.inbox,
     documents: 0,
     clients: 0,
     finance: 0,
@@ -243,7 +244,15 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
         key={`${sectionTitle}-${item.label}`}
         onClick={() => {
           const slug = slugByPage[item.page];
-          if (slug && badge > 0) markReadBySlug(slug);
+          if (slug) {
+            if (badge > 0) markReadBySlug(slug);
+            live.acknowledgeSlug(slug);
+          }
+          if (item.page === 'divisions') {
+            Object.keys(live.counts.bySlug).forEach((slug) => live.acknowledgeSlug(slug));
+          }
+          if (item.page === 'messages') live.acknowledgeMessages();
+          if (item.page === 'support') live.acknowledgeInbox();
           handleNav(item.page);
         }}
         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group ${

@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { ShieldCheck, Lock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AdminNotificationsProvider } from './contexts/AdminNotificationsContext';
+import { LiveActivityProvider } from '../components/LiveActivityIndicator';
 import { initPushNotifications } from '../lib/pushNotifications';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { TwoFactorPage } from '../pages/TwoFactorPage';
@@ -274,11 +275,13 @@ function AdminContent() {
 export function AdminApp() {
   return (
     <AdminNotificationsProvider>
+      <LiveActivityProvider>
       <AdminOperationsProvider>
         <FinancePrivacyProvider>
           <AdminContent />
         </FinancePrivacyProvider>
       </AdminOperationsProvider>
+      </LiveActivityProvider>
     </AdminNotificationsProvider>
   );
 }

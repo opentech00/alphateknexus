@@ -4,6 +4,7 @@ import {
   Building2, BadgeCheck, CreditCard, LogOut, Loader2, Clock, Bell,
   ChevronRight, Menu, X, KeyRound, Banknote, ClipboardList,
   GitBranch, Shield, Inbox, CalendarDays, FolderOpen, Sun, Landmark,
+  Truck, Recycle, Brush, ShieldCheck, Package, MessageCircle,
 } from 'lucide-react';
 import { useAuth } from '../contexts/EmployeeAuthContext';
 import { supabase } from '../lib/supabase';
@@ -18,7 +19,7 @@ import {
 import { DelegatedTasksPage } from './DelegatedTasksPage';
 import { DivisionWorkspacePage } from './DivisionWorkspacePage';
 import { EmployeeNotificationsBell } from '../components/EmployeeNotificationsBell';
-import { LiveActivityIndicator } from '../../components/LiveActivityIndicator';
+import { DIVISION_SLUGS, LiveActivityIndicator, useLiveActivity } from '../../components/LiveActivityIndicator';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { useAppLogo } from '../../lib/media';
 import { BrandLogo } from '../../components/BrandLogo';
@@ -46,10 +47,18 @@ import {
 } from '../lib/workNav';
 import { registerToastNotificationOpener } from '../../components/toast/toast';
 
-type NavItem = { key: EmployeePage; label: string; icon: typeof Sun };
+type NavItem = {
+  key: string;
+  label: string;
+  icon: typeof Sun;
+  badge?: number;
+  target?: NavTarget;
+  onVisit?: () => void;
+};
 
 export function EmployeeDashboardPage() {
   const { employee, signOut, hasCapability, isDivisionHead, isAdminFinanceOps } = useAuth();
+  const live = useLiveActivity();
   const { url: logoUrl } = useAppLogo();
   const [idCard, setIdCard] = useState<IdCard | null>(null);
   const [cardLoading, setCardLoading] = useState(true);
@@ -138,9 +147,39 @@ export function EmployeeDashboardPage() {
   const showDivisionWorkspace =
     (isDivisionHead || hasCapability('div.manage_staff_access')) && !isInternalDept;
 
+  const divisionMeta: Record<(typeof DIVISION_SLUGS)[number], { label: string; icon: typeof Sun }> = {
+    'clearing-forwarding': { label: 'Clearing & Forwarding', icon: Truck },
+    'waste-management': { label: 'Smart Sort / Recycling', icon: Recycle },
+    'cleaning-janitorial': { label: 'Cleaning Services', icon: Brush },
+    'private-security': { label: 'Private Security', icon: ShieldCheck },
+    procurement: { label: 'Procurement', icon: Package },
+  };
+  const divisionItems: NavItem[] = DIVISION_SLUGS.map((slug) => ({
+    key: slug,
+    label: divisionMeta[slug].label,
+    icon: divisionMeta[slug].icon,
+    badge: live.counts.bySlug[slug] || 0,
+    target: { page: 'work-inbox', inboxTab: 'mine' },
+    onVisit: () => live.acknowledgeSlug(slug),
+  }));
+
   const workItems: NavItem[] = [
     { key: 'my-day', label: 'My Day', icon: Sun },
-    { key: 'work-inbox', label: isInternalDept ? 'Department inbox' : 'Work inbox', icon: Inbox },
+    {
+      key: 'work-inbox',
+      label: isInternalDept ? 'Department inbox' : 'Work inbox',
+      icon: Inbox,
+      badge: live.counts.inbox,
+      onVisit: () => live.acknowledgeInbox(),
+    },
+    {
+      key: 'client-messages',
+      label: 'Messages',
+      icon: MessageCircle,
+      badge: live.counts.messages,
+      target: { page: 'work-inbox', inboxTab: 'mine' },
+      onVisit: () => live.acknowledgeMessages(),
+    },
     ...(canFinance
       ? [{ key: 'admin-finance' as EmployeePage, label: 'Admin & Finance', icon: Landmark }]
       : []),
@@ -255,6 +294,7 @@ export function EmployeeDashboardPage() {
 
         <nav className="flex-1 py-4 px-3 space-y-4 overflow-y-auto">
           <NavGroup title="Work" items={workItems} page={page} onNavigate={handleNavigate} />
+          <NavGroup title="Divisions" items={divisionItems} page={page} onNavigate={handleNavigate} />
           <NavGroup title="Me" items={meItems} page={page} onNavigate={handleNavigate} />
         </nav>
 
@@ -357,20 +397,30 @@ function NavGroup({
       <div className="space-y-0.5">
         {items.map((item) => {
           const Icon = item.icon;
-          const active = page === item.key;
+          const target = item.target ?? { page: item.key as EmployeePage };
+          const active = !item.target && page === item.key;
+          const badge = item.badge || 0;
           return (
             <button
               key={item.key}
               type="button"
-              onClick={() => onNavigate({ page: item.key })}
+              onClick={() => {
+                item.onVisit?.();
+                onNavigate(target);
+              }}
               aria-current={active ? 'page' : undefined}
               className={`w-full flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
                 active ? 'bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
               }`}
             >
               <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'}`} aria-hidden="true" />
-              {item.label}
-              {active && <ChevronRight className="w-3.5 h-3.5 ml-auto text-emerald-400/60" aria-hidden="true" />}
+              <span className="min-w-0 truncate text-left">{item.label}</span>
+              {badge > 0 && (
+                <span className="ml-auto flex min-w-[20px] h-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white">
+                  {badge > 99 ? '99+' : badge}
+                </span>
+              )}
+              {active && badge === 0 && <ChevronRight className="w-3.5 h-3.5 ml-auto text-emerald-400/60" aria-hidden="true" />}
             </button>
           );
         })}

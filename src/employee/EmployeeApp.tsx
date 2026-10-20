@@ -1,5 +1,6 @@
 import { AuthProvider, useAuth } from './contexts/EmployeeAuthContext';
 import { EmployeeNotificationsProvider } from './contexts/EmployeeNotificationsContext';
+import { LiveActivityProvider } from '../components/LiveActivityIndicator';
 import { LoginPage } from './pages/LoginPage';
 import { EmployeeDashboardPage } from './pages/EmployeeDashboardPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
@@ -61,12 +62,14 @@ function EmployeeContent() {
 
   return (
     <EmployeeNotificationsProvider>
+      <LiveActivityProvider>
       <FinancePrivacyProvider>
         <EmployeeDashboardPage />
         <OfficeClockInPrompt />
         <IdleWarningWrapper />
         <ToastContainer />
       </FinancePrivacyProvider>
+      </LiveActivityProvider>
     </EmployeeNotificationsProvider>
   );
 }
