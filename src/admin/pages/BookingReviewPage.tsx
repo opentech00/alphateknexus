@@ -6,7 +6,7 @@ import { bookingToExportRow } from '../../lib/exportServiceRequests';
 import { toast } from '../../components/toast/toast';
 import {
   ClipboardCheck, CheckCircle2, XCircle, Clock, Filter, Search,
-  Calendar, Phone, Mail, MapPin, User, Briefcase, FileText, Loader2,
+  Calendar, Phone, Mail, MapPin, User, Briefcase, FileText, Loader2, ChevronDown,
 } from 'lucide-react';
 
 interface ReviewBooking {
@@ -25,6 +25,9 @@ interface ReviewBooking {
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_note: string | null;
+  payment_status: string | null;
+  payment_method: string | null;
+  amount_paid_sle: number | null;
   services: { name: string } | null;
 }
 
@@ -37,6 +40,7 @@ export function BookingReviewPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [reviewNote, setReviewNote] = useState('');
   const [selectedBooking, setSelectedBooking] = useState<ReviewBooking | null>(null);
+  const [detailsOpenId, setDetailsOpenId] = useState<string | null>(null);
 
   const loadBookings = useCallback(async () => {
     setLoading(true);
@@ -44,7 +48,7 @@ export function BookingReviewPage() {
     try {
       const query = supabase
         .from('bookings')
-        .select('id, service_id, contact_name, contact_phone, contact_email, scheduled_date, scheduled_time, location, notes, status, details, created_at, reviewed_by, reviewed_at, review_note, services(name)')
+        .select('id, service_id, contact_name, contact_phone, contact_email, scheduled_date, scheduled_time, location, notes, status, details, created_at, reviewed_by, reviewed_at, review_note, payment_status, payment_method, amount_paid_sle, services(name)')
         .in('status', ['pending_review', 'approved', 'cancelled'])
         .order('created_at', { ascending: false })
         .limit(100);
@@ -230,6 +234,15 @@ export function BookingReviewPage() {
                       <FileText className="w-3 h-3 inline mr-1 text-amber-500" />Review note: {booking.review_note}
                     </p>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => setDetailsOpenId(detailsOpenId === booking.id ? null : booking.id)}
+                    className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"
+                  >
+                    All booking details
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${detailsOpenId === booking.id ? 'rotate-180' : ''}`} />
+                  </button>
+                  {detailsOpenId === booking.id && <BookingDetailsPanel booking={booking} />}
                 </div>
 
                 {/* Actions */}
@@ -283,6 +296,82 @@ export function BookingReviewPage() {
             </Card>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function formatDetailValue(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'number') return Number.isFinite(value) ? value.toLocaleString() : String(value);
+  if (typeof value === 'string') return value.trim() || null;
+  if (Array.isArray(value)) {
+    const parts = value.map((item) => formatDetailValue(item)).filter((item): item is string => !!item);
+    return parts.length ? parts.join(', ') : null;
+  }
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => {
+        const formatted = formatDetailValue(item);
+        return formatted ? `${labelize(key)}: ${formatted}` : null;
+      })
+      .filter((item): item is string => !!item);
+    return entries.length ? entries.join(' · ') : null;
+  }
+  return String(value);
+}
+
+function labelize(key: string): string {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function BookingDetailsPanel({ booking }: { booking: ReviewBooking }) {
+  const rows: { label: string; value: string }[] = [
+    { label: 'Booking ID', value: booking.id },
+    { label: 'Service', value: booking.services?.name || 'Unknown service' },
+    { label: 'Status', value: statusLabel(booking.status) },
+    { label: 'Contact', value: booking.contact_name },
+    { label: 'Phone', value: booking.contact_phone },
+    { label: 'Email', value: booking.contact_email || '' },
+    { label: 'Schedule', value: [booking.scheduled_date, booking.scheduled_time].filter(Boolean).join(' · ') },
+    { label: 'Location', value: booking.location || '' },
+    { label: 'Notes', value: booking.notes || '' },
+    { label: 'Payment status', value: booking.payment_status ? labelize(booking.payment_status) : '' },
+    { label: 'Payment method', value: booking.payment_method ? labelize(booking.payment_method) : '' },
+    { label: 'Amount paid', value: booking.amount_paid_sle != null ? `SLE ${Number(booking.amount_paid_sle).toLocaleString()}` : '' },
+    { label: 'Submitted', value: new Date(booking.created_at).toLocaleString() },
+    { label: 'Reviewed at', value: booking.reviewed_at ? new Date(booking.reviewed_at).toLocaleString() : '' },
+    { label: 'Review note', value: booking.review_note || '' },
+  ].filter((row) => row.value);
+
+  const detailRows = Object.entries(booking.details || {})
+    .map(([key, value]) => ({ label: labelize(key), value: formatDetailValue(value) }))
+    .filter((row): row is { label: string; value: string } => !!row.value);
+
+  return (
+    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">Request</p>
+      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+        {rows.map((row) => (
+          <div key={row.label} className="min-w-0">
+            <dt className="text-[10px] uppercase tracking-wide text-slate-400">{row.label}</dt>
+            <dd className="text-xs font-medium text-slate-800 break-words">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {detailRows.length > 0 && (
+        <>
+          <p className="mt-3 mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">Form details</p>
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+            {detailRows.map((row) => (
+              <div key={row.label} className="min-w-0">
+                <dt className="text-[10px] uppercase tracking-wide text-slate-400">{row.label}</dt>
+                <dd className="text-xs font-medium text-slate-800 break-words">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
       )}
     </div>
   );

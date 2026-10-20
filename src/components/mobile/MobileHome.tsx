@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Search, ChevronRight,
   ArrowRight, RefreshCw, UserCircle, ChevronDown, MapPin, Calendar,
-  Wallet, FileText, Inbox, Clock, Building2, Check, X,
+  Wallet, FileText, Inbox, Clock,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -22,14 +22,6 @@ import { CATALOG_ICONS } from '../../lib/catalogIcons';
 import { CATALOG_CATEGORIES, type CatalogItem } from '../../lib/serviceCatalog';
 import { JobProgress } from '../client/JobProgress';
 
-const WORKSPACE_KEY = 'alphatek.homeWorkspace';
-
-function companyFromDetails(details: Record<string, unknown> | null | undefined): string | null {
-  if (!details) return null;
-  const raw = details.company_name ?? details.company;
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
-}
-
 interface Props {
   onNavigate: (page: string) => void;
   onSelectService: (svc: Service, mode?: 'hire' | 'quote' | 'pickup' | 'subscribe') => void;
@@ -45,7 +37,6 @@ interface HomeBooking {
   scheduled_time: string | null;
   location: string | null;
   created_at: string;
-  details: Record<string, unknown> | null;
   services: { name: string; icon: string; slug: string };
 }
 
@@ -170,15 +161,11 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
   const [category, setCategory] = useState<(typeof CATALOG_CATEGORIES)[number]>('All');
   const [detailService, setDetailService] = useState<Service | null>(null);
   const [showFloatHeader, setShowFloatHeader] = useState(false);
-  const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [workspaceId, setWorkspaceId] = useState<string | null>(() => {
-    try { return localStorage.getItem(WORKSPACE_KEY); } catch { return null; }
-  });
 
   const fetchBookings = useCallback(async () => {
     const { data } = await supabase
       .from('bookings')
-      .select('id, status, scheduled_date, scheduled_time, location, created_at, details, services(name, icon, slug)')
+      .select('id, status, scheduled_date, scheduled_time, location, created_at, services(name, icon, slug)')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(10);
@@ -231,32 +218,8 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
     setDetailService(svc);
   };
 
-  const personalName = profile?.full_name?.trim() || 'Personal';
-  const companyNames = Array.from(new Set(
-    bookings.map((b) => companyFromDetails(b.details)).filter((name): name is string => !!name),
-  ));
-  const workspaces = [
-    { id: 'personal', name: personalName },
-    ...companyNames.map((name) => ({ id: name, name })),
-  ];
-  const activeWorkspace = workspaces.find((w) => w.id === workspaceId)
-    || workspaces.find((w) => w.id !== 'personal')
-    || workspaces[0];
-  const workspaceBookings = bookings.filter((b) => {
-    if (companyNames.length === 0 || activeWorkspace.id === 'personal') {
-      return companyNames.length === 0 || !companyFromDetails(b.details);
-    }
-    return companyFromDetails(b.details) === activeWorkspace.name;
-  });
-  const activeBookings = workspaceBookings.filter(b => ['pending', 'confirmed', 'in_progress'].includes(b.status));
-  const recentBookings = workspaceBookings.slice(0, 5);
-
-  const chooseWorkspace = (id: string) => {
-    setWorkspaceId(id);
-    try { localStorage.setItem(WORKSPACE_KEY, id); } catch { /* ignore */ }
-    setWorkspaceOpen(false);
-    vibrate('selection');
-  };
+  const activeBookings = bookings.filter(b => ['pending', 'confirmed', 'in_progress'].includes(b.status));
+  const recentBookings = bookings.slice(0, 5);
 
   const pullIndicatorHeight = refreshing ? 40 : pulling ? Math.round(progress * 40) : 0;
 
@@ -276,9 +239,9 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <BrandLogo src={logoUrl} alt="Alphatek Nexus" className="h-7 w-auto flex-shrink-0" />
-            <p className="text-sm font-bold text-white truncate">{activeWorkspace.name}</p>
+            <p className="text-sm font-bold text-[#173362] dark:text-slate-100 truncate">Hello, {firstName}</p>
           </div>
-          <NotificationsPanel dark />
+          <NotificationsPanel />
         </div>
       </div>
       </div>
@@ -294,45 +257,32 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
         />
       </div>
 
-      <div className="home-safe-header bg-[#071426] pb-3 text-white motion-safe:animate-[fadeInUp_0.4s_ease-out_both]">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
+      <div className="home-safe-header pb-3 motion-safe:animate-[fadeInUp_0.4s_ease-out_both]">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
             <BrandLogo src={logoUrl} alt="Alphatek Nexus" className="home-brand-logo h-8 w-auto flex-shrink-0" />
-            <p className="min-w-0 text-[15px] leading-5 font-bold tracking-tight truncate">AlphaTek Nexus</p>
-            <span className="flex-shrink-0 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
-              Multi-Tenant
-            </span>
+            <p className="text-[15px] leading-5 font-bold text-[#173362] dark:text-slate-100 tracking-tight truncate">
+              Alphatek <span className="text-emerald-500">Nexus</span>
+            </p>
           </div>
-          <div className="flex items-center">
-            <NotificationsPanel dark />
+          <div className="flex items-center gap-1.5">
+            <NotificationsPanel />
             <button
               onClick={() => onNavigate('account')}
-              className="h-8 w-8 rounded-full border border-white/15 bg-white/10 inline-flex items-center justify-center active:scale-95 transition-transform"
+              className="h-9 pl-1 pr-0.5 rounded-full border border-slate-200 bg-white inline-flex items-center gap-1 shadow-sm active:scale-95 transition-transform"
               aria-label="Open profile"
             >
               {profile?.avatar_url ? (
                 <img src={profile.avatar_url} alt="Profile" className="w-7 h-7 rounded-full object-cover" />
               ) : (
-                <span className="w-7 h-7 rounded-full bg-white/10 text-white text-xs font-semibold inline-flex items-center justify-center">
+                <span className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold inline-flex items-center justify-center">
                   {initials || <UserCircle className="w-4 h-4" />}
                 </span>
               )}
+              <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
             </button>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => { vibrate('light'); setWorkspaceOpen(true); }}
-          className="mt-2 flex w-full items-center gap-2 rounded-xl px-1 py-1.5 text-left active:bg-white/5"
-          aria-haspopup="dialog"
-          aria-expanded={workspaceOpen}
-        >
-          <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/10">
-            <Building2 className="h-3.5 w-3.5 text-slate-200" />
-          </span>
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">{activeWorkspace.name}</span>
-          <ChevronDown className="h-4 w-4 flex-shrink-0 text-slate-300" />
-        </button>
       </div>
 
       <div className="px-4 sm:px-5 space-y-4">
@@ -481,7 +431,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{activeBookings.length} active request{activeBookings.length !== 1 ? 's' : ''}</p>
             )}
           </div>
-          {workspaceBookings.length > 0 && (
+          {bookings.length > 0 && (
             <button
               onClick={() => onNavigate('bookings')}
               className="text-sm text-blue-600 dark:text-blue-400 font-medium flex items-center gap-0.5 active:scale-95 transition-transform no-select"
@@ -512,17 +462,6 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
               Browse Services <ArrowRight className="w-3 h-3" />
             </span>
           </button>
-        ) : recentBookings.length === 0 ? (
-          <div className="w-full bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 p-6 text-center">
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">No bookings in this workspace</p>
-            <button
-              type="button"
-              onClick={() => setWorkspaceOpen(true)}
-              className="mt-2 text-xs font-semibold text-blue-600"
-            >
-              Switch workspace
-            </button>
-          </div>
         ) : (
           <div className="space-y-2.5">
             {recentBookings.map((booking, idx) => (
@@ -536,55 +475,6 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
           </div>
         )}
       </div>
-
-      {workspaceOpen && (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/60"
-            aria-label="Close workspace switcher"
-            onClick={() => setWorkspaceOpen(false)}
-          />
-          <div
-            role="dialog"
-            aria-labelledby="workspace-switch-title"
-            className="relative z-10 m-3 w-full max-w-md rounded-2xl border border-white/10 bg-[#0c1b33] p-4 text-white shadow-2xl"
-          >
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 id="workspace-switch-title" className="text-base font-semibold">Switch Business Workspace</h2>
-              <button
-                type="button"
-                onClick={() => setWorkspaceOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-slate-200"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="space-y-2">
-              {workspaces.map((workspace) => {
-                const selected = workspace.id === activeWorkspace.id;
-                return (
-                  <button
-                    key={workspace.id}
-                    type="button"
-                    onClick={() => chooseWorkspace(workspace.id)}
-                    className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left ${
-                      selected ? 'border-blue-500 bg-blue-600/25' : 'border-white/10 bg-white/5'
-                    }`}
-                  >
-                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/10">
-                      <Building2 className="h-4 w-4 text-slate-200" />
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{workspace.name}</span>
-                    {selected && <Check className="h-4 w-4 flex-shrink-0 text-blue-300" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Service Detail Modal */}
       {detailService && (

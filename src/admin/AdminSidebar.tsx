@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAdminNotifications } from './contexts/AdminNotificationsContext';
 import { useAdminOperations } from './contexts/AdminOperationsContext';
 import { AdminNotificationsBell } from '../components/AdminNotificationsBell';
+import { LiveActivityIndicator } from '../components/LiveActivityIndicator';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { toast } from '../components/toast/toast';
 import { useAppLogo } from '../lib/media';
@@ -273,6 +274,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
         </div>
         <div className="flex items-center gap-0.5 ml-auto">
           <ThemeToggle tone="dark" menuId="admin-theme-menu-mobile" />
+          <LiveActivityIndicator tone="dark" onOpen={() => handleNav('booking-review')} />
           <AdminNotificationsBell tone="dark" onNavigate={handleNav} />
           <button
             type="button"
@@ -295,6 +297,7 @@ export function AdminSidebar({ currentPage, onNavigate }: AdminSidebarProps) {
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <ThemeToggle menuId="admin-theme-menu" />
+          <LiveActivityIndicator tone="light" onOpen={() => handleNav('booking-review')} />
           <AdminNotificationsBell tone="light" onNavigate={handleNav} />
           <div className="h-8 w-px bg-slate-200 mx-1" />
           <AdminProfileChip

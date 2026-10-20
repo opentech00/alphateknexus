@@ -18,6 +18,7 @@ import {
 import { DelegatedTasksPage } from './DelegatedTasksPage';
 import { DivisionWorkspacePage } from './DivisionWorkspacePage';
 import { EmployeeNotificationsBell } from '../components/EmployeeNotificationsBell';
+import { LiveActivityIndicator } from '../../components/LiveActivityIndicator';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { useAppLogo } from '../../lib/media';
 import { BrandLogo } from '../../components/BrandLogo';
@@ -191,6 +192,9 @@ export function EmployeeDashboardPage() {
         </div>
         <div className="flex items-center gap-0.5 ml-auto">
           <ThemeToggle />
+          <LiveActivityIndicator
+            onOpen={(item) => handleNavigate({ page: 'work-inbox', inboxTab: 'mine', bookingId: item.bookingId })}
+          />
           <EmployeeNotificationsBell onNavigate={handleNavigate} />
         </div>
       </header>
@@ -268,6 +272,9 @@ export function EmployeeDashboardPage() {
       <div className="lg:ml-64 pt-14 lg:pt-0">
         <div className="hidden lg:flex sticky top-0 z-20 h-14 items-center justify-end gap-1 px-4 sm:px-6 bg-white border-b border-slate-200">
           <ThemeToggle />
+          <LiveActivityIndicator
+            onOpen={(item) => handleNavigate({ page: 'work-inbox', inboxTab: 'mine', bookingId: item.bookingId })}
+          />
           <EmployeeNotificationsBell onNavigate={handleNavigate} />
         </div>
         <main
