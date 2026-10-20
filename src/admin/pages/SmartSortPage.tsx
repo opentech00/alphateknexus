@@ -75,7 +75,7 @@ export function SmartSortPage() {
         ) : tab === 'quotes' ? (
           <SmartSortQuotesTab />
         ) : tab === 'subscriptions' ? (
-          <SmartSortSubscriptionsTab />
+          <SmartSortSubscriptionsTab onOpenBilling={() => setTab('billing')} />
         ) : tab === 'billing' ? (
           <SmartSortBillingTab />
         ) : tab === 'plans' ? (

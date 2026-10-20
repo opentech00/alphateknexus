@@ -17,6 +17,7 @@ import { NotificationsPanel } from '../NotificationsPanel';
 import { ExploreServicesCarousel } from '../ExploreServicesCarousel';
 import { CampaignPromoBanner } from '../CampaignPromoBanner';
 import { DueInvoicesBanner } from '../portal/DueInvoicesBanner';
+import { SmartSortHomeCard } from '../SubscriptionLifecycle';
 import { useServiceCatalog } from '../../hooks/useServiceCatalog';
 import { CATALOG_ICONS } from '../../lib/catalogIcons';
 import { CATALOG_CATEGORIES, type CatalogItem } from '../../lib/serviceCatalog';
@@ -287,6 +288,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
 
       <div className="px-4 sm:px-5 space-y-4">
         <DueInvoicesBanner onOpen={() => onNavigate('billing')} />
+        <SmartSortHomeCard onNavigate={onNavigate} />
 
         <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#173362] via-[#1d4f94] to-emerald-600 p-5 text-white shadow-lg shadow-blue-900/20 motion-safe:animate-[fadeInUp_0.45s_ease-out_both]">
           <div className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-white/10" />

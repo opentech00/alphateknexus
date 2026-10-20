@@ -11,6 +11,8 @@ import { ReviewModal } from '../ReviewModal';
 import { BookingTracker } from '../BookingTracker';
 import { CrewTrackMap } from '../map/CrewTrackMap';
 import { SubscriptionLifecycle } from '../SubscriptionLifecycle';
+import { startMonimePayment } from '../../lib/monime';
+import { toast } from '../toast/toast';
 import { CancelDeleteBookingModal } from '../CancelDeleteBookingModal';
 import { BookingPayNowModal } from '../BookingPayNowModal';
 import { FailedPaymentNote } from '../FailedPaymentNote';
@@ -153,6 +155,9 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId, focu
   const [reviewedBookings, setReviewedBookings] = useState<Set<string>>(new Set());
   const [walletBalance, setWalletBalance] = useState(0);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subPickups, setSubPickups] = useState<{ subscription_id: string; scheduled_date: string; time_slot: string; status: string }[]>([]);
+  const [subInvoices, setSubInvoices] = useState<{ id: string; subscription_id: string; invoice_number: string; amount_sle: number; amount_paid_sle: number; status: string }[]>([]);
+  const [payingSubId, setPayingSubId] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState('');
   const [cancelDeleteModal, setCancelDeleteModal] = useState<{ bookingId: string; status: string; serviceName: string } | null>(null);
   const [payBooking, setPayBooking] = useState<Booking | null>(null);
@@ -193,6 +198,23 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId, focu
     setWalletBalance(bal);
   }, []);
 
+  const paySubscription = async (subscriptionId: string) => {
+    const invoice = subInvoices.find((row) => row.subscription_id === subscriptionId);
+    if (!invoice) return;
+    const balance = Math.max(0, Number(invoice.amount_sle) - Number(invoice.amount_paid_sle));
+    if (balance <= 0) return;
+    setPayingSubId(subscriptionId);
+    try {
+      const result = await startMonimePayment(balance, 'invoice', invoice.id, invoice.invoice_number, { nextPage: 'smart-sort-subs' });
+      if (result.redirected || result.hosted) return;
+      toast.info('Complete payment in Monime. This page updates when the bank confirms.');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to start payment.');
+    } finally {
+      setPayingSubId(null);
+    }
+  };
+
   const fetchSubscriptions = useCallback(async () => {
     const { data } = await supabase
       .from('smart_sort_subscriptions')
@@ -200,6 +222,21 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId, focu
       .order('created_at', { ascending: false })
       .limit(20);
     setSubscriptions((data as Subscription[]) || []);
+    const today = new Date().toISOString().slice(0, 10);
+    const [pickupsRes, invoicesRes] = await Promise.all([
+      supabase
+        .from('smart_sort_pickups')
+        .select('subscription_id, scheduled_date, time_slot, status')
+        .gte('scheduled_date', today)
+        .in('status', ['scheduled', 'assigned'])
+        .order('scheduled_date', { ascending: true }),
+      supabase
+        .from('smart_sort_invoices')
+        .select('id, subscription_id, invoice_number, amount_sle, amount_paid_sle, status')
+        .in('status', ['pending', 'partial', 'overdue']),
+    ]);
+    setSubPickups(pickupsRes.data || []);
+    setSubInvoices(invoicesRes.data || []);
   }, []);
 
   useEffect(() => {
@@ -446,6 +483,12 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId, focu
                     subscription={sub as any}
                     onUpdated={fetchSubscriptions}
                     onNavigate={onNavigate}
+                    nextPickup={subPickups.find((pickup) => pickup.subscription_id === sub.id) || null}
+                    balanceSle={subInvoices
+                      .filter((invoice) => invoice.subscription_id === sub.id)
+                      .reduce((sum, invoice) => sum + Math.max(0, Number(invoice.amount_sle) - Number(invoice.amount_paid_sle)), 0)}
+                    paying={payingSubId === sub.id}
+                    onPay={() => { void paySubscription(sub.id); }}
                   />
                 </div>
               ))}

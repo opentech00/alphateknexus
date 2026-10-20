@@ -58,7 +58,15 @@ function fmtMoney(n: number | null) {
   return `SLE ${n.toLocaleString()}`;
 }
 
-export function SmartSortSubscriptionsTab() {
+interface AttentionItem {
+  id: string;
+  title: string;
+  detail: string;
+  action: string;
+  onOpen: () => void;
+}
+
+export function SmartSortSubscriptionsTab({ onOpenBilling }: { onOpenBilling?: () => void } = {}) {
   const [subs, setSubs] = useState<Sub[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -80,6 +88,7 @@ export function SmartSortSubscriptionsTab() {
   const [editLandmark, setEditLandmark] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [pauseUntil, setPauseUntil] = useState('');
+  const [attention, setAttention] = useState<AttentionItem[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -96,7 +105,64 @@ export function SmartSortSubscriptionsTab() {
     }
     const plansRes = await supabase.from('smart_sort_plans').select('id, name, price_sle, bin_size_liters, frequency').eq('is_active', true).order('sort_order');
     if (plansRes.data) setPlans(plansRes.data as typeof plans);
+    await loadAttention((data as Sub[]) || []);
     setLoading(false);
+  };
+
+  const loadAttention = async (roster: Sub[]) => {
+    const today = new Date();
+    const todayIso = today.toISOString().slice(0, 10);
+    const soon = new Date(today.getTime() + 3 * 86400000).toISOString().slice(0, 10);
+    const week = new Date(today.getTime() + 7 * 86400000).toISOString().slice(0, 10);
+    const [invoiceRes, pickupRes] = await Promise.all([
+      supabase
+        .from('smart_sort_invoices')
+        .select('id, subscription_id, invoice_number, status, amount_sle, amount_paid_sle, due_date, auto_pay_attempted_at')
+        .in('status', ['pending', 'partial', 'overdue'])
+        .limit(200),
+      supabase
+        .from('smart_sort_pickups')
+        .select('subscription_id, scheduled_date, status')
+        .gte('scheduled_date', todayIso)
+        .lte('scheduled_date', week)
+        .in('status', ['scheduled', 'assigned', 'in_progress']),
+    ]);
+    const covered = new Set((pickupRes.data || []).map((row) => row.subscription_id));
+    const items: AttentionItem[] = [];
+    for (const invoice of invoiceRes.data || []) {
+      const failedPay = !!invoice.auto_pay_attempted_at && invoice.status !== 'overdue';
+      if (invoice.status !== 'overdue' && !failedPay) continue;
+      const owner = roster.find((sub) => sub.id === invoice.subscription_id);
+      const name = owner?.profiles?.full_name || owner?.contact_phone || 'Client';
+      items.push({
+        id: `invoice-${invoice.id}`,
+        title: failedPay ? `${invoice.invoice_number} auto-pay failed` : `${invoice.invoice_number} overdue`,
+        detail: `${name} · SLE ${Math.max(0, Number(invoice.amount_sle) - Number(invoice.amount_paid_sle)).toLocaleString()} · due ${invoice.due_date}`,
+        action: 'Open billing',
+        onOpen: () => onOpenBilling?.(),
+      });
+    }
+    for (const sub of roster) {
+      if (sub.status === 'paused' && (!sub.paused_until || sub.paused_until <= soon)) {
+        items.push({
+          id: `pause-${sub.id}`,
+          title: sub.paused_until && sub.paused_until < todayIso ? 'Pause has ended' : 'Pause ending soon',
+          detail: `${sub.profiles?.full_name || sub.contact_phone} · ${sub.paused_until ? `until ${sub.paused_until}` : 'no resume date'}`,
+          action: 'Open subscription',
+          onOpen: () => openDetail(sub),
+        });
+      }
+      if (sub.status === 'active' && !covered.has(sub.id)) {
+        items.push({
+          id: `pickup-${sub.id}`,
+          title: 'No pickup in the next 7 days',
+          detail: `${sub.profiles?.full_name || sub.contact_phone} · ${sub.address}`,
+          action: 'Open subscription',
+          onOpen: () => openDetail(sub),
+        });
+      }
+    }
+    setAttention(items.slice(0, 12));
   };
 
   useEffect(() => { load(); }, []);
@@ -287,6 +353,29 @@ export function SmartSortSubscriptionsTab() {
           </div>
         ))}
       </div>
+
+      {attention.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900">Needs attention</p>
+          <div className="mt-3 space-y-2">
+            {attention.map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-900">{item.title}</p>
+                  <p className="truncate text-xs text-slate-500">{item.detail}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={item.onOpen}
+                  className="flex-shrink-0 text-xs font-semibold text-emerald-700"
+                >
+                  {item.action}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Secondary stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

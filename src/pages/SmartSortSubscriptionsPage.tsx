@@ -149,7 +149,14 @@ type Tab = 'upcoming' | 'plan' | 'billing';
 
 export function SmartSortSubscriptionsPage({ onNavigate }: SmartSortSubscriptionsPageProps) {
   const { wallet_enabled } = useFeatureFlags();
-  const [tab, setTab] = useState<Tab>('upcoming');
+  const [tab, setTab] = useState<Tab>(() => {
+    try {
+      const stored = sessionStorage.getItem('alphatek.smartSortTab');
+      sessionStorage.removeItem('alphatek.smartSortTab');
+      if (stored === 'billing' || stored === 'upcoming' || stored === 'plan') return stored;
+    } catch { /* ignore */ }
+    return 'upcoming';
+  });
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [pickups, setPickups] = useState<Pickup[]>([]);
   const [invoices, setInvoices] = useState<ClientInvoice[]>([]);
