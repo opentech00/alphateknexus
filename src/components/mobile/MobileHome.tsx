@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Search, ChevronRight,
   ArrowRight, RefreshCw, UserCircle, ChevronDown, MapPin, Calendar,
+  Wallet, FileText, Inbox, Clock, Building2, Check, X,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -18,8 +19,16 @@ import { CampaignPromoBanner } from '../CampaignPromoBanner';
 import { DueInvoicesBanner } from '../portal/DueInvoicesBanner';
 import { useServiceCatalog } from '../../hooks/useServiceCatalog';
 import { CATALOG_ICONS } from '../../lib/catalogIcons';
-import type { CatalogItem } from '../../lib/serviceCatalog';
+import { CATALOG_CATEGORIES, type CatalogItem } from '../../lib/serviceCatalog';
 import { JobProgress } from '../client/JobProgress';
+
+const WORKSPACE_KEY = 'alphatek.homeWorkspace';
+
+function companyFromDetails(details: Record<string, unknown> | null | undefined): string | null {
+  if (!details) return null;
+  const raw = details.company_name ?? details.company;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
+}
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -36,6 +45,7 @@ interface HomeBooking {
   scheduled_time: string | null;
   location: string | null;
   created_at: string;
+  details: Record<string, unknown> | null;
   services: { name: string; icon: string; slug: string };
 }
 
@@ -71,41 +81,43 @@ function ServiceGridCard({
   const Icon = CATALOG_ICONS[item.meta.icon];
 
   return (
-    <div
-      className={`bg-white dark:bg-slate-800 dark:border-slate-700 rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-300 active:scale-[0.98] hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600 ${wide ? 'col-span-2' : ''}`}
-      style={{ animation: `fadeInUp 0.4s ease-out ${index * 0.08}s both` }}
+    <button
+      type="button"
+      onClick={() => {
+        vibrate('light');
+        onViewDetails(item.service);
+      }}
+      className={`group bg-white dark:bg-slate-800 dark:border-slate-700 rounded-3xl border border-slate-100 shadow-sm overflow-hidden text-left transition-all duration-300 active:scale-[0.98] hover:-translate-y-0.5 hover:shadow-lg hover:border-slate-200 dark:hover:border-slate-600 motion-safe:animate-[fadeInUp_0.45s_ease-out_both] no-select ${wide ? 'col-span-2 flex' : ''}`}
+      style={{ animationDelay: `${index * 60}ms` }}
     >
-      <div className="relative h-24 overflow-hidden">
+      <div className={`relative overflow-hidden bg-gradient-to-br ${colors.gradient} ${wide ? 'w-[42%] min-h-[8.5rem] flex-shrink-0' : 'h-32'}`}>
         <img
           src={item.image}
-          alt={item.meta.label}
-          className="absolute inset-0 w-full h-full object-cover media-photo"
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover media-photo transition-transform duration-500 group-active:scale-105"
           loading="lazy"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />
-        <div className={`absolute left-3 bottom-3 w-9 h-9 rounded-xl bg-white/95 shadow-sm ring-1 ${colors.ring} flex items-center justify-center ${colors.text}`}>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+        <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm">
+          <Clock className="w-3 h-3" />
+          {item.meta.responseTime}
+        </span>
+        <div className={`absolute left-2.5 bottom-2.5 w-9 h-9 rounded-xl bg-white/95 shadow-sm ring-1 ${colors.ring} flex items-center justify-center ${colors.text}`}>
           <Icon className="w-5 h-5" />
         </div>
       </div>
-
-      <button
-        onClick={() => {
-          vibrate('light');
-          onViewDetails(item.service);
-        }}
-        className="w-full text-left p-3.5 no-select"
-      >
-        <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100 leading-tight">{item.meta.label}</h3>
-        <p className={`mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400 ${wide ? 'line-clamp-1' : 'line-clamp-2 min-h-8'}`}>{item.meta.blurb}</p>
-        <div className="mt-2.5 flex items-center justify-between">
-          <p className={`text-[13px] font-bold ${colors.price}`}>{item.priceLabel}</p>
-          <span className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 inline-flex items-center justify-center">
+      <div className={`p-3.5 ${wide ? 'flex flex-1 flex-col justify-center' : ''}`}>
+        <h3 className={`text-[15px] font-bold text-slate-900 dark:text-slate-100 leading-tight line-clamp-2 ${wide ? '' : 'min-h-10'}`}>{item.meta.label}</h3>
+        <p className="mt-1 text-[12px] leading-4 text-slate-500 dark:text-slate-400 line-clamp-2 min-h-8">{item.meta.blurb}</p>
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <p className={`text-[13px] font-bold ${colors.price} truncate`}>{item.priceLabel}</p>
+          <span className={`w-8 h-8 rounded-full ${colors.bg} inline-flex items-center justify-center flex-shrink-0 transition-transform group-active:translate-x-0.5`}>
             <ArrowRight className={`w-4 h-4 ${colors.text}`} />
           </span>
         </div>
-      </button>
-    </div>
+      </div>
+    </button>
   );
 }
 
@@ -125,8 +137,8 @@ function BookingMiniCard({
   return (
     <button
       onClick={() => onOpenBooking(booking.id)}
-      className="flex-shrink-0 w-56 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-2xl border border-slate-100 shadow-sm p-3.5 text-left active:scale-[0.98] hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600 transition-all no-select"
-      style={{ animation: `fadeInUp 0.4s ease-out ${0.3 + index * 0.08}s both` }}
+      className="w-full bg-white dark:bg-slate-800 dark:border-slate-700 rounded-2xl border border-slate-100 shadow-sm p-3.5 text-left active:scale-[0.99] hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600 transition-all motion-safe:animate-[fadeInUp_0.4s_ease-out_both] no-select"
+      style={{ animationDelay: `${index * 50}ms` }}
     >
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0">
@@ -155,13 +167,19 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
   const { vibrate } = useHaptics();
   const [bookings, setBookings] = useState<HomeBooking[]>([]);
   const [search, setSearch] = useState('');
+  const [category, setCategory] = useState<(typeof CATALOG_CATEGORIES)[number]>('All');
   const [detailService, setDetailService] = useState<Service | null>(null);
   const [showFloatHeader, setShowFloatHeader] = useState(false);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(() => {
+    try { return localStorage.getItem(WORKSPACE_KEY); } catch { return null; }
+  });
 
   const fetchBookings = useCallback(async () => {
     const { data } = await supabase
       .from('bookings')
-      .select('id, status, scheduled_date, scheduled_time, location, created_at, services(name, icon, slug)')
+      .select('id, status, scheduled_date, scheduled_time, location, created_at, details, services(name, icon, slug)')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(10);
     setBookings((data as unknown as HomeBooking[]) || []);
@@ -195,12 +213,15 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
   const firstName = profile?.full_name?.split(' ')[0] || 'there';
   const initials = (profile?.full_name || profile?.email || 'U').trim().charAt(0).toUpperCase();
 
-  const filtered = catalog.filter((item) =>
-    search === ''
-    || item.meta.label.toLowerCase().includes(search.toLowerCase())
-    || item.meta.shortLabel.toLowerCase().includes(search.toLowerCase())
-    || item.service.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = catalog.filter((item) => {
+    const matchesCategory = category === 'All' || item.meta.category === category;
+    const q = search.trim().toLowerCase();
+    const matchesSearch = q === ''
+      || item.meta.label.toLowerCase().includes(q)
+      || item.meta.shortLabel.toLowerCase().includes(q)
+      || item.service.name.toLowerCase().includes(q);
+    return matchesCategory && matchesSearch;
+  });
 
   const handleSelect = (svc: Service, mode: ServiceMode) => {
     onSelectService(svc, mode);
@@ -210,8 +231,32 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
     setDetailService(svc);
   };
 
-  const activeBookings = bookings.filter(b => ['pending', 'confirmed', 'in_progress'].includes(b.status));
-  const recentBookings = bookings.slice(0, 5);
+  const personalName = profile?.full_name?.trim() || 'Personal';
+  const companyNames = Array.from(new Set(
+    bookings.map((b) => companyFromDetails(b.details)).filter((name): name is string => !!name),
+  ));
+  const workspaces = [
+    { id: 'personal', name: personalName },
+    ...companyNames.map((name) => ({ id: name, name })),
+  ];
+  const activeWorkspace = workspaces.find((w) => w.id === workspaceId)
+    || workspaces.find((w) => w.id !== 'personal')
+    || workspaces[0];
+  const workspaceBookings = bookings.filter((b) => {
+    if (companyNames.length === 0 || activeWorkspace.id === 'personal') {
+      return companyNames.length === 0 || !companyFromDetails(b.details);
+    }
+    return companyFromDetails(b.details) === activeWorkspace.name;
+  });
+  const activeBookings = workspaceBookings.filter(b => ['pending', 'confirmed', 'in_progress'].includes(b.status));
+  const recentBookings = workspaceBookings.slice(0, 5);
+
+  const chooseWorkspace = (id: string) => {
+    setWorkspaceId(id);
+    try { localStorage.setItem(WORKSPACE_KEY, id); } catch { /* ignore */ }
+    setWorkspaceOpen(false);
+    vibrate('selection');
+  };
 
   const pullIndicatorHeight = refreshing ? 40 : pulling ? Math.round(progress * 40) : 0;
 
@@ -231,11 +276,9 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <BrandLogo src={logoUrl} alt="Alphatek Nexus" className="h-7 w-auto flex-shrink-0" />
-            <p className="text-sm font-bold text-[#173362] dark:text-slate-100 truncate">Hello, {firstName}</p>
+            <p className="text-sm font-bold text-white truncate">{activeWorkspace.name}</p>
           </div>
-          <div className="flex items-center gap-1.5">
-            <NotificationsPanel />
-          </div>
+          <NotificationsPanel dark />
         </div>
       </div>
       </div>
@@ -251,63 +294,93 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
         />
       </div>
 
-      <div className="home-safe-header pb-3" style={{ animation: 'fadeInUp 0.4s ease-out both' }}>
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <BrandLogo src={logoUrl} alt="Alphatek Nexus" className="h-9 w-auto flex-shrink-0" />
-            <div className="min-w-0">
-              <p className="text-lg leading-5 font-bold text-[#173362] tracking-tight truncate">
-                Alphatek <span className="text-emerald-500">Nexus</span>
-              </p>
-              <p className="text-[11px] text-slate-500 truncate">Smart Solutions. A Safer Tomorrow.</p>
-            </div>
+      <div className="home-safe-header bg-[#071426] pb-3 text-white motion-safe:animate-[fadeInUp_0.4s_ease-out_both]">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <BrandLogo src={logoUrl} alt="Alphatek Nexus" className="home-brand-logo h-8 w-auto flex-shrink-0" />
+            <p className="min-w-0 text-[15px] leading-5 font-bold tracking-tight truncate">AlphaTek Nexus</p>
+            <span className="flex-shrink-0 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
+              Multi-Tenant
+            </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <NotificationsPanel />
+          <div className="flex items-center">
+            <NotificationsPanel dark />
             <button
               onClick={() => onNavigate('account')}
-              className="h-9 pl-1 pr-0.5 rounded-full border border-slate-200 bg-white inline-flex items-center gap-1 shadow-sm active:scale-95 transition-transform"
+              className="h-8 w-8 rounded-full border border-white/15 bg-white/10 inline-flex items-center justify-center active:scale-95 transition-transform"
               aria-label="Open profile"
             >
               {profile?.avatar_url ? (
                 <img src={profile.avatar_url} alt="Profile" className="w-7 h-7 rounded-full object-cover" />
               ) : (
-                <span className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold inline-flex items-center justify-center">
+                <span className="w-7 h-7 rounded-full bg-white/10 text-white text-xs font-semibold inline-flex items-center justify-center">
                   {initials || <UserCircle className="w-4 h-4" />}
                 </span>
               )}
-              <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
             </button>
           </div>
         </div>
-        <h1 className="text-4xl leading-tight font-bold text-[#173362] dark:text-slate-100 tracking-tight">
-          Hello, {firstName} <span className="align-middle text-2xl">👋</span>
-        </h1>
-        <p className="text-base text-slate-500 dark:text-slate-400 mt-1">What service do you need today?</p>
+        <button
+          type="button"
+          onClick={() => { vibrate('light'); setWorkspaceOpen(true); }}
+          className="mt-2 flex w-full items-center gap-2 rounded-xl px-1 py-1.5 text-left active:bg-white/5"
+          aria-haspopup="dialog"
+          aria-expanded={workspaceOpen}
+        >
+          <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/10">
+            <Building2 className="h-3.5 w-3.5 text-slate-200" />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">{activeWorkspace.name}</span>
+          <ChevronDown className="h-4 w-4 flex-shrink-0 text-slate-300" />
+        </button>
       </div>
 
-      <div className="px-5">
+      <div className="px-4 sm:px-5 space-y-4">
         <DueInvoicesBanner onOpen={() => onNavigate('billing')} />
-      </div>
-      <div className="px-5 mb-4 grid grid-cols-3 gap-2">
-        {([
-          ['payments', 'Payments'],
-          ['quotes', 'Quotes'],
-          ['support', 'Inbox'],
-        ] as const).map(([id, label]) => (
+
+        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#173362] via-[#1d4f94] to-emerald-600 p-5 text-white shadow-lg shadow-blue-900/20 motion-safe:animate-[fadeInUp_0.45s_ease-out_both]">
+          <div className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-white/10" />
+          <div className="pointer-events-none absolute -left-8 bottom-0 h-24 w-24 rounded-full bg-emerald-300/20" />
+          <h1 className="text-[1.65rem] leading-tight font-bold tracking-tight">
+            Hello, {firstName}
+          </h1>
+          <p className="mt-2 text-sm font-semibold leading-5 text-white">
+            Smart Solutions. A Safer Tomorrow.
+          </p>
+          <p className="mt-1 max-w-[18rem] text-sm leading-5 text-white/80">
+            Security, cleaning, logistics, and waste — one team, booked in minutes.
+          </p>
           <button
-            key={id}
             type="button"
-            onClick={() => onNavigate(id)}
-            className="min-h-[44px] rounded-2xl bg-white border border-slate-200 text-sm font-semibold text-slate-800 shadow-sm active:scale-[0.98] transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            onClick={() => { vibrate('light'); onNavigate('services'); }}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-[#173362] shadow-sm active:scale-[0.98] transition-transform"
           >
-            {label}
+            Browse services <ArrowRight className="w-4 h-4" />
           </button>
-        ))}
+        </section>
+
+        <div className="grid grid-cols-3 gap-2.5 motion-safe:animate-[fadeInUp_0.45s_ease-out_0.05s_both]">
+          {([
+            ['payments', 'Payments', Wallet, 'bg-emerald-50 text-emerald-700'],
+            ['quotes', 'Quotes', FileText, 'bg-blue-50 text-blue-700'],
+            ['support', 'Inbox', Inbox, 'bg-amber-50 text-amber-700'],
+          ] as const).map(([id, label, Icon, tone]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => { vibrate('light'); onNavigate(id); }}
+              className="min-h-[76px] rounded-2xl bg-white border border-slate-200/80 px-2 py-3 text-center shadow-sm active:scale-[0.98] transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            >
+              <span className={`mx-auto mb-1.5 flex h-9 w-9 items-center justify-center rounded-xl ${tone}`}>
+                <Icon className="w-4 h-4" />
+              </span>
+              <span className="block text-[13px] font-semibold text-slate-800">{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Search */}
-      <div className="px-5 mb-4" style={{ animation: 'fadeInUp 0.4s ease-out 0.08s both' }}>
+      <div className="px-4 sm:px-5 mt-4 mb-3 motion-safe:animate-[fadeInUp_0.4s_ease-out_0.1s_both]">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
@@ -315,17 +388,37 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
             inputMode="search"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search for a service..."
-            className="w-full pl-11 pr-4 py-3.5 bg-white/95 dark:bg-slate-800 dark:border-slate-700 border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm no-tap-highlight transition-all dark:text-slate-100 dark:placeholder-slate-500"
+            placeholder="Search cleaning, security, logistics..."
+            className="w-full pl-11 pr-4 py-3.5 bg-white/95 dark:bg-slate-800 dark:border-slate-700 border border-slate-200 rounded-2xl text-base sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm no-tap-highlight transition-all dark:text-slate-100 dark:placeholder-slate-500"
           />
         </div>
       </div>
 
       {search === '' && (
-        <div className="mx-5 mb-5 space-y-4" style={{ animation: 'fadeInUp 0.5s ease-out 0.15s both' }}>
+        <div className="mb-4 flex gap-2 overflow-x-auto px-4 sm:px-5 pb-1" style={{ scrollbarWidth: 'none' }}>
+          {CATALOG_CATEGORIES.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => { vibrate('selection'); setCategory(name); }}
+              className={`flex-shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${
+                category === name
+                  ? 'bg-[#173362] text-white shadow-sm'
+                  : 'bg-white text-slate-600 border border-slate-200'
+              }`}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {search === '' && category === 'All' && (
+        <div className="px-4 sm:px-5 mb-5 space-y-4 motion-safe:animate-[fadeInUp_0.5s_ease-out_both]">
           <CampaignPromoBanner onNavigate={onNavigate} onSelectService={onSelectService} />
           <ExploreServicesCarousel
             slides={exploreSlides}
+            animatedBackdrop
             onViewAll={() => onNavigate('services')}
             onSelect={(slug) => {
               const svc = services.find(s => s.slug === slug);
@@ -337,11 +430,11 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
       )}
 
       {/* Services Grid */}
-      <div className="px-5 pb-4" style={{ animation: 'fadeInUp 0.5s ease-out 0.2s both' }}>
+      <div className="px-4 sm:px-5 pb-4">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-2xl font-bold text-[#173362] dark:text-slate-100">Our Services</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Choose a service and get it done, fast!</p>
+            <h2 className="text-xl font-bold text-[#173362] dark:text-slate-100">Our Services</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{filtered.length} ready to book</p>
           </div>
           <button
             onClick={() => onNavigate('services')}
@@ -357,6 +450,13 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
               <ServiceCardSkeleton key={i} />
             ))}
           </div>
+        ) : filtered.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center">
+            <p className="text-sm font-semibold text-slate-800">No services in this filter</p>
+            <button type="button" onClick={() => { setCategory('All'); setSearch(''); }} className="mt-2 text-sm font-semibold text-emerald-700">
+              Show all services
+            </button>
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {filtered.map((item, idx) => (
@@ -364,7 +464,7 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
                   key={item.service.id}
                   item={item}
                   index={idx}
-                  wide={item.service.slug === 'procurement'}
+                  wide={idx === filtered.length - 1 && filtered.length % 2 === 1}
                   onViewDetails={handleViewDetails}
                 />
             ))}
@@ -373,15 +473,15 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
       </div>
 
       {/* Previous bookings section */}
-      <div className="px-5 pb-5" style={{ animation: 'fadeInUp 0.5s ease-out 0.3s both' }}>
+      <div className="px-4 sm:px-5 pb-5">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-base font-bold text-[#173362] dark:text-slate-100">Previous Bookings</h2>
+            <h2 className="text-xl font-bold text-[#173362] dark:text-slate-100">Your bookings</h2>
             {activeBookings.length > 0 && (
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{activeBookings.length} active request{activeBookings.length !== 1 ? 's' : ''}</p>
             )}
           </div>
-          {bookings.length > 0 && (
+          {workspaceBookings.length > 0 && (
             <button
               onClick={() => onNavigate('bookings')}
               className="text-sm text-blue-600 dark:text-blue-400 font-medium flex items-center gap-0.5 active:scale-95 transition-transform no-select"
@@ -412,8 +512,19 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
               Browse Services <ArrowRight className="w-3 h-3" />
             </span>
           </button>
+        ) : recentBookings.length === 0 ? (
+          <div className="w-full bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 p-6 text-center">
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">No bookings in this workspace</p>
+            <button
+              type="button"
+              onClick={() => setWorkspaceOpen(true)}
+              className="mt-2 text-xs font-semibold text-blue-600"
+            >
+              Switch workspace
+            </button>
+          </div>
         ) : (
-          <div className="flex gap-3 overflow-x-auto mobile-scroll pb-2 -mx-5 px-5" style={{ scrollbarWidth: 'none' }}>
+          <div className="space-y-2.5">
             {recentBookings.map((booking, idx) => (
               <BookingMiniCard
                 key={booking.id}
@@ -425,6 +536,55 @@ export function MobileHome({ onNavigate, onSelectService, onOpenBooking }: Props
           </div>
         )}
       </div>
+
+      {workspaceOpen && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60"
+            aria-label="Close workspace switcher"
+            onClick={() => setWorkspaceOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-labelledby="workspace-switch-title"
+            className="relative z-10 m-3 w-full max-w-md rounded-2xl border border-white/10 bg-[#0c1b33] p-4 text-white shadow-2xl"
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 id="workspace-switch-title" className="text-base font-semibold">Switch Business Workspace</h2>
+              <button
+                type="button"
+                onClick={() => setWorkspaceOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-slate-200"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-2">
+              {workspaces.map((workspace) => {
+                const selected = workspace.id === activeWorkspace.id;
+                return (
+                  <button
+                    key={workspace.id}
+                    type="button"
+                    onClick={() => chooseWorkspace(workspace.id)}
+                    className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left ${
+                      selected ? 'border-blue-500 bg-blue-600/25' : 'border-white/10 bg-white/5'
+                    }`}
+                  >
+                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/10">
+                      <Building2 className="h-4 w-4 text-slate-200" />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{workspace.name}</span>
+                    {selected && <Check className="h-4 w-4 flex-shrink-0 text-blue-300" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Service Detail Modal */}
       {detailService && (

@@ -32,6 +32,7 @@ const ACTIVITY_ICONS: Record<string, LucideIcon> = {
   leave: Calendar,
   'hr-files': FileText,
   'admin-finance': Landmark,
+  'division-workspace': GitBranch,
   finance: Landmark,
   wallet: Wallet,
   receipts: Receipt,
@@ -45,7 +46,7 @@ const TYPE_META: Record<string, { label: string; color: string; bg: string }> = 
 };
 
 export function ActivitiesPage({ onNavigate }: { onNavigate: (key: string) => void }) {
-  const { employee, hasCapability, isAdminFinanceOps } = useAuth();
+  const { employee, hasCapability, isAdminFinanceOps, isDivisionHead } = useAuth();
   const [activities, setActivities] = useState<RoleActivity[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -87,6 +88,19 @@ export function ActivitiesPage({ onNavigate }: { onNavigate: (key: string) => vo
         }
       }
 
+      if (isDivisionHead && internal) {
+        if (!deduped.has('division-workspace')) {
+          deduped.set('division-workspace', {
+            id: 'af-division',
+            activity_key: 'division-workspace',
+            activity_label: 'Division workspace',
+            activity_description: 'Ledgers, team, approvals, and tasks for Admin & Finance',
+            activity_type: 'page',
+            display_order: -35,
+          });
+        }
+      }
+
       if (isAdminFinanceOps || canManageAdminFinanceWorkspace(employee)) {
         const financeActs: RoleActivity[] = [
           { id: 'af-workspace', activity_key: 'admin-finance', activity_label: 'Admin & Finance', activity_description: 'Department workspace for all financial activities', activity_type: 'page', display_order: -40 },
@@ -104,7 +118,7 @@ export function ActivitiesPage({ onNavigate }: { onNavigate: (key: string) => vo
       );
       setLoading(false);
     })();
-  }, [employee, hasCapability, isAdminFinanceOps]);
+  }, [employee, hasCapability, isAdminFinanceOps, isDivisionHead]);
 
   if (loading) {
     return (

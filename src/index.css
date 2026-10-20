@@ -468,7 +468,7 @@ html.system:not(.light):not(.dark):not(.black) {
   padding-bottom: 0.5rem;
   padding-left: max(1rem, var(--sal));
   padding-right: max(1rem, var(--sar));
-  background: rgba(245, 248, 255, 0.96);
+  background: #071426;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
@@ -500,6 +500,21 @@ html.is-native body {
 
 .shell-safe-header {
   padding-top: calc(var(--sat) + 0.625rem);
+}
+html.is-native .home-safe-header {
+  padding-top: calc(var(--sat) + 0.15rem);
+  padding-bottom: 0.75rem;
+}
+html.is-native .home-brand-logo {
+  height: 1.75rem;
+}
+html.is-native .shell-safe-header {
+  padding-top: calc(var(--sat) + 0.1rem);
+  padding-bottom: 0.15rem;
+}
+html.is-native .home-float-header {
+  padding-top: calc(var(--sat) + 0.1rem);
+  padding-bottom: 0.3rem;
 }
 
 /* ── Mobile Nav Bar Safe Bottom Padding (Universal cross-device/browser) ── */

@@ -73,13 +73,14 @@ npm run lint         # ESLint
 npm run build        # typecheck + production bundle
 ```
 
-## Android Build (Optional)
+## Android and Google Play
 
-To build the Android APK:
+The Android app is the Capacitor shell around this web build. Package id: `com.alphateknexus.app`. The launcher opens the client portal. Employee, field, and admin pages are in the same bundle.
 
 1. **Install prerequisites:**
    - **Java JDK 17** — download from https://adoptium.net/
    - **Android Studio** — download from https://developer.android.com/studio
+   - **Android SDK 36** — install it from Android Studio's SDK Manager. Play requires target API 36.
 
 2. **Set environment variables:**
    - macOS/Linux:
@@ -93,20 +94,33 @@ To build the Android APK:
      $env:ANDROID_HOME="$env:LOCALAPPDATA\Android\Sdk"
      ```
 
-3. **Build and sync:**
+3. **Put production client env in `.env` before any Android build.** Vite bakes these into the app:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_MAPBOX_ACCESS_TOKEN`
+
+   Never put `SUPABASE_SERVICE_ROLE_KEY` in `.env` or any `VITE_*` variable.
+
+4. **Debug on a device or emulator:**
    ```bash
    npm run cap:sync
-   ```
-
-4. **Open in Android Studio:**
-   ```bash
    npm run cap:open
-   ```
-
-5. **Or run directly on a connected device/emulator:**
-   ```bash
    npm run cap:run
    ```
+
+5. **Create the Play upload key once** (keep the file outside git):
+   ```powershell
+   keytool -genkeypair -v -keystore alphatek-upload.keystore -alias alphatek -keyalg RSA -keysize 2048 -validity 10000
+   ```
+   Copy `android/keystore.properties.example` to `android/keystore.properties` and fill in the store path, alias, and passwords. `android/keystore.properties` and `*.keystore` are gitignored.
+
+6. **Build the Play App Bundle.** Raise `versionCode` in `android/app/build.gradle` before every upload. `versionName` is the version users see.
+   ```bash
+   npm run cap:bundle
+   ```
+   The signed bundle is `android/app/build/outputs/bundle/release/app-release.aab` when `keystore.properties` is present.
+
+7. **Play Console:** create the app as `com.alphateknexus.app`, turn on Play App Signing, and upload the AAB to internal testing before production. You need a public privacy policy URL. In Data safety, declare accounts, location (field jobs and cash collection), and notifications. Push stays off until `android/app/google-services.json` for this package id is added. `FCM_SERVICE_ACCOUNT_JSON` stays a Supabase Edge Function secret, not a value in the app.
 
 ## Tech Stack
 

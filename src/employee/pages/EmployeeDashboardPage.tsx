@@ -33,6 +33,7 @@ import {
   isInternalDepartmentSlug,
 } from '../../lib/capabilities';
 import { AdminFinanceEmployeePages } from './AdminFinanceEmployeePages';
+import { AdminFinanceDivisionWorkspace } from './AdminFinanceDivisionWorkspace';
 import {
   destinationForActivityKey,
   destinationForNotification,
@@ -132,8 +133,9 @@ export function EmployeeDashboardPage() {
   const cardStatus = idCard ? STATUS_META[idCard.status] ?? STATUS_META.active : null;
   const isInternalDept = isInternalDepartmentSlug(employee.services?.slug);
   const canFinance = isAdminFinanceOps || canManageAdminFinanceWorkspace(employee);
+  const showFinanceDivisionWorkspace = isDivisionHead && isInternalDept;
   const showDivisionWorkspace =
-    (isDivisionHead || hasCapability('div.manage_staff_access')) && !(isInternalDept && canFinance);
+    (isDivisionHead || hasCapability('div.manage_staff_access')) && !isInternalDept;
 
   const workItems: NavItem[] = [
     { key: 'my-day', label: 'My Day', icon: Sun },
@@ -141,7 +143,7 @@ export function EmployeeDashboardPage() {
     ...(canFinance
       ? [{ key: 'admin-finance' as EmployeePage, label: 'Admin & Finance', icon: Landmark }]
       : []),
-    ...(showDivisionWorkspace
+    ...(showFinanceDivisionWorkspace || showDivisionWorkspace
       ? [{ key: 'division-workspace' as EmployeePage, label: 'Division workspace', icon: Shield }]
       : []),
     { key: 'activities', label: 'More work', icon: ClipboardList },
@@ -286,8 +288,12 @@ export function EmployeeDashboardPage() {
           {page === 'leave' && <LeaveAttendancePage />}
           {page === 'hr-files' && <HrFilesPage />}
           {page === 'division-workspace' && (
-            isInternalDept && canFinance
-              ? <AdminFinanceEmployeePages page="admin-finance" onNavigate={(p) => { if (isEmployeePage(p)) handleNavigate(p); }} />
+            showFinanceDivisionWorkspace
+              ? (
+                <AdminFinanceDivisionWorkspace
+                  onNavigate={(p) => { if (isEmployeePage(p)) handleNavigate(p); }}
+                />
+              )
               : <DivisionWorkspacePage />
           )}
           {canFinance && isAdminFinanceWorkspacePage(page) && (

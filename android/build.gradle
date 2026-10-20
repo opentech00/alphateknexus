@@ -26,7 +26,7 @@ allprojects {
     // Force a consistent AGP version across all subprojects (including Capacitor's own library)
     configurations.configureEach {
         resolutionStrategy {
-            force 'com.android.tools.build:gradle:8.7.3'
+            force 'com.android.tools.build:gradle:8.13.0'
         }
     }
 }

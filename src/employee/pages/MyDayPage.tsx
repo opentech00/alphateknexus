@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import {
   AlertCircle, ArrowRight, Banknote, CalendarDays, CheckCircle2, ClipboardList,
-  Clock, Inbox, Landmark, Loader2, LogIn, LogOut, Sun, Sunset, Moon,
+  Clock, Inbox, Landmark, Loader2, LogIn, LogOut, Shield, Sun, Sunset, Moon,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/EmployeeAuthContext';
@@ -68,7 +68,7 @@ function todayLong() {
 }
 
 export function MyDayPage({ onNavigate }: { onNavigate: (target: NavTarget) => void }) {
-  const { employee, user, hasCapability, isAdminFinanceOps } = useAuth();
+  const { employee, user, hasCapability, isAdminFinanceOps, isDivisionHead } = useAuth();
   const { notifications, unreadCount } = useEmployeeNotifications();
   const liveId = useId();
   const canCash = hasCapability('div.cash_collections');
@@ -354,6 +354,20 @@ export function MyDayPage({ onNavigate }: { onNavigate: (target: NavTarget) => v
               >
                 <p className="text-sm font-semibold text-slate-900">Manage all financial activities</p>
                 <p className="text-xs text-slate-500 mt-0.5">Finance module, service ledgers, wallet, and receipts</p>
+              </FocusCard>
+            )}
+
+            {isDivisionHead && isInternal && (
+              <FocusCard
+                delay={330}
+                icon={Shield}
+                title="Division workspace"
+                empty="Ledgers, team, approvals, and tasks for Admin & Finance."
+                actionLabel="Open division"
+                onAction={() => onNavigate({ page: 'division-workspace' })}
+              >
+                <p className="text-sm font-semibold text-slate-900">Admin & Finance division</p>
+                <p className="text-xs text-slate-500 mt-0.5">Department ledgers, roster, approvals, and tasks</p>
               </FocusCard>
             )}
 

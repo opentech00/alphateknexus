@@ -65,6 +65,7 @@ interface Props {
   onNavigate: (page: string) => void;
   onRebook?: (booking: Booking) => void;
   initialExpandId?: string | null;
+  focusBookingId?: string | null;
 }
 
 const statusConfig: Record<string, { label: string; badge: string; dot: string }> = {
@@ -138,7 +139,7 @@ function mobileBookingPrice(booking: Booking) {
   return { amount: moneySLE(total), caption: 'Total', pending: false };
 }
 
-export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Props) {
+export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId, focusBookingId }: Props) {
   const { wallet_enabled } = useFeatureFlags();
   const { vibrate } = useHaptics();
   const { images: serviceImages } = useServiceBrandingImages();
@@ -146,7 +147,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('all');
   const [search, setSearch] = useState('');
-  const [expandedBooking, setExpandedBooking] = useState<string | null>(initialExpandId ?? null);
+  const [expandedBooking, setExpandedBooking] = useState<string | null>(focusBookingId ?? initialExpandId ?? null);
   const [activeSubTab, setActiveSubTab] = useState<'tracker' | 'messages' | 'documents'>('tracker');
   const [reviewModal, setReviewModal] = useState<{ bookingId: string; serviceId: string; serviceName: string } | null>(null);
   const [reviewedBookings, setReviewedBookings] = useState<Set<string>>(new Set());
@@ -208,7 +209,16 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
     fetchSubscriptions();
   }, [fetchBookings, fetchReviews, fetchWallet, fetchSubscriptions, wallet_enabled]);
 
+  useEffect(() => {
+    if (!focusBookingId) return;
+    setExpandedBooking(focusBookingId);
+    setActiveSubTab('tracker');
+    setTab('all');
+    setSearch('');
+  }, [focusBookingId]);
+
   const filteredBookings = bookings.filter((b) => {
+    if (focusBookingId) return b.id === focusBookingId;
     if (tab === 'active' && !ACTIVE_STATUSES.includes(b.status)) return false;
     if (tab === 'completed' && b.status !== 'completed') return false;
     if (tab === 'subscriptions') return false;
@@ -277,7 +287,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
     return (
       <div className="flex flex-col min-h-full">
         <div className="px-4 pt-4 pb-2">
-          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">My Bookings</h1>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{focusBookingId ? 'Booking' : 'My Bookings'}</h1>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Loading...</p>
         </div>
         <div className="px-4 pb-6 space-y-3">
@@ -318,6 +328,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
         />
       </div>
 
+      {!focusBookingId && (
       <div className="px-4 pt-3 pb-2 motion-safe:animate-[fadeInUp_0.35s_ease]">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight min-w-0 truncate">
@@ -335,7 +346,9 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
           Track, pay, and manage your services
         </p>
       </div>
+      )}
 
+      {!focusBookingId && (
       <div className="px-4 pb-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -349,8 +362,9 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
           />
         </div>
       </div>
+      )}
 
-      {wallet_enabled && (
+      {!focusBookingId && wallet_enabled && (
         <div className="px-4 pb-2">
           <div className="flex items-center gap-2.5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-3.5 py-2.5 shadow-sm">
             <div className="w-7 h-7 bg-slate-900 dark:bg-slate-700 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -371,6 +385,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
         </div>
       )}
 
+      {!focusBookingId && (
       <div className="sticky top-0 z-20 bg-[#f5f8ff]/95 dark:bg-slate-950/95 backdrop-blur px-4 pb-3 pt-1">
         <div className="flex gap-2 overflow-x-auto mobile-scroll" style={{ scrollbarWidth: 'none' }}>
           {tabs.map((t) => (
@@ -394,8 +409,9 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
           ))}
         </div>
       </div>
+      )}
 
-      {tab === 'subscriptions' && (
+      {!focusBookingId && tab === 'subscriptions' && (
         <div className="flex items-center justify-between gap-2 px-4 pb-2">
           <p className="text-xs text-slate-500 dark:text-slate-400 min-w-0">Recurring pickups</p>
           <button
@@ -408,7 +424,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
         </div>
       )}
 
-      <div className="flex-1 px-4 pb-6">
+      <div className={`flex-1 px-4 pb-6 ${focusBookingId ? 'pt-3' : ''}`}>
         {tab === 'subscriptions' ? (
           filteredSubs.length === 0 ? (
             <EmptyState
@@ -438,9 +454,9 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
         ) : filteredBookings.length === 0 ? (
           <EmptyState
             icon={<AlertCircle className="w-6 h-6 text-slate-400" />}
-            title={search ? 'No results found' : tab === 'all' ? 'No bookings yet' : `No ${tab} bookings`}
-            subtitle={search ? 'Try a different search term.' : tab === 'all' ? 'Browse our services and place your first booking to get started.' : 'Try switching to a different tab to see more results.'}
-            actionLabel={tab === 'all' && !search ? 'Browse Services' : undefined}
+            title={focusBookingId ? 'Booking not found' : search ? 'No results found' : tab === 'all' ? 'No bookings yet' : `No ${tab} bookings`}
+            subtitle={focusBookingId ? 'This booking is no longer on your account.' : search ? 'Try a different search term.' : tab === 'all' ? 'Browse our services and place your first booking to get started.' : 'Try switching to a different tab to see more results.'}
+            actionLabel={!focusBookingId && tab === 'all' && !search ? 'Browse Services' : undefined}
             onAction={() => onNavigate('services')}
           />
         ) : (
@@ -449,7 +465,7 @@ export function MobileBookingsPage({ onNavigate, onRebook, initialExpandId }: Pr
               const sc = statusConfig[booking.status] || statusConfig.pending;
               const isCompleted = booking.status === 'completed';
               const hasReview = reviewedBookings.has(booking.id);
-              const isExpanded = expandedBooking === booking.id;
+              const isExpanded = focusBookingId === booking.id || expandedBooking === booking.id;
               const serviceImage = serviceImages[booking.services?.slug] || fallbackServiceImage(booking.services?.slug || 'smart-sort');
               const canRebook = isCompleted || booking.status === 'cancelled';
               const canCancel = !isCompleted && booking.status !== 'cancelled';

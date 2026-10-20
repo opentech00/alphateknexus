@@ -59,7 +59,7 @@ export function MobileShell({ page = 'home', onNavigate, onSelectService, onRebo
   const { vibrate } = useHaptics();
   const [mobilePage, setMobilePage] = useState<MobilePage>(() => shellTabForPage(page));
   const [pageKey, setPageKey] = useState(0);
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [openedBookingId, setOpenedBookingId] = useState<string | null>(null);
   const skipPageSync = useRef(true);
 
   useEffect(() => {
@@ -67,6 +67,7 @@ export function MobileShell({ page = 'home', onNavigate, onSelectService, onRebo
       skipPageSync.current = false;
       return;
     }
+    setOpenedBookingId(null);
     setMobilePage(shellTabForPage(page));
     setPageKey((k) => k + 1);
   }, [page]);
@@ -97,16 +98,20 @@ export function MobileShell({ page = 'home', onNavigate, onSelectService, onRebo
 
   const handleSetPage = (p: MobilePage) => {
     vibrate('selection');
+    setOpenedBookingId(null);
     setMobilePage(p);
     setPageKey(k => k + 1);
   };
 
   const handleOpenBooking = (bookingId: string) => {
-    setSelectedBookingId(bookingId);
-    handleSetPage('bookings');
+    vibrate('selection');
+    setOpenedBookingId(bookingId);
+    setMobilePage('bookings');
+    setPageKey(k => k + 1);
   };
 
-  const isSubPage = mobilePage === 'services';
+  const focusingBooking = mobilePage === 'bookings' && !!openedBookingId;
+  const isSubPage = mobilePage === 'services' || focusingBooking;
   const showTopBar = mobilePage !== 'home';
   const profileInitial = (profile?.full_name || profile?.email || 'U').trim().charAt(0).toUpperCase();
 
@@ -118,30 +123,30 @@ export function MobileShell({ page = 'home', onNavigate, onSelectService, onRebo
     >
       {/* Top Bar — fixed height, safe-area top padding */}
       {showTopBar && (
-      <header className="flex-shrink-0 z-30 bg-white/95 dark:bg-slate-900/95 black:bg-black backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-sm no-select">
-        <div className="relative flex items-center justify-between px-4 pb-2.5 shell-safe-header">
+      <header className="native-topbar flex-shrink-0 z-30 bg-white/95 dark:bg-slate-900/95 black:bg-black backdrop-blur-md border-b border-slate-100 dark:border-slate-800 no-select">
+        <div className="relative flex items-center justify-between px-3 pb-1.5 shell-safe-header min-h-0">
           {/* Left: back button or logo */}
           {isSubPage ? (
             <button
               onClick={() => handleSetPage('home')}
-              className="flex items-center gap-1 text-sm font-semibold text-blue-600 dark:text-blue-400 active:scale-95 transition-transform no-select"
+              className="flex items-center justify-center w-9 h-9 -ml-1 rounded-full text-slate-800 dark:text-slate-100 active:bg-slate-100 dark:active:bg-slate-800 transition-colors no-select"
+              aria-label="Back"
             >
-              <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />
-              Back
+              <ChevronLeft className="w-6 h-6" strokeWidth={2.4} />
             </button>
           ) : (
             <button onClick={() => handleSetPage('home')} className="active:scale-95 transition-transform no-select">
               <BrandLogo
                 src={logoUrl}
                 alt="Alphatek Nexus"
-                className="h-7 w-auto"
+                className="h-6 w-auto"
               />
             </button>
           )}
 
           {/* Center: page title */}
-          <h1 className="absolute left-1/2 -translate-x-1/2 text-[15px] font-bold text-slate-900 dark:text-slate-100 pointer-events-none truncate max-w-[50%]">
-            {PAGE_TITLE[mobilePage]}
+          <h1 className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold text-slate-900 dark:text-slate-100 pointer-events-none truncate max-w-[46%]">
+            {focusingBooking ? 'Booking' : PAGE_TITLE[mobilePage]}
           </h1>
 
           {/* Right: notifications only */}
@@ -149,7 +154,7 @@ export function MobileShell({ page = 'home', onNavigate, onSelectService, onRebo
             <NotificationsPanel />
             <button
               onClick={() => handleSetPage('profile')}
-              className="h-10 min-w-[2.5rem] pl-1 pr-0.5 rounded-full border border-slate-200 bg-white inline-flex items-center gap-0.5 shadow-sm active:scale-95 transition-transform"
+              className="h-8 w-8 rounded-full border border-slate-200 bg-white inline-flex items-center justify-center active:scale-95 transition-transform"
               aria-label="Open profile"
             >
               {profile?.avatar_url ? (
@@ -191,7 +196,7 @@ export function MobileShell({ page = 'home', onNavigate, onSelectService, onRebo
                 else onNavigate(page);
               }}
               onRebook={onRebook}
-              initialExpandId={selectedBookingId}
+              focusBookingId={openedBookingId}
             />
           )}
 
@@ -232,8 +237,8 @@ export function MobileShell({ page = 'home', onNavigate, onSelectService, onRebo
       </main>
 
       {/* Bottom Navigation — pinned in the flex column, padded above the system inset */}
-      <nav className="flex-shrink-0 z-40 bg-white/95 dark:bg-slate-900 black:bg-black border-t border-slate-200 dark:border-slate-700 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] no-select w-full mobile-nav-pb backdrop-blur">
-        <div className="flex items-stretch justify-around min-h-14 px-1 max-w-lg mx-auto w-full">
+      <nav className="native-tabbar flex-shrink-0 z-40 bg-white/95 dark:bg-slate-900 black:bg-black border-t border-slate-200/80 dark:border-slate-700 no-select w-full mobile-nav-pb backdrop-blur" aria-label="App">
+        <div className="flex items-end justify-around px-2 pt-1 max-w-lg mx-auto w-full">
           {ALL_NAV_ITEMS.map(item => {
             const Icon = item.icon;
             const active = mobilePage === item.id;
@@ -241,20 +246,19 @@ export function MobileShell({ page = 'home', onNavigate, onSelectService, onRebo
               <button
                 key={item.id}
                 onClick={() => handleSetPage(item.id)}
-                className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 min-w-0 px-1 min-h-[44px] rounded-2xl transition-all duration-200 active:scale-95 no-select ${
-                  active
-                    ? 'bg-[#eaf2ff] dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold'
-                    : 'text-[#475569] dark:text-[#e2e8f0]'
+                aria-current={active ? 'page' : undefined}
+                className={`flex flex-1 flex-col items-center justify-end gap-1 min-w-0 min-h-[48px] pb-1 transition-transform duration-200 active:scale-95 no-select ${
+                  active ? 'text-[#173362] dark:text-blue-300' : 'text-slate-500 dark:text-slate-400'
                 }`}
               >
-                <Icon
-                  className="w-6 h-6 shrink-0 overflow-visible"
-                  strokeWidth={active ? 2.5 : 2}
-                />
-                <span className={`text-[11px] leading-none truncate w-full text-center ${active ? 'font-bold' : 'font-medium'}`}>
+                <span className={`inline-flex items-center justify-center h-8 min-w-14 px-4 rounded-full transition-colors duration-200 ${
+                  active ? 'bg-[#173362] text-white dark:bg-blue-500' : 'bg-transparent'
+                }`}>
+                  <Icon className="w-5 h-5" strokeWidth={active ? 2.4 : 2} />
+                </span>
+                <span className={`text-[10px] leading-none ${active ? 'font-semibold' : 'font-medium'}`}>
                   {item.label}
                 </span>
-                <span className={`w-1 h-1 rounded-full ${active ? 'bg-blue-600 dark:bg-blue-400' : 'bg-transparent'}`} />
               </button>
             );
           })}

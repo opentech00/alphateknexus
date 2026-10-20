@@ -32,6 +32,32 @@ export const GRANTABLE_CAPABILITIES: CapabilityKey[] = [
   'field.incidents',
 ];
 
+/** Permissions a Finance & Admin head may grant, matched to department roles. */
+export const ADMIN_FINANCE_ACCESS_KEYS = [
+  'div.view',
+  'div.manage_documents',
+  'div.reports',
+  'div.delegate_tasks',
+  'field.jobs',
+  'field.attendance',
+  'field.incidents',
+] as const;
+
+export type AdminFinanceAccessKey = (typeof ADMIN_FINANCE_ACCESS_KEYS)[number];
+
+export const ADMIN_FINANCE_ACCESS_META: Record<
+  AdminFinanceAccessKey,
+  { label: string; desc: string; group: 'employee' | 'field' }
+> = {
+  'div.view': { label: 'View department', desc: 'Open the Admin & Finance division workspace', group: 'employee' },
+  'div.manage_documents': { label: 'Documents', desc: 'Upload and manage department documents', group: 'employee' },
+  'div.reports': { label: 'Reports', desc: 'View department reports', group: 'employee' },
+  'div.delegate_tasks': { label: 'Delegate tasks', desc: 'Assign work to teammates in Admin & Finance', group: 'employee' },
+  'field.jobs': { label: 'Field jobs', desc: 'Accept and complete field assignments', group: 'field' },
+  'field.attendance': { label: 'Field attendance', desc: 'Clock in and out on site', group: 'field' },
+  'field.incidents': { label: 'Field incidents', desc: 'Report field incidents', group: 'field' },
+};
+
 export const CAPABILITY_META: Record<CapabilityKey, { label: string; desc: string; group: 'division' | 'field' | 'admin' }> = {
   'div.view': { label: 'View division', desc: 'See bookings and pipeline for this division', group: 'division' },
   'div.manage_bookings': { label: 'Manage bookings', desc: 'Update status and assign jobs', group: 'division' },

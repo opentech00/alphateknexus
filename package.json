@@ -16,7 +16,8 @@
     "preview": "vite preview",
     "cap:sync": "npm run build && npx cap sync android && node scripts/fix-gradle-versions.mjs",
     "cap:open": "npx cap open android",
-    "cap:run": "npm run build && npx cap sync android && node scripts/fix-gradle-versions.mjs && npx cap run android"
+    "cap:run": "npm run build && npx cap sync android && node scripts/fix-gradle-versions.mjs && npx cap run android",
+    "cap:bundle": "npm run cap:sync && node scripts/bundle-android.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",

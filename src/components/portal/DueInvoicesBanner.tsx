@@ -31,7 +31,7 @@ export function DueInvoicesBanner({ onOpen }: { onOpen: () => void }) {
   if (count === 0) return null;
 
   return (
-    <div className="mx-4 sm:mx-0 mb-4 motion-safe:animate-[fadeInUp_0.35s_ease]">
+    <div className="mb-1 motion-safe:animate-[fadeInUp_0.35s_ease]">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
         <Receipt className="w-5 h-5 text-amber-700 flex-shrink-0" aria-hidden="true" />
         <p className="flex-1 text-sm text-amber-950">
